@@ -6,7 +6,7 @@ const { parseFrontmatter } = require('../server.js');
 
 const PROFILES_DIR = path.join(__dirname, '..', 'profiles');
 const DEEPSEEK_PROFILES = [
-  'local-code-assist-deepseek-7b.md',
+  'local-code-assist-deepseek-6.7b.md',
   'local-heavy-refactor-deepseek-16b.md',
   'local-reasoning-deepseek-r1-8b.md',
   'local-reasoning-deepseek-r1-32b.md',

@@ -1,6 +1,6 @@
 ---
-id: local-code-assist-deepseek-7b
-name: Local Code Assist (DeepSeek 7B)
+id: local-code-assist-deepseek-6.7b
+name: Local Code Assist (DeepSeek Coder 6.7B)
 frontend: ollama
 command: ollama
 backend: ollama
@@ -12,7 +12,7 @@ status: unknown
 description: Coding assistance with DeepSeek Coder 6.7B via Ollama. Fast and capable for most coding tasks.
 ---
 
-# Local Code Assist (DeepSeek 7B)
+# Local Code Assist (DeepSeek Coder 6.7B)
 
 Coding assistance with DeepSeek Coder 6.7B.
 
