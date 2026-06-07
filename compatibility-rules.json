@@ -1,5 +1,5 @@
 {
-  "version": "1.1",
+  "version": "1.2",
   "rules": {
     "hermes": {
       "minimum_context": 64000,
@@ -37,5 +37,107 @@
       "match": "qwen",
       "reason": "Known local Hermes 64K attempts capped at 32768 on this machine unless runtime/model changed."
     }
-  ]
+  ],
+  "modelCapabilities": {
+    "gemma:4b": {
+      "max_tier": "light",
+      "context": 8192,
+      "warnings": ["heavy-refactor", "architecture"],
+      "description": "Small local model. Good for audit, docs, and quick scans."
+    },
+    "deepseek-coder:6.7b": {
+      "max_tier": "standard",
+      "context": 16384,
+      "warnings": ["heavy-refactor"],
+      "description": "Mid-size coding model. Suitable for most coding tasks."
+    },
+    "deepseek-coder-v2:16b": {
+      "max_tier": "advanced",
+      "context": 65536,
+      "warnings": [],
+      "description": "Large coding model. Handles complex refactor and deep context."
+    },
+    "deepseek-r1:8b": {
+      "max_tier": "standard",
+      "context": 32768,
+      "warnings": ["heavy-refactor"],
+      "description": "Reasoning model. Good for step-by-step analysis."
+    },
+    "deepseek-r1:32b": {
+      "max_tier": "advanced",
+      "context": 65536,
+      "warnings": [],
+      "description": "Large reasoning model. Best local choice for complex tasks."
+    },
+    "llama3.1:8b": {
+      "max_tier": "standard",
+      "context": 8192,
+      "warnings": ["heavy-refactor"],
+      "description": "Balanced local model."
+    },
+    "claude-sonnet-4": {
+      "max_tier": "unlimited",
+      "context": 200000,
+      "warnings": [],
+      "description": "Cloud model. No local capability restrictions."
+    }
+  },
+  "ceCompatibility": {
+    "ce-strategy": {
+      "frontends": ["claude", "codex"],
+      "min_context": 8192,
+      "description": "Create or maintain STRATEGY.md"
+    },
+    "ce-ideate": {
+      "frontends": ["claude", "codex"],
+      "min_context": 8192,
+      "description": "Big-picture ideation"
+    },
+    "ce-brainstorm": {
+      "frontends": ["claude", "codex"],
+      "min_context": 8192,
+      "description": "Requirements exploration"
+    },
+    "ce-plan": {
+      "frontends": ["claude", "codex"],
+      "min_context": 16384,
+      "description": "Implementation planning"
+    },
+    "ce-work": {
+      "frontends": ["claude", "codex"],
+      "min_context": 16384,
+      "description": "Plan execution"
+    },
+    "ce-code-review": {
+      "frontends": ["claude", "codex"],
+      "min_context": 32768,
+      "description": "Multi-agent code review"
+    },
+    "ce-compound": {
+      "frontends": ["claude", "codex"],
+      "min_context": 8192,
+      "description": "Document learnings"
+    },
+    "ce-debug": {
+      "frontends": ["claude", "codex"],
+      "min_context": 16384,
+      "description": "Systematic debugging"
+    },
+    "ce-product-pulse": {
+      "frontends": ["claude", "codex"],
+      "min_context": 8192,
+      "description": "Usage/performance reporting"
+    }
+  },
+  "taskTiers": {
+    "safe-audit": "light",
+    "documentation": "light",
+    "patch-test": "standard",
+    "code-review": "standard",
+    "bug-hunt": "standard",
+    "performance": "standard",
+    "security-audit": "advanced",
+    "architecture": "advanced",
+    "heavy-refactor": "advanced"
+  }
 }
