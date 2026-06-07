@@ -31,7 +31,7 @@ describe('compatibility-rules', () => {
       id: 'local-heavy-refactor-gemma4b',
       meta: { model: 'gemma:4b', frontend: 'ollama', task_mode: 'heavy-refactor' }
     };
-    const audit = auditProfile(profile, null);
+    const audit = auditProfile(profile);
     assert.ok(audit.warnings.some(w => w.includes("'light' tier") && w.includes("'advanced' tier")));
   });
 
@@ -40,7 +40,7 @@ describe('compatibility-rules', () => {
       id: 'local-heavy-refactor-gemma4b',
       meta: { model: 'gemma:4b', frontend: 'ollama', task_mode: 'heavy-refactor' }
     };
-    const audit = auditProfile(profile, null);
+    const audit = auditProfile(profile);
     assert.ok(audit.suggestions.length > 0 || audit.warnings.length > 0);
   });
 });

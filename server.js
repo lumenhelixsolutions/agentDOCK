@@ -588,7 +588,6 @@ const TASK_TYPES = ['architecture', 'bug-hunt', 'code-review', 'documentation', 
 function detectTaskMode(profile) {
   const id = String(profile.id || '').toLowerCase();
   const tm = String(profile.meta.task_mode || '').toLowerCase();
-  const TASK_TYPES = ['architecture', 'bug-hunt', 'code-review', 'documentation', 'performance', 'security-audit', 'safe-audit', 'heavy-refactor', 'patch-test'];
   for (const t of TASK_TYPES) {
     if (tm.includes(t.replace('-', '')) || id.includes(t)) return t;
   }
@@ -598,14 +597,15 @@ function detectTaskMode(profile) {
   return 'general';
 }
 
-function auditProfile(profile, scan) {
+function auditProfile(profile, allProfiles) {
   const rules = loadCompatibilityRules();
   const warnings = [];
   const errors = [];
   const suggestions = [];
 
-  const model = profile.meta.model;
-  const frontend = String(profile.meta.frontend || '').toLowerCase();
+  const meta = profile.meta || {};
+  const model = meta.model;
+  const frontend = String(meta.frontend || '').toLowerCase();
   const taskMode = detectTaskMode(profile);
 
   // Model capability check
@@ -617,8 +617,8 @@ function auditProfile(profile, scan) {
       if (tierOrder[cap.max_tier] < tierOrder[taskTier]) {
         warnings.push(`Model ${model} is rated '${cap.max_tier}' tier. Task '${taskMode}' requires '${taskTier}' tier.`);
         // Find alternative profiles
-        const allProfiles = listProfiles();
-        const alts = allProfiles.filter(p => {
+        const profiles = allProfiles || listProfiles();
+        const alts = profiles.filter(p => {
           if (p.id === profile.id) return false;
           const pModel = p.meta.model;
           const pTask = detectTaskMode(p);
@@ -634,8 +634,8 @@ function auditProfile(profile, scan) {
   }
 
   // CE compatibility check
-  if (profile.meta.ce_version) {
-    const ceSkill = String(profile.meta.task_mode || '').toLowerCase();
+  if (meta.ce_version) {
+    const ceSkill = String(meta.task_mode || '').toLowerCase();
     if (rules.ceCompatibility[ceSkill]) {
       const ce = rules.ceCompatibility[ceSkill];
       if (!ce.frontends.includes(frontend)) {
@@ -1180,7 +1180,8 @@ async function route(req, res) {
       if (blocked && !body.overrideReason && !body.dryRun) return send(res, 200, { blocked: true, message: `Profile is blocked by memory: ${blocked.title}`, evidence: blocked.raw.slice(0, 1200) });
 
       // Run audit
-      const audit = auditProfile(p, lastScan);
+      const allProfiles = listProfiles();
+      const audit = auditProfile(p, allProfiles);
       if (audit.errors.length > 0 && !body.overrideReason && !body.dryRun) {
         return send(res, 200, { auditBlocked: true, errors: audit.errors, profile: p.id });
       }
