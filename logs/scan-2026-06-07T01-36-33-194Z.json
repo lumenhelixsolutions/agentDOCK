@@ -1,0 +1,564 @@
+{
+  "env": {
+    "MISTRAL_API_KEY": {
+      "present": false,
+      "value": null
+    },
+    "OLLAMA_KV_CACHE_TYPE": {
+      "present": false,
+      "value": null
+    },
+    "OLLAMA_FLASH_ATTENTION": {
+      "present": false,
+      "value": null
+    },
+    "OPENAI_API_KEY": {
+      "present": true,
+      "value": "[present-redacted]"
+    },
+    "ANTHROPIC_API_KEY": {
+      "present": false,
+      "value": null
+    },
+    "OLLAMA_MAX_LOADED_MODELS": {
+      "present": false,
+      "value": null
+    },
+    "GROQ_API_KEY": {
+      "present": false,
+      "value": null
+    },
+    "OLLAMA_CONTEXT_LENGTH": {
+      "present": true,
+      "value": "65536"
+    },
+    "OLLAMA_NUM_PARALLEL": {
+      "present": false,
+      "value": null
+    },
+    "DEEPSEEK_API_KEY": {
+      "present": false,
+      "value": null
+    },
+    "OPENROUTER_API_KEY": {
+      "present": false,
+      "value": null
+    },
+    "GOOGLE_API_KEY": {
+      "present": false,
+      "value": null
+    },
+    "HF_TOKEN": {
+      "present": false,
+      "value": null
+    },
+    "GEMINI_API_KEY": {
+      "present": true,
+      "value": "[present-redacted]"
+    },
+    "MOONSHOT_API_KEY": {
+      "present": true,
+      "value": "[present-redacted]"
+    }
+  },
+  "coders": [
+    {
+      "command": "hermes",
+      "name": "Hermes Agent",
+      "id": "hermes",
+      "detection": {
+        "path": "C:\\Users\\cgp22\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\hermes.exe",
+        "version": "Hermes Agent v0.15.1 (2026.5.29)\r\nProject: C:\\Users\\cgp22\\AppData\\Local\\hermes\\hermes-agent\r\nPython: 3.11.14\r\nOpenAI SDK: 2.24.0\r\nUpdate available: 444 commits behind — run 'hermes update'",
+        "present": true
+      }
+    },
+    {
+      "command": "opencode",
+      "name": "OpenCode",
+      "id": "opencode",
+      "detection": {
+        "path": null,
+        "version": null,
+        "present": false
+      }
+    },
+    {
+      "command": "codex",
+      "name": "OpenAI Codex CLI",
+      "id": "codex",
+      "detection": {
+        "path": "C:\\Users\\cgp22\\AppData\\Roaming\\npm\\codex.ps1",
+        "version": "codex-cli 0.135.0",
+        "present": true
+      }
+    },
+    {
+      "command": "kimi",
+      "name": "Kimi Code CLI",
+      "id": "kimi",
+      "detection": {
+        "path": null,
+        "version": null,
+        "present": false
+      }
+    },
+    {
+      "command": "claude",
+      "name": "Claude Code",
+      "id": "claude-code",
+      "detection": {
+        "path": "C:\\Users\\cgp22\\.local\\bin\\claude.exe",
+        "version": "2.1.161 (Claude Code)",
+        "present": true
+      }
+    },
+    {
+      "command": "aider",
+      "name": "Aider",
+      "id": "aider",
+      "detection": {
+        "path": "C:\\Python312\\Scripts\\aider.exe",
+        "version": "aider 0.86.2",
+        "present": true
+      }
+    },
+    {
+      "command": "gemini",
+      "name": "Gemini CLI",
+      "id": "gemini-cli",
+      "detection": {
+        "path": "C:\\Users\\cgp22\\AppData\\Roaming\\npm\\gemini.ps1",
+        "version": "0.44.1",
+        "present": true
+      }
+    },
+    {
+      "command": "goose",
+      "name": "Goose",
+      "id": "goose",
+      "detection": {
+        "path": null,
+        "version": null,
+        "present": false
+      }
+    },
+    {
+      "command": null,
+      "name": "continue.continue-1.2.22-win32-x64",
+      "id": "continue",
+      "detection": {
+        "path": "C:\\Users\\cgp22\\.vscode\\extensions\\continue.continue-1.2.22-win32-x64",
+        "source": "vscode-extension",
+        "version": null,
+        "present": true
+      }
+    }
+  ],
+  "npm_globals": {
+    "raw": "{\r\n  \"name\": \"npm\",\r\n  \"dependencies\": {\r\n    \"@google/gemini-cli\": {\r\n      \"version\": \"0.44.1\",\r\n      \"overridden\": false\r\n    },\r\n    \"@openai/codex\": {\r\n      \"version\": \"0.135.0\",\r\n      \"overridden\": false\r\n    },\r\n    \"npm\": {\r\n      \"version\": \"11.13.0\",\r\n      \"overridden\": false\r\n    },\r\n    \"openclaw\": {\r\n      \"version\": \"2026.3.13\",\r\n      \"overridden\": false\r\n    },\r\n    \"pnpm\": {\r\n      \"version\": \"10.33.0\",\r\n      \"overridden\": false\r\n    },\r\n    \"yarn\": {\r\n      \"version\": \"1.22.22\",\r\n      \"overridden\": false\r\n    }\r\n  }\r\n}\r\n",
+    "packages": [
+      {
+        "version": "0.44.1",
+        "name": "@google/gemini-cli"
+      },
+      {
+        "version": "0.135.0",
+        "name": "@openai/codex"
+      }
+    ],
+    "present": true
+  },
+  "ollama": {
+    "loaded_models": {},
+    "ps_raw": "NAME    ID    SIZE    PROCESSOR    CONTEXT    UNTIL \r\n",
+    "list_raw": "NAME                        ID              SIZE      MODIFIED    \r\nqwen2.5-coder:7b            dae161e27b0e    4.7 GB    6 days ago     \r\ndeepseek-coder-v2:latest    63fb193b3a9b    8.9 GB    4 weeks ago    \r\nqwen2.5-coder:14b           9ec8897f747e    9.0 GB    5 weeks ago    \r\ngemma4:latest               c6eb396dbd59    9.6 GB    6 weeks ago    \r\n"
+  },
+  "tools": {
+    "git": {
+      "path": "C:\\Program Files\\Git\\mingw64\\bin\\git.exe",
+      "version": "git version 2.54.0.windows.1",
+      "present": true
+    },
+    "code": {
+      "path": "C:\\Program Files\\Microsoft VS Code\\bin\\code.cmd",
+      "version": null,
+      "present": true
+    },
+    "codex": {
+      "path": "C:\\Users\\cgp22\\AppData\\Roaming\\npm\\codex.ps1",
+      "version": "codex-cli 0.135.0",
+      "present": true
+    },
+    "gemini": {
+      "path": "C:\\Users\\cgp22\\AppData\\Roaming\\npm\\gemini.ps1",
+      "version": "0.44.1",
+      "present": true
+    },
+    "hermes": {
+      "path": "C:\\Users\\cgp22\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\hermes.exe",
+      "version": "Hermes Agent v0.15.1 (2026.5.29)\r\nProject: C:\\Users\\cgp22\\AppData\\Local\\hermes\\hermes-agent\r\nPython: 3.11.14\r\nOpenAI SDK: 2.24.0\r\nUpdate available: 444 commits behind — run 'hermes update'",
+      "present": true
+    },
+    "node": {
+      "path": "C:\\Program Files\\nodejs\\node.exe",
+      "version": "v24.13.0",
+      "present": true
+    },
+    "windsurf": {
+      "path": null,
+      "version": null,
+      "present": false
+    },
+    "opencode": {
+      "path": null,
+      "version": null,
+      "present": false
+    },
+    "cursor": {
+      "path": null,
+      "version": null,
+      "present": false
+    },
+    "kimi": {
+      "path": null,
+      "version": null,
+      "present": false
+    },
+    "docker": {
+      "path": null,
+      "version": null,
+      "present": false
+    },
+    "python": {
+      "path": "C:\\Python312\\python.exe",
+      "version": "Python 3.12.8",
+      "present": true
+    },
+    "aider": {
+      "path": "C:\\Python312\\Scripts\\aider.exe",
+      "version": "aider 0.86.2",
+      "present": true
+    },
+    "goose": {
+      "path": null,
+      "version": null,
+      "present": false
+    },
+    "ollama": {
+      "path": "C:\\Users\\cgp22\\AppData\\Local\\Programs\\Ollama\\ollama.exe",
+      "version": "ollama version is 0.30.6",
+      "present": true
+    },
+    "npm": {
+      "path": "C:\\Program Files\\nodejs\\npm.ps1",
+      "version": "11.13.0",
+      "present": true
+    },
+    "claude": {
+      "path": "C:\\Users\\cgp22\\.local\\bin\\claude.exe",
+      "version": "2.1.161 (Claude Code)",
+      "present": true
+    }
+  },
+  "system": {
+    "powershell": "5.1.26100.8544",
+    "timestamp": "2026-06-06T21:36:23.3568681-04:00",
+    "user": "cgp22",
+    "os": "Microsoft Windows NT 10.0.26220.0",
+    "machine": "DANU"
+  },
+  "repo": {
+    "git": {
+      "branch": "main",
+      "clean": true,
+      "status_short": "",
+      "present": true
+    },
+    "path": "D:/projects/ecc",
+    "package_json": true,
+    "scripts": {
+      "postinstall": "echo '\\n  ecc-universal installed!\\n  Run: npx ecc typescript\\n  Compat: npx ecc-install typescript\\n  Docs: https://github.com/affaan-m/ECC\\n'",
+      "catalog:check": "node scripts/ci/catalog.js --text",
+      "catalog:sync": "node scripts/ci/catalog.js --write --text",
+      "command-registry:generate": "node scripts/ci/generate-command-registry.js",
+      "command-registry:write": "node scripts/ci/generate-command-registry.js --write",
+      "command-registry:check": "node scripts/ci/generate-command-registry.js --check",
+      "lint": "eslint . && markdownlint '**/*.md' --ignore node_modules",
+      "harness:adapters": "node scripts/harness-adapter-compliance.js",
+      "harness:audit": "node scripts/harness-audit.js",
+      "observability:ready": "node scripts/observability-readiness.js",
+      "operator:dashboard": "node scripts/operator-readiness-dashboard.js",
+      "preview-pack:smoke": "node scripts/preview-pack-smoke.js",
+      "release:approval-gate": "node scripts/release-approval-gate.js",
+      "release:video-suite": "node scripts/release-video-suite.js",
+      "platform:audit": "node scripts/platform-audit.js",
+      "discussion:audit": "node scripts/discussion-audit.js",
+      "security:ioc-scan": "node scripts/ci/scan-supply-chain-iocs.js",
+      "security:advisory-sources": "node scripts/ci/supply-chain-advisory-sources.js",
+      "claw": "node scripts/claw.js",
+      "orchestrate:status": "node scripts/orchestration-status.js",
+      "orchestrate:worker": "bash scripts/orchestrate-codex-worker.sh",
+      "orchestrate:tmux": "node scripts/orchestrate-worktrees.js",
+      "test": "node scripts/ci/check-unicode-safety.js && node scripts/ci/validate-agents.js && node scripts/ci/validate-commands.js && node scripts/ci/validate-rules.js && node scripts/ci/validate-skills.js && node scripts/ci/validate-hooks.js && node scripts/ci/validate-install-manifests.js && node scripts/ci/validate-no-personal-paths.js && npm run catalog:check && npm run command-registry:check && node tests/run-all.js",
+      "coverage": "c8 --all --include=\"scripts/**/*.js\" --check-coverage --lines 80 --functions 80 --branches 80 --statements 80 --reporter=text --reporter=lcov node tests/run-all.js",
+      "build:opencode": "node scripts/build-opencode.js",
+      "prepack": "npm run build:opencode",
+      "dashboard": "python3 ./ecc_dashboard.py"
+    },
+    "exists": true
+  },
+  "env_files": [
+    {
+      "size_bytes": 2519,
+      "model_config_keys": [],
+      "path": "D:\\projects\\ecc\\.env.example",
+      "secret_key_names": [
+        "ANTHROPIC_API_KEY",
+        "GITHUB_TOKEN",
+        "ASTRAFLOW_API_KEY",
+        "ASTRAFLOW_CN_API_KEY"
+      ],
+      "key_names": [
+        "ANTHROPIC_API_KEY",
+        "GITHUB_TOKEN",
+        "ASTRAFLOW_API_KEY",
+        "ASTRAFLOW_CN_API_KEY"
+      ],
+      "values_redacted": true,
+      "name": ".env.example",
+      "modified": "2026-06-03T03:13:15.4699835-04:00",
+      "secret_count": 4,
+      "provider_hints": [
+        "anthropic/claude"
+      ]
+    },
+    {
+      "size_bytes": 2720,
+      "model_config_keys": [
+        "DATABASE_URL"
+      ],
+      "path": "C:\\Users\\cgp22\\Documents\\Codex\\2026-04-28\\files-mentioned-by-the-user-lh\\lh-site\\.env.example",
+      "secret_key_names": [
+        "RESEND_API_KEY",
+        "AI_GATEWAY_API_KEY",
+        "BLOB_READ_WRITE_TOKEN",
+        "STRIPE_SECRET_KEY",
+        "STRIPE_WEBHOOK_SECRET",
+        "UPSTASH_REDIS_REST_TOKEN",
+        "SESSION_SECRET"
+      ],
+      "key_names": [
+        "DATABASE_URL",
+        "RESEND_API_KEY",
+        "AI_GATEWAY_API_KEY",
+        "BLOB_READ_WRITE_TOKEN",
+        "STRIPE_SECRET_KEY",
+        "STRIPE_WEBHOOK_SECRET",
+        "UPSTASH_REDIS_REST_TOKEN",
+        "SESSION_SECRET"
+      ],
+      "values_redacted": true,
+      "name": ".env.example",
+      "modified": "2026-04-28T22:59:04.0000000-04:00",
+      "secret_count": 7,
+      "provider_hints": []
+    },
+    {
+      "size_bytes": 5817,
+      "model_config_keys": [
+        "DATABASE_URL",
+        "DATABASE_URL_UNPOOLED",
+        "NEXT_PUBLIC_BASE_URL",
+        "NEXT_PUBLIC_SUPABASE_URL",
+        "SUPABASE_URL"
+      ],
+      "path": "C:\\Users\\cgp22\\Documents\\Codex\\2026-04-28\\files-mentioned-by-the-user-lh\\lh-site\\.env.local",
+      "secret_key_names": [
+        "BLOB_READ_WRITE_TOKEN",
+        "GEMINI_API_KEY",
+        "GOOGLE_GENERATIVE_AI_API_KEY",
+        "KV_REST_API_READ_ONLY_TOKEN",
+        "KV_REST_API_TOKEN",
+        "NEXT_PUBLIC_GEMINI_API_KEY",
+        "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+        "RESEND_API_KEY",
+        "STRIPE_MCP_KEY",
+        "SESSION_SECRET",
+        "INTERNAL_API_KEY",
+        "STRIPE_PUBLISHABLE_KEY",
+        "STRIPE_SECRET_KEY",
+        "SUPABASE_ANON_KEY",
+        "SUPABASE_JWT_SECRET",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "VERCEL_OIDC_TOKEN"
+      ],
+      "key_names": [
+        "BLOB_READ_WRITE_TOKEN",
+        "DATABASE_URL",
+        "DATABASE_URL_UNPOOLED",
+        "GEMINI_API_KEY",
+        "GOOGLE_GENERATIVE_AI_API_KEY",
+        "KV_REST_API_READ_ONLY_TOKEN",
+        "KV_REST_API_TOKEN",
+        "KV_REST_API_URL",
+        "NEXT_PUBLIC_BASE_URL",
+        "NEXT_PUBLIC_GEMINI_API_KEY",
+        "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+        "NEXT_PUBLIC_SUPABASE_URL",
+        "RESEND_API_KEY",
+        "STRIPE_MCP_KEY",
+        "SESSION_SECRET",
+        "INTERNAL_API_KEY",
+        "STRIPE_PUBLISHABLE_KEY",
+        "STRIPE_SECRET_KEY",
+        "SUPABASE_ANON_KEY",
+        "SUPABASE_JWT_SECRET",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "SUPABASE_URL",
+        "VERCEL_OIDC_TOKEN"
+      ],
+      "values_redacted": true,
+      "name": ".env.local",
+      "modified": "2026-04-28T22:47:16.8638915-04:00",
+      "secret_count": 18,
+      "provider_hints": [
+        "google/gemini"
+      ]
+    },
+    {
+      "size_bytes": 6123,
+      "model_config_keys": [
+        "DATABASE_URL",
+        "DATABASE_URL_UNPOOLED",
+        "NEXT_PUBLIC_BASE_URL",
+        "NEXT_PUBLIC_SUPABASE_URL",
+        "SUPABASE_URL"
+      ],
+      "path": "C:\\Users\\cgp22\\Documents\\Codex\\2026-04-28\\files-mentioned-by-the-user-lh\\lh-site\\.env.vercel.local",
+      "secret_key_names": [
+        "BLOB_READ_WRITE_TOKEN",
+        "GEMINI_API_KEY",
+        "GOOGLE_GENERATIVE_AI_API_KEY",
+        "KV_REST_API_READ_ONLY_TOKEN",
+        "KV_REST_API_TOKEN",
+        "NEXT_PUBLIC_GEMINI_API_KEY",
+        "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+        "RESEND_API_KEY",
+        "STRIPE_MCP_KEY",
+        "SESSION_SECRET",
+        "INTERNAL_API_KEY",
+        "STRIPE_PUBLISHABLE_KEY",
+        "STRIPE_SECRET_KEY",
+        "SUPABASE_ANON_KEY",
+        "SUPABASE_JWT_SECRET",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "VERCEL_OIDC_TOKEN"
+      ],
+      "key_names": [
+        "BLOB_READ_WRITE_TOKEN",
+        "DATABASE_URL",
+        "DATABASE_URL_UNPOOLED",
+        "GEMINI_API_KEY",
+        "GOOGLE_GENERATIVE_AI_API_KEY",
+        "KV_REST_API_READ_ONLY_TOKEN",
+        "KV_REST_API_TOKEN",
+        "KV_REST_API_URL",
+        "NEXT_PUBLIC_BASE_URL",
+        "NEXT_PUBLIC_GEMINI_API_KEY",
+        "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+        "NEXT_PUBLIC_SUPABASE_URL",
+        "RESEND_API_KEY",
+        "STRIPE_MCP_KEY",
+        "SESSION_SECRET",
+        "INTERNAL_API_KEY",
+        "STRIPE_PUBLISHABLE_KEY",
+        "STRIPE_SECRET_KEY",
+        "SUPABASE_ANON_KEY",
+        "SUPABASE_JWT_SECRET",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "SUPABASE_URL",
+        "VERCEL_OIDC_TOKEN"
+      ],
+      "values_redacted": true,
+      "name": ".env.vercel.local",
+      "modified": "2026-04-28T19:47:46.0238515-04:00",
+      "secret_count": 18,
+      "provider_hints": [
+        "google/gemini"
+      ]
+    },
+    {
+      "size_bytes": 2519,
+      "model_config_keys": [],
+      "path": "D:\\projects\\ecc\\.env.example",
+      "secret_key_names": [
+        "ANTHROPIC_API_KEY",
+        "GITHUB_TOKEN",
+        "ASTRAFLOW_API_KEY",
+        "ASTRAFLOW_CN_API_KEY"
+      ],
+      "key_names": [
+        "ANTHROPIC_API_KEY",
+        "GITHUB_TOKEN",
+        "ASTRAFLOW_API_KEY",
+        "ASTRAFLOW_CN_API_KEY"
+      ],
+      "values_redacted": true,
+      "name": ".env.example",
+      "modified": "2026-06-03T03:13:15.4699835-04:00",
+      "secret_count": 4,
+      "provider_hints": [
+        "anthropic/claude"
+      ]
+    },
+    {
+      "size_bytes": 112,
+      "model_config_keys": [],
+      "path": "D:\\projects\\racegps\\.env.example",
+      "secret_key_names": [
+        "RACEGPS_SESSION_SECRET"
+      ],
+      "key_names": [
+        "RACEGPS_SESSION_SECRET"
+      ],
+      "values_redacted": true,
+      "name": ".env.example",
+      "modified": "2026-06-04T16:36:46.5518394-04:00",
+      "secret_count": 1,
+      "provider_hints": []
+    }
+  ],
+  "ide_extensions": {
+    "path": "C:\\Users\\cgp22\\.vscode\\extensions\\continue.continue-1.2.22-win32-x64",
+    "family": "continue",
+    "name": "continue.continue-1.2.22-win32-x64"
+  },
+  "hardware": {
+    "gpu": [
+      {
+        "memory_free_mb": 2968,
+        "name": "NVIDIA GeForce RTX 4060",
+        "driver": "610.47",
+        "memory_total_mb": 8188
+      }
+    ],
+    "ram_gb": 31.93,
+    "cpu": "AMD Ryzen 7 5800X3D 8-Core Processor           ",
+    "disk": [
+      {
+        "name": "C:",
+        "size_gb": 930.19,
+        "free_gb": 63.75
+      },
+      {
+        "name": "D:",
+        "size_gb": 3726.01,
+        "free_gb": 3232.12
+      }
+    ]
+  }
+}

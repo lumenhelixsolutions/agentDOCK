@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AgentDock 2.0</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg:#080c18; --panel:rgba(255,255,255,.055); --panel2:rgba(255,255,255,.085);
+      --text:#eaf0ff; --muted:#9fb0d0; --accent:#72e5ff; --good:#6cf2a6; --warn:#ffd36a; --bad:#ff6b7d;
+      --line:rgba(255,255,255,.12); --shadow:0 20px 60px rgba(0,0,0,.35);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+    *{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at 10% 10%,#14224b,transparent 35%),radial-gradient(circle at 85% 0%,#19363f,transparent 32%),var(--bg);color:var(--text)}
+    header{padding:18px 28px 10px;display:flex;justify-content:space-between;gap:18px;align-items:flex-start;flex-wrap:wrap} h1{margin:0;font-size:clamp(26px,3.5vw,42px);letter-spacing:-.04em} h2{margin:0 0 12px;font-size:18px} h3{margin:8px 0;font-size:15px} p{color:var(--muted);line-height:1.45}
+    main{padding:14px 28px 30px;display:grid;grid-template-columns:1.18fr .82fr;gap:18px}
+    .panel{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:22px;padding:18px;box-shadow:var(--shadow);backdrop-filter:blur(14px);margin-bottom:18px}
+    .wide{grid-column:1/-1}
+    .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+    button,select,input,textarea{border:1px solid var(--line);background:rgba(255,255,255,.08);color:var(--text);border-radius:14px;padding:10px 12px;font:inherit}
+    button{cursor:pointer;transition:.16s transform,.16s background} button:hover{transform:translateY(-1px);background:rgba(114,229,255,.14)}
+    button.primary{background:linear-gradient(135deg,rgba(114,229,255,.25),rgba(108,242,166,.15));border-color:rgba(114,229,255,.35)}
+    button.danger{border-color:rgba(255,107,125,.4)} button.smallbtn{padding:6px 9px;border-radius:10px;font-size:12px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+    .card{border:1px solid var(--line);background:rgba(0,0,0,.17);border-radius:18px;padding:14px;min-height:120px}
+    .status{display:inline-flex;border-radius:999px;padding:4px 9px;font-size:12px;font-weight:800;letter-spacing:.04em}
+    .READY,.known-good,.INSTALLED{background:rgba(108,242,166,.16);color:var(--good);border:1px solid rgba(108,242,166,.28)}
+    .DEGRADED,.unknown,.SUGGESTED{background:rgba(255,211,106,.13);color:var(--warn);border:1px solid rgba(255,211,106,.28)}
+    .BLOCKED,.blocked,.MISSING{background:rgba(255,107,125,.13);color:var(--bad);border:1px solid rgba(255,107,125,.28)}
+    .UNKNOWN{background:rgba(255,255,255,.10);color:var(--muted);border:1px solid var(--line)}
+    .pill{display:inline-block;margin:3px 5px 3px 0;padding:4px 8px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:12px}
+    .small{font-size:13px;color:var(--muted)} .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .split{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .terminal{background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:14px;padding:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.5;height:280px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+    .terminal-input{display:flex;gap:8px;margin-top:8px} .terminal-input input{flex:1}
+    .toast{position:fixed;bottom:24px;right:24px;background:linear-gradient(135deg,rgba(114,229,255,.25),rgba(108,242,166,.15));border:1px solid rgba(114,229,255,.35);padding:12px 18px;border-radius:14px;font-weight:700;box-shadow:var(--shadow);display:none;z-index:9999}
+    .kv{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:13px}
+    .kv div:nth-child(odd){color:var(--muted)} .kv div:nth-child(even){color:var(--text)}
+    .envfile{border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px;background:rgba(0,0,0,.12)}
+    .listline{border-bottom:1px solid var(--line);padding:10px 0} .listline:last-child{border-bottom:none}
+    .links a{color:var(--accent);margin-right:10px;font-size:12px}
+    .session-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+    .session-tab{padding:6px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.06);cursor:pointer;font-size:12px}
+    .session-tab.active{background:rgba(114,229,255,.18);border-color:rgba(114,229,255,.4)}
+    .session-tab.exited{background:rgba(108,242,166,.12);border-color:rgba(108,242,166,.3)}
+    .session-tab.error{background:rgba(255,107,125,.12);border-color:rgba(255,107,125,.3)}
+    .project-select{min-width:220px;font-weight:700}
+    .git-warn{color:var(--warn);font-weight:700}
+    .git-ok{color:var(--good);font-weight:700}
+    .git-bad{color:var(--bad);font-weight:700}
+    .advisor-output{background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:14px;padding:14px;font-size:13px;line-height:1.6;max-height:320px;overflow:auto;white-space:pre-wrap}
+    .agents-md-panel{background:rgba(0,0,0,.2);border:1px solid var(--line);border-radius:14px;padding:12px;font-size:13px;max-height:220px;overflow:auto;white-space:pre-wrap}
+    .install-card{border:1px solid var(--line);border-radius:14px;padding:14px;background:rgba(0,0,0,.15);margin-bottom:10px}
+    .install-card h4{margin:0 0 6px;color:var(--accent)}
+    .chat-window{position:fixed;bottom:20px;right:20px;width:420px;height:560px;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);display:none;flex-direction:column;z-index:9998;backdrop-filter:blur(20px)}
+    .chat-header{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+    .chat-header h3{margin:0;font-size:16px}
+    .chat-messages{flex:1;padding:14px;overflow:auto;font-size:13px;line-height:1.5}
+    .chat-msg{margin-bottom:10px;padding:10px 12px;border-radius:14px;max-width:92%}
+    .chat-msg.user{background:rgba(114,229,255,.12);margin-left:auto;border:1px solid rgba(114,229,255,.2)}
+    .chat-msg.ai{background:rgba(108,242,166,.08);margin-right:auto;border:1px solid rgba(108,242,166,.15)}
+    .chat-input{padding:10px 14px;border-top:1px solid var(--line);display:flex;gap:8px}
+    .chat-input input{flex:1}
+    .mascot-btn{position:fixed;bottom:20px;right:20px;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,rgba(114,229,255,.3),rgba(108,242,166,.2));border:1px solid rgba(114,229,255,.4);cursor:pointer;font-size:24px;display:flex;align-items:center;justify-content:center;z-index:9997;box-shadow:var(--shadow);transition:.2s transform}
+    .mascot-btn:hover{transform:scale(1.08)}
+    .mascot-btn.pulse{animation:mascotPulse 2s infinite}
+    @keyframes mascotPulse{0%{box-shadow:0 0 0 0 rgba(114,229,255,.4)}70%{box-shadow:0 0 0 12px rgba(114,229,255,0)}100%{box-shadow:0 0 0 0 rgba(114,229,255,0)}}
+    .command-btn{background:rgba(114,229,255,.12);border:1px solid rgba(114,229,255,.25);border-radius:8px;padding:4px 8px;font-size:11px;cursor:pointer;margin:2px;display:inline-block}
+    .command-btn:hover{background:rgba(114,229,255,.22)}
+    .outcome-btns{display:flex;gap:6px;margin-top:8px}
+    .outcome-btn{padding:4px 10px;border-radius:8px;font-size:11px;border:1px solid var(--line);cursor:pointer}
+    .outcome-btn:hover{background:rgba(255,255,255,.1)}
+    @media(max-width:1000px){main{grid-template-columns:1fr}.split{grid-template-columns:1fr}header{display:block}.chat-window{width:calc(100vw - 40px);height:calc(100vh - 100px)}}
+  </style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>AgentDock 2.0</h1>
+    <p>Private local agent stack scanner, planner, memory core, terminal monitor, and launcher.</p>
+  </div>
+  <div class="row" style="flex-wrap:nowrap">
+    <select id="projectSelect" class="project-select" onchange="changeProject(this.value)">
+      <option value="">Select project...</option>
+    </select>
+    <button class="primary" onclick="runScan()">Run System Scan</button>
+    <button onclick="makePlan()">Generate Plan</button>
+    <button onclick="runResearch()">Research Watch</button>
+    <button onclick="askAdvisor()">Advisor</button>
+  </div>
+</header>
+<main>
+  <section>
+    <div class="panel" id="projectPanel" style="display:none">
+      <h2>Active Project</h2>
+      <div id="projectInfo" class="kv"></div>
+      <div class="row" style="margin-top:10px">
+        <button class="smallbtn" onclick="refreshGit()">Refresh Git</button>
+        <button class="smallbtn" onclick="loadAgentsMd()">AGENTS.md</button>
+      </div>
+      <div id="agentsMdPanel" class="agents-md-panel" style="display:none;margin-top:10px"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Quick Launch Templates</h2>
+      <div id="templates" class="row"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Goal Planner</h2>
+      <div class="row">
+        <select id="goal"><option value="privacy">Maximum Privacy</option><option value="fastest">Fastest Coding</option><option value="cheapest">Cheapest Cloud</option><option value="heavy">Heavy Refactor</option><option value="audit">Safe Audit</option></select>
+        <button class="primary" onclick="makePlan()">Plan From Scan</button>
+      </div>
+      <div id="plan" class="grid" style="margin-top:14px"></div>
+    </div>
+
+    <div class="panel wide">
+      <h2>Managed Terminal</h2>
+      <p class="small">Launches profile command blocks inside AgentDock so output can be monitored and written to logs.</p>
+      <div class="session-tabs" id="sessionTabs"></div>
+      <div class="row">
+        <select id="sessionSelect" onchange="selectSession(this.value)"></select>
+        <button onclick="loadSessions()">Refresh</button>
+        <button class="danger" onclick="stopSelectedSession()">Stop Selected</button>
+      </div>
+      <div id="terminal" class="terminal">No session yet. Launch a profile to start monitoring output.</div>
+      <div class="terminal-input"><input id="terminalInput" placeholder="Send input to selected session, e.g. y or /bye" onkeydown="if(event.key==='Enter') sendInput()"/><button onclick="sendInput()">Send</button></div>
+      <div id="outcomePanel" style="display:none;margin-top:8px">
+        <span class="small">How did this session go?</span>
+        <div class="outcome-btns">
+          <button class="outcome-btn" onclick="reportOutcome('success')" style="color:var(--good)">✓ Success</button>
+          <button class="outcome-btn" onclick="reportOutcome('partial')" style="color:var(--warn)">~ Partial</button>
+          <button class="outcome-btn" onclick="reportOutcome('failure')" style="color:var(--bad)">✗ Failure</button>
+          <button class="outcome-btn" onclick="reportOutcome('aborted')">Aborted</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Profiles</h2>
+      <div id="profiles" class="grid"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Missing Tools — Install Guides</h2>
+      <div id="installGuides"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Research Brief</h2>
+      <pre id="brief" class="terminal" style="height:260px"></pre>
+    </div>
+  </section>
+
+  <aside>
+    <div class="panel">
+      <h2>Operations Advisor</h2>
+      <p class="small">AI-powered assistant analyzing your setup and active project.</p>
+      <div id="advisorOutput" class="advisor-output">Click "Advisor" in the header for proactive recommendations.</div>
+      <div class="row" style="margin-top:10px">
+        <input id="advisorQuestion" placeholder="Ask the advisor..." style="flex:1" onkeydown="if(event.key==='Enter') askAdvisor()"/>
+        <button onclick="askAdvisor()">Ask</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>System Snapshot</h2>
+      <div id="scanSummary" class="kv"><div>Status</div><div>Not scanned yet.</div></div>
+    </div>
+
+    <div class="panel">
+      <h2>Coder Tools + Official Links</h2>
+      <div id="coders"></div>
+    </div>
+
+    <div class="panel">
+      <h2>.env / Model-Key Scan</h2>
+      <p class="small">Values are never displayed. AgentDock only shows key names and provider hints.</p>
+      <div id="envFiles">Run a scan to inspect local .env files.</div>
+    </div>
+
+    <div class="panel">
+      <h2>Memory</h2>
+      <textarea id="memory" class="mono" style="width:100%;min-height:120px;background:rgba(0,0,0,.2);border:1px solid var(--line);border-radius:14px;padding:10px;color:var(--text);font:inherit"></textarea>
+      <div class="row"><button onclick="saveMemory()">Save Memory</button><button onclick="loadMemory()">Reload</button></div>
+    </div>
+
+    <div class="panel">
+      <h2>Logs</h2>
+      <div id="logs" class="row"></div>
+      <pre id="logText" class="terminal" style="height:220px"></pre>
+    </div>
+  </aside>
+</main>
+<div id="toast" class="toast"></div>
+
+<div class="mascot-btn" id="mascotBtn" onclick="toggleChat()" title="AI Assistant">🤖</div>
+<div class="chat-window" id="chatWindow">
+  <div class="chat-header">
+    <h3>🤖 AgentDock AI</h3>
+    <button class="smallbtn" onclick="toggleChat()">✕</button>
+  </div>
+  <div class="chat-messages" id="chatMessages"></div>
+  <div class="chat-input">
+    <input id="chatInput" placeholder="Ask me anything..." style="flex:1" onkeydown="if(event.key==='Enter') sendChat()"/>
+    <button onclick="sendChat()">Send</button>
+    <button class="smallbtn" onclick="clearChat()">Clear</button>
+  </div>
+</div>
+
+<script>
+let scan=null, profiles=[], plan=null, catalog=null, currentSession=null, cursor=0, pollTimer=null;
+let projects=[], activeProject=null, sessionCursors={};
+const CHAT_SESSION = 'user-' + Math.random().toString(36).slice(2, 8);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function api(url, opts={}){const r=await fetch(url,{headers:{'Content-Type':'application/json'},...opts});const t=await r.text();let j;try{j=JSON.parse(t)}catch{j={text:t}} if(!r.ok)throw new Error(j.error||t);return j;}
+function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.style.display='block';setTimeout(()=>el.style.display='none',3000)}
+
+// ===== AI CHAT / MASCOT =====
+function toggleChat(){const w=document.getElementById('chatWindow');w.style.display=w.style.display==='flex'?'none':'flex';if(w.style.display==='flex')document.getElementById('chatInput').focus();}
+function addChatMsg(text,from){const d=document.getElementById('chatMessages');const div=document.createElement('div');div.className='chat-msg '+(from==='user'?'user':'ai');div.innerHTML=esc(text).replace(/\n/g,'<br>');d.appendChild(div);d.scrollTop=d.scrollHeight;}
+async function sendChat(){const inp=document.getElementById('chatInput');const text=inp.value.trim();if(!text)return;inp.value='';addChatMsg(text,'user');try{const r=await api('/api/chat',{method:'POST',body:JSON.stringify({sessionId:CHAT_SESSION,text})});addChatMsg(r.text||'...','ai');executeAiCommands(r.commands||[]);}catch(e){addChatMsg('Error: '+e.message,'ai');}}
+async function reportEvent(type,data){try{await api('/api/chat',{method:'POST',body:JSON.stringify({sessionId:CHAT_SESSION,event:{type,data}})});}catch(e){}}
+async function clearChat(){try{await api('/api/chat/clear',{method:'POST',body:JSON.stringify({sessionId:CHAT_SESSION})});document.getElementById('chatMessages').innerHTML='';addChatMsg('Chat cleared. How can I help?','ai');}catch(e){}}
+function executeAiCommands(commands){for(const cmd of commands||[]){switch(cmd.type){case'launch':launchProfile(cmd.profileId);break;case'switchProject':changeProject(cmd.path);break;case'runScan':runScan();break;case'generatePlan':document.getElementById('goal').value=cmd.goal||'privacy';makePlan();break;case'showMessage':toast(cmd.text);break;case'openUrl':window.open(cmd.url,'_blank');break;case'askUser':const ans=prompt(cmd.question);if(ans)sendChatWithText('User answered: '+ans);break;}}}
+function sendChatWithText(text){addChatMsg(text,'user');api('/api/chat',{method:'POST',body:JSON.stringify({sessionId:CHAT_SESSION,text})}).then(r=>{addChatMsg(r.text||'...','ai');executeAiCommands(r.commands||[]);}).catch(e=>addChatMsg('Error: '+e.message,'ai'));}
+
+// ===== PROJECTS =====
+async function loadProjects(){const data=await api('/api/projects');projects=data.projects||[];activeProject=data.active;renderProjectSelect();renderProjectPanel();renderInstallGuides();}
+function renderProjectSelect(){const sel=document.getElementById('projectSelect');sel.innerHTML='<option value="">Select project...</option>'+projects.map(p=>`<option value="${esc(p.path)}" ${p.path===activeProject?'selected':''}>${esc(p.name)} ${p.type!=='generic'?'('+p.type+')':''}</option>`).join('');}
+async function changeProject(path){if(!path){activeProject=null;return;}await api('/api/active-project',{method:'POST',body:JSON.stringify({path})});activeProject=path;await loadProjects();toast('Project switched.');await makePlan();reportEvent('projectSwitched',{project:path});}
+function renderProjectPanel(){const panel=document.getElementById('projectPanel');if(!activeProject){panel.style.display='none';return;}const p=projects.find(x=>x.path===activeProject);if(!p){panel.style.display='none';return;}panel.style.display='';const g=p.git||{};const gitClass=g.clean?'git-ok':g.hasRemote?'git-warn':'git-bad';document.getElementById('projectInfo').innerHTML=`
+  <div>Name</div><div>${esc(p.name)}</div>
+  <div>Path</div><div class="mono">${esc(p.path)}</div>
+  <div>Type</div><div>${esc(p.type)}</div>
+  <div>Git</div><div class="${gitClass}">${g.present?(g.clean?'clean':'dirty ('+g.uncommitted+' changes)'):'no repo'}</div>
+  <div>Branch</div><div>${esc(g.branch||'N/A')}</div>
+  <div>Remote</div><div>${g.hasRemote?'connected':'none'}</div>
+  ${g.ahead||g.behind?`<div>Sync</div><div>${g.ahead?'+'+g.ahead+' ahead':''} ${g.behind?'-'+g.behind+' behind':''}</div>`:''}
+`;}
+async function refreshGit(){if(!activeProject)return;toast('Refreshing git...');await loadProjects();toast('Git status refreshed.');}
+async function loadAgentsMd(){if(!activeProject)return;const data=await api('/api/project/'+encodeURIComponent(activeProject)+'/agents-md');const panel=document.getElementById('agentsMdPanel');if(data.present){panel.textContent=data.text;panel.style.display='block';}else{panel.textContent='No AGENTS.md found in this project.';panel.style.display='block';}}
+
+// ===== INSTALL GUIDES =====
+function renderInstallGuides(){const el=document.getElementById('installGuides');if(!catalog||!scan){el.innerHTML='Run a scan to see install guides.';return;}const missing=(scan.coders||[]).filter(c=>!c.detection?.present).map(c=>c.id);const alsoMissing=['ollama'];if(!scan.tools?.ollama?.present)missing.push('ollama');const guides=[];for(const tool of catalog.tools||[]){if(missing.includes(tool.id)&&tool.install_guide){guides.push(tool);}}if(!guides.length){el.innerHTML='<p class="small">All detected tools are installed.</p>';return;}el.innerHTML=guides.map(t=>`<div class="install-card"><h4>${esc(t.name)} <span class="pill">${esc(t.category)}</span></h4><p class="small">${esc(t.best_for)}</p><div class="mono small" style="margin:6px 0;padding:8px;background:rgba(0,0,0,.25);border-radius:8px">${esc(t.install_windows||t.install_guide)}</div><div class="row"><a href="${esc(t.official)}" target="_blank" rel="noopener"><button class="smallbtn">Official</button></a><button class="smallbtn primary" onclick="copyInstall('${esc(t.id)}')">Copy Command</button></div></div>`).join('');}
+function copyInstall(id){const tool=catalog.tools.find(t=>t.id===id);if(!tool)return;const cmd=tool.install_windows||tool.install_guide;navigator.clipboard.writeText(cmd).then(()=>toast('Copied: '+cmd));}
+
+// ===== SCAN & PLAN =====
+async function runScan(){toast('Scanning system and .env files...');scan=await api('/api/scan?repo='+encodeURIComponent(activeProject||''));renderScan();await makePlan();renderInstallGuides();toast('Scan complete.');reportEvent('scanCompleted',{});}
+function renderScan(){if(!scan)return;const gpu=(scan.hardware?.gpu||[])[0]||{};const loaded=scan.ollama?.loaded_models||[];const envCount=(scan.env_files||[]).length;document.getElementById('scanSummary').innerHTML=`
+  <div>OS</div><div>${esc(scan.system?.os||'unknown')}</div>
+  <div>CPU</div><div>${esc(scan.hardware?.cpu||'unknown')}</div>
+  <div>RAM</div><div>${esc(scan.hardware?.ram_gb||'unknown')} GB</div>
+  <div>GPU</div><div>${esc(gpu.name||'unknown')}</div>
+  <div>VRAM</div><div>${esc(gpu.memory_total_mb?Math.round(gpu.memory_total_mb/1024)+' GB':'unknown')}</div>
+  <div>Ollama</div><div>${scan.tools?.ollama?.present?'detected':'missing'}</div>
+  <div>Loaded</div><div>${loaded.length?loaded.map(m=>esc(m.name+' @ '+m.context)).join('<br>'):'none'}</div>
+  <div>.env files</div><div>${envCount}</div>`;renderCoders();renderEnvFiles();}
+
+async function askAdvisor(){const q=document.getElementById('advisorQuestion').value;const out=document.getElementById('advisorOutput');out.textContent='Thinking...';try{const r=await api('/api/advisor/analyze',{method:'POST',body:JSON.stringify({question:q})});out.textContent=r.advice||r.fallback||'No advice available.';}catch(e){out.textContent='Advisor error: '+e.message;}}
+
+async function loadTemplates(){try{const t=await api('/api/templates');const el=document.getElementById('templates');el.innerHTML=t.templates.map(x=>`<button class="primary smallbtn" onclick="launchProfile('${esc(x.id)}')">${esc(x.label)}</button>`).join('')||'<span class="small">Select a project to see templates.</span>';}catch(e){}}
+
+async function loadProfiles(){profiles=await api('/api/profiles');renderProfiles();}
+async function loadCatalog(){catalog=await api('/api/catalog');renderCoders();renderInstallGuides();}
+function renderProfiles(){document.getElementById('profiles').innerHTML=profiles.map(p=>profileCard(p)).join('');}
+function profileCard(p, evalInfo={}){const meta=p.meta||{};const id=p.id;const state=evalInfo.state||meta.status||'UNKNOWN';const reasons=evalInfo.reasons||[];const stats=evalInfo.stats||{};let badges='';if(stats.total>0){badges+=`<span class="pill" style="color:${stats.successRate>=80?'var(--good)':stats.successRate>=40?'var(--warn)':'var(--bad)'}">${stats.successRate}% success (${stats.total} runs)</span>`;if(stats.lastOutcome==='failure')badges+=`<span class="pill" style="color:var(--bad)">last: failed</span>`;}return `<div class="card"><div class="row" style="justify-content:space-between"><h3>${esc(p.name)}</h3><span class="status ${esc(state)}">${esc(state)}</span></div><div><span class="pill">${esc(meta.frontend||'frontend?')}</span><span class="pill">${esc(meta.backend||'backend?')}</span><span class="pill">${esc(meta.mode||'mode?')}</span>${badges}</div><p class="small">${esc(meta.description||meta.model||'')}</p>${reasons.length?`<details><summary>Reasons</summary><ul>${reasons.map(r=>`<li>${esc(r)}</li>`).join('')}</ul></details>`:''}<div class="row"><button onclick="dryRun('${esc(id)}')">Preview</button><button class="primary" onclick="launchProfile('${esc(id)}')">Launch + Monitor</button><button class="danger" onclick="blockProfile('${esc(id)}')">Block</button></div></div>`;}
+async function makePlan(){const goal=document.getElementById('goal').value;plan=await api('/api/plan',{method:'POST',body:JSON.stringify({goal})});document.getElementById('plan').innerHTML=plan.recommended.map(p=>profileCard(p,p)).join('')+(plan.blocked.length?`<div class="card"><h3>Blocked</h3>${plan.blocked.map(p=>`<p><b>${esc(p.name)}</b><br>${esc((p.reasons||[]).join('; '))}</p>`).join('')}</div>`:'');renderCoders(plan.suggestions);loadTemplates();}
+function renderCoders(suggestions){const src=suggestions||plan?.suggestions||catalog?.tools||[];const detected=scan?.coders||[];document.getElementById('coders').innerHTML=src.map(t=>{const det=detected.find(c=>c.id===t.id||c.command===t.command);const present=t.detected ?? det?.detection?.present;const status=present?'INSTALLED':'SUGGESTED';const links=(t.docs||[t.official]).filter(Boolean).map((u,i)=>`<a href="${esc(u)}" target="_blank" rel="noopener">${i?'docs':'official'}</a>`).join(' ');const path=det?.detection?.path||'';const version=det?.detection?.version||'';const hints=(t.authHints||[]).map(h=>`<span class="pill">${esc(h)}</span>`).join('');return `<div class="listline"><div class="row" style="justify-content:space-between"><b>${esc(t.name)}</b><span class="status ${status}">${status}</span></div><div class="links">${links}</div><div class="small">${esc(t.best_for||'')}</div>${path?`<div class="small mono">${esc(path)} ${esc(version)}</div>`:''}<div>${hints}</div></div>`}).join('')||'No catalog loaded.';}
+function renderEnvFiles(){const files=scan?.env_files||[];document.getElementById('envFiles').innerHTML=files.length?files.map(f=>`<div class="envfile"><div class="mono small">${esc(f.path)}</div><div>${(f.provider_hints||[]).map(x=>`<span class="pill">${esc(x)}</span>`).join('')}</div><div class="small"><b>Keys:</b> ${esc((f.key_names||[]).join(', '))}</div><div class="small"><b>Secrets:</b> ${esc(f.secret_count||0)} redacted</div></div>`).join(''):'No AI/model .env files found in scanned paths.';}
+async function dryRun(id){const data=await api('/api/launch/'+encodeURIComponent(id),{method:'POST',body:JSON.stringify({dryRun:true})});document.getElementById('logText').textContent=(data.dangerous?'WARNING: command block contains high-impact patterns.\n\n':'')+'Project: '+(data.project||'none')+'\n\n'+data.script;toast('Launch preview loaded.');}
+async function launchProfile(id){let body={};try{let data=await api('/api/launch/'+encodeURIComponent(id),{method:'POST',body:JSON.stringify(body)});if(data.blocked){const reason=prompt(data.message+'\n\nOverride only if something changed. Enter override reason:');if(!reason)return;body.overrideReason=reason;data=await api('/api/launch/'+encodeURIComponent(id),{method:'POST',body:JSON.stringify(body)});}if(data.session){currentSession=data.session.id;sessionCursors[currentSession]=0;document.getElementById('outcomePanel').style.display='block';await loadSessions();selectSession(currentSession);toast('Launched and attached to terminal.');reportEvent('profileLaunched',{profileId:id,project:activeProject});}else toast(data.launched?'Launched.':'Not launched.');}catch(e){alert(e.message)}}
+async function blockProfile(id){const reason=prompt('Reason for blocking this profile?');if(!reason)return;await api('/api/block/'+encodeURIComponent(id),{method:'POST',body:JSON.stringify({reason})});toast('Blocked and written to memory.');await loadMemory();await makePlan();}
+async function reportOutcome(outcome){if(!currentSession)return;try{await api('/api/session/'+encodeURIComponent(currentSession)+'/outcome',{method:'POST',body:JSON.stringify({outcome})});toast('Outcome recorded: '+outcome);document.getElementById('outcomePanel').style.display='none';reportEvent('sessionOutcome',{sessionId:currentSession,outcome});}catch(e){toast('Failed to record outcome');}}
+async function loadMemory(){const m=await api('/api/memory');document.getElementById('memory').value=m.text;}
+async function saveMemory(){await api('/api/memory',{method:'POST',body:JSON.stringify({text:document.getElementById('memory').value})});toast('Memory saved.');}
+async function runResearch(){toast('Running research watch...');const r=await api('/api/research/run',{method:'POST',body:'{}'});document.getElementById('brief').textContent=r.text;toast('Research brief generated.');}
+async function loadBrief(){const b=await api('/api/research/latest');document.getElementById('brief').textContent=(b.name?'# '+b.name+'\n\n':'')+b.text;}
+async function loadLogs(){const data=await api('/api/logs');document.getElementById('logs').innerHTML=data.logs.map(l=>`<button class="smallbtn" onclick="loadLog('${esc(l)}')">${esc(l)}</button>`).join(' ');}
+async function loadLog(name){const data=await api('/api/log/'+encodeURIComponent(name));document.getElementById('logText').textContent=data.text;}
+
+async function loadSessions(){const data=await api('/api/sessions');renderSessionTabs(data.sessions);const sel=document.getElementById('sessionSelect');sel.innerHTML=data.sessions.map(s=>`<option value="${esc(s.id)}" ${s.id===currentSession?'selected':''}>${esc(s.profileName)} \u00b7 ${esc(s.status)} \u00b7 ${esc(s.id)}</option>`).join('');if(!currentSession&&data.sessions[0])selectSession(data.sessions[0].id);}
+function renderSessionTabs(sessList){const tabs=document.getElementById('sessionTabs');tabs.innerHTML=sessList.map(s=>`<div class="session-tab ${s.status==='running'?'active':s.status==='exited'?'exited':s.status==='error'?'error':''}" onclick="selectSession('${esc(s.id)}')">${esc(s.profileName)} \u00b7 ${esc(s.status)}</div>`).join('');}
+function selectSession(id){if(!id)return;currentSession=id;if(!sessionCursors[id])sessionCursors[id]=0;cursor=sessionCursors[id];document.getElementById('terminal').textContent='';if(pollTimer)clearInterval(pollTimer);pollTerminal();pollTimer=setInterval(pollTerminal,900)}
+async function pollTerminal(){if(!currentSession)return;try{const data=await api('/api/session/'+encodeURIComponent(currentSession)+'/output?since='+cursor);cursor=data.cursor;sessionCursors[currentSession]=cursor;if(data.chunk){const el=document.getElementById('terminal');el.textContent+=data.chunk;el.scrollTop=el.scrollHeight}await loadSessionsNoSelect();const sess=data.session;if(sess&&sess.status==='exited'){document.getElementById('outcomePanel').style.display='block';}}catch(e){}}
+async function loadSessionsNoSelect(){const data=await api('/api/sessions');renderSessionTabs(data.sessions);const sel=document.getElementById('sessionSelect');const old=sel.value||currentSession;sel.innerHTML=data.sessions.map(s=>`<option value="${esc(s.id)}" ${s.id===old?'selected':''}>${esc(s.profileName)} \u00b7 ${esc(s.status)} \u00b7 ${esc(s.id)}</option>`).join('');}
+async function sendInput(){if(!currentSession)return alert('No selected session.');const inp=document.getElementById('terminalInput');await api('/api/session/'+encodeURIComponent(currentSession)+'/input',{method:'POST',body:JSON.stringify({text:inp.value})});inp.value='';}
+async function stopSelectedSession(){if(!currentSession)return;await api('/api/session/'+encodeURIComponent(currentSession)+'/stop',{method:'POST',body:'{}'});toast('Stop requested.');}
+
+// Init
+addChatMsg('Hello! I am your AgentDock AI assistant. I can launch agents, switch projects, run scans, and help you choose the right stack. What are we working on today?','ai');
+loadProjects();loadProfiles();loadCatalog();loadMemory();loadBrief();loadLogs();loadSessions();loadTemplates();
+</script>
+</body>
+</html>

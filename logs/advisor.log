@@ -1,0 +1,78 @@
+[2026-06-07T00:18:49.985Z] Analyzing: project=none, question=What should I work on next?, useGemini=true
+[2026-06-07T00:18:51.363Z] Gemini error: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+Please retry in 8.634424524s.
+[2026-06-07T00:35:27.393Z] Analyzing: project=none, question=none, useGemini=true
+[2026-06-07T00:35:28.017Z] Gemini error: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: gemini-2.0-flash
+Please retry in 31.980017503s.
+[2026-06-07T00:37:48.077Z] Analyzing: project=none, question=kimi is installed and running...API call failed after 3 retries: HTTP 404: model 'llama31-hermes-64k:latest' not found, useGemini=true
+[2026-06-07T00:37:48.349Z] Gemini error: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: gemini-2.0-flash
+Please retry in 11.642287985s.
+[2026-06-07T00:37:57.068Z] Analyzing: project=none, question=kimi is installed and running...API call failed after 3 retries: HTTP 404: model 'llama31-hermes-64k:latest' not found, useGemini=true
+[2026-06-07T00:37:57.334Z] Gemini error: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+Please retry in 2.643449154s.
+[2026-06-07T00:38:02.680Z] Analyzing: project=none, question=kimi is installed and running..., useGemini=true
+[2026-06-07T00:38:02.878Z] Gemini error: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: gemini-2.0-flash
+Please retry in 57.131349344s.
+[2026-06-07T00:59:42.109Z] Analyzing: project=agentdock, question=none, useGemini=true
+[2026-06-07T00:59:42.486Z] Gemini error: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+Please retry in 17.494647605s.
+[2026-06-07T01:36:32.551Z] Analyzing: project=agentdock, question=none, useGemini=true
+[2026-06-07T01:36:32.869Z] Gemini error: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+Please retry in 27.133702447s.
+[2026-06-07T01:45:14.321Z] Analyzing: project=ecc, question=What agent should I use for ecc?, useGemini=true
+[2026-06-07T01:45:14.770Z] Gemini error: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+Please retry in 45.20404422s.
+[2026-06-07T01:46:17.984Z] Analyzing: project=agentdock, question=none, useGemini=true
+[2026-06-07T01:46:18.251Z] Gemini error: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+Please retry in 41.734081121s.
+[2026-06-07T02:55:39.819Z] Analyzing: project=none, question=scanCompleted, useGemini=false
+[2026-06-07T02:55:39.902Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T02:55:48.782Z] Analyzing: project=none, question=scanCompleted, useGemini=false
+[2026-06-07T02:55:48.843Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T02:56:50.833Z] Analyzing: project=none, question=profileLaunched, useGemini=false
+[2026-06-07T02:56:50.872Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T02:57:55.943Z] Analyzing: project=none, question=projectSwitched, useGemini=false
+[2026-06-07T02:57:55.988Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T02:58:00.463Z] Analyzing: project=NOTEtoolsLM-v2, question=none, useGemini=true
+[2026-06-07T02:58:00.614Z] Gemini error: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+Please retry in 59.341723457s.
+[2026-06-07T02:58:04.637Z] Analyzing: project=none, question=scanCompleted, useGemini=false
+[2026-06-07T02:58:04.669Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T02:58:57.804Z] Analyzing: project=none, question=whats a good lightweight but powerful ui bridge web design editor/coder w preview, useGemini=false
+[2026-06-07T02:58:57.849Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T03:35:15.188Z] Analyzing: project=none, question=What tools are missing?, useGemini=false
+[2026-06-07T03:35:15.252Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T03:36:16.924Z] Analyzing: project=none, question=projectSwitched, useGemini=false
+[2026-06-07T03:36:16.981Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T03:36:58.763Z] Analyzing: project=none, question=scanCompleted, useGemini=false
+[2026-06-07T03:36:58.796Z] No Gemini API key; returning rule-based advice.

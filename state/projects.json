@@ -1,0 +1,185 @@
+{
+  "projects": [
+    {
+      "id": "agentdock",
+      "path": "D:\\projects\\agentdock",
+      "name": "agentdock",
+      "type": "generic",
+      "hasGit": false,
+      "hasAgentsMd": false,
+      "lastOpened": "2026-06-07T03:36:11.868Z",
+      "git": {
+        "present": false,
+        "branch": null,
+        "clean": true,
+        "ahead": 0,
+        "behind": 0,
+        "uncommitted": 0,
+        "untracked": 0,
+        "modified": 0,
+        "hasRemote": false
+      }
+    },
+    {
+      "id": "ecc",
+      "path": "D:\\projects\\ecc",
+      "name": "ecc",
+      "type": "node",
+      "hasGit": true,
+      "hasAgentsMd": true,
+      "lastOpened": "2026-06-07T01:44:58.029Z",
+      "git": {
+        "present": true,
+        "branch": "main",
+        "clean": true,
+        "ahead": 0,
+        "behind": 0,
+        "uncommitted": 0,
+        "untracked": 0,
+        "modified": 0,
+        "hasRemote": true
+      }
+    },
+    {
+      "id": "lookBOOK",
+      "path": "D:\\projects\\lookBOOK",
+      "name": "lookBOOK",
+      "type": "generic",
+      "hasGit": true,
+      "hasAgentsMd": false,
+      "lastOpened": "2026-06-07T00:43:00.048Z",
+      "git": {
+        "present": true,
+        "branch": "master",
+        "clean": false,
+        "ahead": 0,
+        "behind": 0,
+        "uncommitted": 5,
+        "untracked": 5,
+        "modified": 0,
+        "hasRemote": false
+      }
+    },
+    {
+      "id": "NOTEtoolsLM-v2",
+      "path": "D:\\projects\\NOTEtoolsLM-v2",
+      "name": "NOTEtoolsLM-v2",
+      "type": "node",
+      "hasGit": true,
+      "hasAgentsMd": true,
+      "lastOpened": "2026-06-07T02:57:50.586Z",
+      "git": {
+        "present": true,
+        "branch": "master",
+        "clean": true,
+        "ahead": 0,
+        "behind": 0,
+        "uncommitted": 0,
+        "untracked": 0,
+        "modified": 0,
+        "hasRemote": false
+      }
+    },
+    {
+      "id": "plinepro_kimi",
+      "path": "D:\\projects\\plinepro_kimi",
+      "name": "plinepro_kimi",
+      "type": "node",
+      "hasGit": false,
+      "hasAgentsMd": false,
+      "lastOpened": null,
+      "git": {
+        "present": false,
+        "branch": null,
+        "clean": true,
+        "ahead": 0,
+        "behind": 0,
+        "uncommitted": 0,
+        "untracked": 0,
+        "modified": 0,
+        "hasRemote": false
+      }
+    },
+    {
+      "id": "plpv2",
+      "path": "D:\\projects\\plpv2",
+      "name": "plpv2",
+      "type": "node",
+      "hasGit": false,
+      "hasAgentsMd": false,
+      "lastOpened": null,
+      "git": {
+        "present": false,
+        "branch": null,
+        "clean": true,
+        "ahead": 0,
+        "behind": 0,
+        "uncommitted": 0,
+        "untracked": 0,
+        "modified": 0,
+        "hasRemote": false
+      }
+    },
+    {
+      "id": "PromptPack",
+      "path": "D:\\projects\\PromptPack",
+      "name": "PromptPack",
+      "type": "node",
+      "hasGit": true,
+      "hasAgentsMd": false,
+      "lastOpened": "2026-06-07T00:42:43.712Z",
+      "git": {
+        "present": true,
+        "branch": "main",
+        "clean": true,
+        "ahead": 0,
+        "behind": 0,
+        "uncommitted": 0,
+        "untracked": 0,
+        "modified": 0,
+        "hasRemote": false
+      }
+    },
+    {
+      "id": "racegps",
+      "path": "D:\\projects\\racegps",
+      "name": "racegps",
+      "type": "node",
+      "hasGit": true,
+      "hasAgentsMd": false,
+      "lastOpened": null,
+      "git": {
+        "present": true,
+        "branch": "master",
+        "clean": true,
+        "ahead": 0,
+        "behind": 0,
+        "uncommitted": 0,
+        "untracked": 0,
+        "modified": 0,
+        "hasRemote": true
+      }
+    },
+    {
+      "id": "scripts",
+      "path": "D:\\projects\\scripts",
+      "name": "scripts",
+      "type": "python",
+      "hasGit": true,
+      "hasAgentsMd": false,
+      "lastOpened": "2026-06-07T00:42:24.210Z",
+      "git": {
+        "present": true,
+        "branch": "master",
+        "clean": true,
+        "ahead": 0,
+        "behind": 0,
+        "uncommitted": 0,
+        "untracked": 0,
+        "modified": 0,
+        "hasRemote": false
+      }
+    }
+  ],
+  "active": "D:\\projects\\agentdock"
+}

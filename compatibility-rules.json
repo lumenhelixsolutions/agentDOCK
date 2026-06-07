@@ -1,0 +1,41 @@
+{
+  "version": "1.1",
+  "rules": {
+    "hermes": {
+      "minimum_context": 64000,
+      "requires_verified_context": true
+    },
+    "ollama": {
+      "verify_command": "ollama ps",
+      "safe_context_goal": 64000,
+      "recommended_env_8gb_vram": {
+        "OLLAMA_CONTEXT_LENGTH": "64000",
+        "OLLAMA_FLASH_ATTENTION": "1",
+        "OLLAMA_KV_CACHE_TYPE": "q8_0",
+        "OLLAMA_NUM_PARALLEL": "1",
+        "OLLAMA_MAX_LOADED_MODELS": "1"
+      }
+    },
+    "env_scanning": {
+      "values_redacted": true,
+      "max_file_size_bytes": 1048576,
+      "excluded_directories": ["node_modules", ".git", "venv", ".venv", "dist", "build"]
+    },
+    "terminal": {
+      "mode": "monitored_child_process",
+      "note": "Full-screen TUIs may prefer their own console. AgentDock still captures line-based stdout/stderr from profile launches."
+    },
+    "security": {
+      "bind_host": "127.0.0.1",
+      "no_arbitrary_command_input": true,
+      "secret_values_never_printed": true,
+      "launch_only_profile_blocks": true
+    }
+  },
+  "blocked_signatures": [
+    {
+      "match": "qwen",
+      "reason": "Known local Hermes 64K attempts capped at 32768 on this machine unless runtime/model changed."
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "launches": [
+    {
+      "id": "s-2026-06-05T21-55-53-752Z-0291d7",
+      "profileId": "codex-patch-test",
+      "profileName": "Codex Patch/Test",
+      "startedAt": "2026-06-05T21:55:53.806Z",
+      "endedAt": "2026-06-05T21:55:54.285Z",
+      "exitCode": 0,
+      "pid": 2688
+    },
+    {
+      "id": "s-2026-06-05T21-56-19-503Z-fe0308",
+      "profileId": "gemini-cli-code",
+      "profileName": "Gemini CLI Code",
+      "startedAt": "2026-06-05T21:56:19.540Z",
+      "endedAt": "2026-06-05T21:56:21.398Z",
+      "exitCode": 0,
+      "pid": 44500
+    },
+    {
+      "id": "s-2026-06-05T21-57-07-486Z-2a04bf",
+      "profileId": "gemini-cli-code",
+      "profileName": "Gemini CLI Code",
+      "startedAt": "2026-06-05T21:57:07.875Z",
+      "endedAt": "2026-06-05T21:57:09.802Z",
+      "exitCode": 0,
+      "pid": 64184
+    },
+    {
+      "id": "s-2026-06-07T00-33-05-640Z-511002",
+      "profileId": "hermes-local-llama31-64k",
+      "profileName": "Hermes Local Llama 3.1 64K",
+      "startedAt": "2026-06-07T00:33:05.688Z",
+      "endedAt": "2026-06-07T00:56:56.528Z",
+      "exitCode": 1,
+      "pid": 79808
+    },
+    {
+      "id": "s-2026-06-07T00-43-23-969Z-93dd31",
+      "profileId": "aider-git-patch",
+      "profileName": "Aider Git Patch Mode",
+      "startedAt": "2026-06-07T00:43:24.027Z",
+      "endedAt": "2026-06-07T00:57:34.203Z",
+      "exitCode": 1,
+      "pid": 77820
+    },
+    {
+      "id": "s-2026-06-07T00-43-57-113Z-5dca1b",
+      "profileId": "aider-git-patch",
+      "profileName": "Aider Git Patch Mode",
+      "startedAt": "2026-06-07T00:43:57.152Z",
+      "endedAt": "2026-06-07T00:57:36.496Z",
+      "exitCode": 1,
+      "pid": 65812
+    },
+    {
+      "id": "s-2026-06-07T00-58-40-616Z-f0b168",
+      "profileId": "hermes-local-llama31-64k",
+      "profileName": "Hermes Local Llama 3.1 64K",
+      "startedAt": "2026-06-07T00:58:40.662Z",
+      "endedAt": "2026-06-07T01:38:57.628Z",
+      "exitCode": 1,
+      "pid": 80944
+    },
+    {
+      "id": "s-2026-06-07T02-56-48-904Z-2ef1fd",
+      "profileId": "cloud-heavy-refactor-claude",
+      "profileName": "Cloud Heavy Refactor (claude)",
+      "startedAt": "2026-06-07T02:56:48.948Z",
+      "endedAt": "2026-06-07T02:56:54.366Z",
+      "exitCode": 0,
+      "pid": 83948
+    }
+  ]
+}
