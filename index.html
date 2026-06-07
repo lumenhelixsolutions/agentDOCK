@@ -1,108 +1,442 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="AgentDock — Local AI agent stack scanner, planner, and launcher." />
   <title>AgentDock 2.0</title>
   <style>
+    /* ===== THEME VARIABLES ===== */
     :root {
       color-scheme: dark;
-      --bg:#080c18; --panel:rgba(255,255,255,.055); --panel2:rgba(255,255,255,.085);
-      --text:#eaf0ff; --muted:#9fb0d0; --accent:#72e5ff; --good:#6cf2a6; --warn:#ffd36a; --bad:#ff6b7d;
-      --line:rgba(255,255,255,.12); --shadow:0 20px 60px rgba(0,0,0,.35);
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      --bg: #080c18;
+      --panel: rgba(255,255,255,.055);
+      --panel2: rgba(255,255,255,.085);
+      --text: #eaf0ff;
+      --muted: #9fb0d0;
+      --accent: #72e5ff;
+      --good: #6cf2a6;
+      --warn: #ffd36a;
+      --bad: #ff6b7d;
+      --line: rgba(255,255,255,.12);
+      --shadow: 0 20px 60px rgba(0,0,0,.35);
+      --font-sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 18px;
+      --radius-pill: 999px;
     }
-    *{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at 10% 10%,#14224b,transparent 35%),radial-gradient(circle at 85% 0%,#19363f,transparent 32%),var(--bg);color:var(--text)}
-    header{padding:14px 24px 8px;display:flex;justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--line)}
-    h1{margin:0;font-size:clamp(22px,3vw,36px);letter-spacing:-.04em} h2{margin:0 0 10px;font-size:16px} h3{margin:6px 0;font-size:14px} p{color:var(--muted);line-height:1.45;margin:6px 0}
-    .mode-toggle{padding:6px 14px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.06);cursor:pointer;font-size:13px;font-weight:700}
-    .mode-toggle.active{background:linear-gradient(135deg,rgba(114,229,255,.25),rgba(108,242,166,.15));border-color:rgba(114,229,255,.35)}
-    main{padding:14px 24px 30px}
-    .panel{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:var(--shadow);backdrop-filter:blur(14px);margin-bottom:14px}
-    .wide{grid-column:1/-1}
-    .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-    button,select,input,textarea{border:1px solid var(--line);background:rgba(255,255,255,.08);color:var(--text);border-radius:12px;padding:8px 10px;font:inherit;font-size:13px}
-    button{cursor:pointer;transition:.16s transform,.16s background} button:hover{transform:translateY(-1px);background:rgba(114,229,255,.14)}
-    button.primary{background:linear-gradient(135deg,rgba(114,229,255,.25),rgba(108,242,166,.15));border-color:rgba(114,229,255,.35)}
-    button.danger{border-color:rgba(255,107,125,.4)} button.smallbtn{padding:5px 8px;border-radius:8px;font-size:11px}
-    button.bigbtn{padding:14px 18px;border-radius:14px;font-size:15px;font-weight:700}
-    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
-    .card{border:1px solid var(--line);background:rgba(0,0,0,.17);border-radius:14px;padding:12px;min-height:100px}
-    .status{display:inline-flex;border-radius:999px;padding:3px 8px;font-size:11px;font-weight:800;letter-spacing:.04em}
-    .READY,.known-good,.INSTALLED{background:rgba(108,242,166,.16);color:var(--good);border:1px solid rgba(108,242,166,.28)}
-    .DEGRADED,.unknown,.SUGGESTED{background:rgba(255,211,106,.13);color:var(--warn);border:1px solid rgba(255,211,106,.28)}
-    .BLOCKED,.blocked,.MISSING{background:rgba(255,107,125,.13);color:var(--bad);border:1px solid rgba(255,107,125,.28)}
-    .UNKNOWN{background:rgba(255,255,255,.10);color:var(--muted);border:1px solid var(--line)}
-    .pill{display:inline-block;margin:2px 4px 2px 0;padding:3px 7px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:11px}
-    .small{font-size:12px;color:var(--muted)} .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-    .split{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    .terminal{background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:12px;padding:10px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.5;height:200px;overflow:auto;white-space:pre-wrap;word-break:break-word}
-    .terminal-input{display:flex;gap:6px;margin-top:6px} .terminal-input input{flex:1}
-    .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,rgba(114,229,255,.25),rgba(108,242,166,.15));border:1px solid rgba(114,229,255,.35);padding:10px 16px;border-radius:12px;font-weight:700;box-shadow:var(--shadow);display:none;z-index:9999;font-size:13px}
-    .kv{display:grid;grid-template-columns:auto 1fr;gap:5px 10px;font-size:12px}
-    .kv div:nth-child(odd){color:var(--muted)} .kv div:nth-child(even){color:var(--text)}
-    .envfile{border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:6px;background:rgba(0,0,0,.12)}
-    .listline{border-bottom:1px solid var(--line);padding:8px 0} .listline:last-child{border-bottom:none}
-    .links a{color:var(--accent);margin-right:8px;font-size:11px}
-    .session-tabs{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px}
-    .session-tab{padding:5px 10px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.06);cursor:pointer;font-size:11px}
-    .session-tab.active{background:rgba(114,229,255,.18);border-color:rgba(114,229,255,.4)}
-    .session-tab.exited{background:rgba(108,242,166,.12);border-color:rgba(108,242,166,.3)}
-    .session-tab.error{background:rgba(255,107,125,.12);border-color:rgba(255,107,125,.3)}
-    .project-select{min-width:180px;font-weight:700}
-    .git-warn{color:var(--warn);font-weight:700}
-    .git-ok{color:var(--good);font-weight:700}
-    .git-bad{color:var(--bad);font-weight:700}
-    .advisor-output{background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:12px;line-height:1.6;max-height:400px;overflow:auto;white-space:pre-wrap}
-    .agents-md-panel{background:rgba(0,0,0,.2);border:1px solid var(--line);border-radius:12px;padding:10px;font-size:12px;max-height:180px;overflow:auto;white-space:pre-wrap}
-    .install-card{border:1px solid var(--line);border-radius:12px;padding:12px;background:rgba(0,0,0,.15);margin-bottom:8px}
-    .install-card h4{margin:0 0 5px;color:var(--accent);font-size:13px}
-    .install-card .cmd{background:rgba(0,0,0,.3);border-radius:8px;padding:8px;font-family:monospace;font-size:11px;margin:6px 0;cursor:pointer}
-    .install-card .cmd:hover{background:rgba(0,0,0,.4)}
-    .chat-window{position:fixed;bottom:16px;right:16px;width:400px;height:480px;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);display:none;flex-direction:column;z-index:9998;backdrop-filter:blur(20px)}
-    .chat-header{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
-    .chat-header h3{margin:0;font-size:14px}
-    .chat-messages{flex:1;padding:12px;overflow:auto;font-size:12px;line-height:1.5}
-    .chat-msg{margin-bottom:8px;padding:8px 10px;border-radius:12px;max-width:94%}
-    .chat-msg.user{background:rgba(114,229,255,.12);margin-left:auto;border:1px solid rgba(114,229,255,.2)}
-    .chat-msg.ai{background:rgba(108,242,166,.08);margin-right:auto;border:1px solid rgba(108,242,166,.15)}
-    .chat-input{padding:8px 12px;border-top:1px solid var(--line);display:flex;gap:6px}
-    .chat-input input{flex:1;font-size:12px}
-    .mascot-btn{position:fixed;bottom:16px;right:16px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,rgba(114,229,255,.3),rgba(108,242,166,.2));border:1px solid rgba(114,229,255,.4);cursor:pointer;font-size:22px;display:flex;align-items:center;justify-content:center;z-index:9997;box-shadow:var(--shadow);transition:.2s transform}
-    .mascot-btn:hover{transform:scale(1.08)}
-    .mascot-btn.pulse{animation:mascotPulse 2s infinite}
-    @keyframes mascotPulse{0%{box-shadow:0 0 0 0 rgba(114,229,255,.4)}70%{box-shadow:0 0 0 10px rgba(114,229,255,0)}100%{box-shadow:0 0 0 0 rgba(114,229,255,0)}}
-    .command-btn{background:rgba(114,229,255,.12);border:1px solid rgba(114,229,255,.25);border-radius:6px;padding:3px 7px;font-size:10px;cursor:pointer;margin:2px;display:inline-block}
-    .outcome-btns{display:flex;gap:5px;margin-top:6px}
-    .outcome-btn{padding:3px 8px;border-radius:6px;font-size:10px;border:1px solid var(--line);cursor:pointer}
-    .troubleshoot-box{background:rgba(255,107,125,.08);border:1px solid rgba(255,107,125,.2);border-radius:12px;padding:12px;margin-top:10px}
-    .easy-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
-    .easy-card{padding:16px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.15);cursor:pointer;text-align:center;transition:.15s transform}
-    .easy-card:hover{transform:translateY(-2px);background:rgba(114,229,255,.08)}
-    .easy-card .icon{font-size:28px;margin-bottom:6px}
-    .easy-card .label{font-weight:700;font-size:13px}
-    .easy-card .sub{color:var(--muted);font-size:11px;margin-top:4px}
-    .hidden{display:none !important}
-    @media(max-width:900px){.chat-window{width:calc(100vw - 32px);height:calc(100vh - 90px);bottom:8px;right:8px}main{padding:10px 12px}}
+    [data-theme="light"] {
+      color-scheme: light;
+      --bg: #f4f6fa;
+      --panel: rgba(0,0,0,.035);
+      --panel2: rgba(0,0,0,.06);
+      --text: #0d1220;
+      --muted: #4a5568;
+      --accent: #0066cc;
+      --good: #15803d;
+      --warn: #b45309;
+      --bad: #be123c;
+      --line: rgba(0,0,0,.10);
+      --shadow: 0 12px 40px rgba(0,0,0,.12);
+    }
+
+    /* ===== RESET & BASE ===== */
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 10% 10%, #14224b, transparent 35%),
+                  radial-gradient(circle at 85% 0%, #19363f, transparent 32%),
+                  var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    [data-theme="light"] body {
+      background: radial-gradient(circle at 10% 10%, #dbeafe, transparent 35%),
+                  radial-gradient(circle at 85% 0%, #e0f2fe, transparent 32%),
+                  var(--bg);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+
+    /* ===== TYPOGRAPHY ===== */
+    h1 { margin: 0; font-size: clamp(22px, 3vw, 36px); letter-spacing: -.04em; }
+    h2 { margin: 0 0 10px; font-size: 16px; }
+    h3 { margin: 6px 0; font-size: 14px; }
+    p  { color: var(--muted); line-height: 1.55; margin: 6px 0; }
+
+    /* ===== SKIP LINK ===== */
+    .skip-link {
+      position: absolute; top: -40px; left: 8px;
+      background: var(--accent); color: #000; padding: 6px 10px; border-radius: var(--radius-sm);
+      font-weight: 700; font-size: 12px; z-index: 10000; text-decoration: none;
+      transition: top .2s;
+    }
+    .skip-link:focus { top: 8px; outline: 3px solid var(--warn); outline-offset: 2px; }
+
+    /* ===== HEADER ===== */
+    header {
+      padding: 14px 24px 8px; display: flex; justify-content: space-between; gap: 14px;
+      align-items: center; flex-wrap: wrap; border-bottom: 1px solid var(--line);
+    }
+    @media (max-width: 640px) {
+      header { padding: 10px 12px 6px; gap: 8px; }
+      h1 { font-size: 20px; }
+    }
+
+    /* ===== CONTROLS ===== */
+    .mode-toggle {
+      padding: 6px 14px; border-radius: var(--radius-pill); border: 1px solid var(--line);
+      background: rgba(255,255,255,.06); cursor: pointer; font-size: 13px; font-weight: 700;
+      color: var(--text); transition: .16s transform, .16s background, .16s box-shadow;
+    }
+    [data-theme="light"] .mode-toggle { background: rgba(0,0,0,.04); }
+    .mode-toggle:hover { transform: translateY(-1px); background: rgba(114,229,255,.14); }
+    .mode-toggle.active {
+      background: linear-gradient(135deg, rgba(114,229,255,.25), rgba(108,242,166,.15));
+      border-color: rgba(114,229,255,.35);
+    }
+    [data-theme="light"] .mode-toggle.active {
+      background: linear-gradient(135deg, rgba(0,102,204,.12), rgba(21,128,61,.08));
+      border-color: rgba(0,102,204,.35);
+    }
+    .mode-toggle:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+    main { padding: 14px 24px 30px; }
+    @media (max-width: 640px) { main { padding: 10px 12px 20px; } }
+
+    /* ===== PANELS & CARDS ===== */
+    .panel {
+      background: linear-gradient(180deg, var(--panel2), var(--panel));
+      border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 16px;
+      box-shadow: var(--shadow); backdrop-filter: blur(14px); margin-bottom: 14px;
+    }
+    @media (max-width: 640px) { .panel { padding: 12px; border-radius: 14px; } }
+    .wide { grid-column: 1 / -1; }
+
+    .row {
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    }
+
+    /* ===== FORM ELEMENTS ===== */
+    button, select, input, textarea {
+      border: 1px solid var(--line); background: rgba(255,255,255,.08);
+      color: var(--text); border-radius: var(--radius-md); padding: 8px 10px;
+      font: inherit; font-size: 13px; transition: .16s background, .16s border-color, .16s box-shadow;
+    }
+    [data-theme="light"] button, [data-theme="light"] select, [data-theme="light"] input, [data-theme="light"] textarea {
+      background: rgba(0,0,0,.04);
+    }
+    button { cursor: pointer; }
+    button:hover { background: rgba(114,229,255,.14); }
+    button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+    button.primary {
+      background: linear-gradient(135deg, rgba(114,229,255,.25), rgba(108,242,166,.15));
+      border-color: rgba(114,229,255,.35);
+    }
+    [data-theme="light"] button.primary {
+      background: linear-gradient(135deg, rgba(0,102,204,.12), rgba(21,128,61,.08));
+      border-color: rgba(0,102,204,.35);
+    }
+    button.danger { border-color: rgba(255,107,125,.4); }
+    button.smallbtn { padding: 5px 8px; border-radius: var(--radius-sm); font-size: 11px; }
+    button.bigbtn { padding: 14px 18px; border-radius: 14px; font-size: 15px; font-weight: 700; }
+    @media (max-width: 640px) {
+      button.bigbtn { padding: 12px 14px; font-size: 14px; width: 100%; }
+    }
+
+    /* ===== GRID & CARDS ===== */
+    .grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px;
+    }
+    @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      border: 1px solid var(--line); background: rgba(0,0,0,.17);
+      border-radius: 14px; padding: 12px; min-height: 100px;
+    }
+    [data-theme="light"] .card { background: rgba(0,0,0,.04); }
+
+    /* ===== STATUS BADGES ===== */
+    .status {
+      display: inline-flex; border-radius: var(--radius-pill); padding: 3px 8px;
+      font-size: 11px; font-weight: 800; letter-spacing: .04em;
+    }
+    .READY, .known-good, .INSTALLED {
+      background: rgba(108,242,166,.16); color: var(--good);
+      border: 1px solid rgba(108,242,166,.28);
+    }
+    [data-theme="light"] .READY, [data-theme="light"] .known-good, [data-theme="light"] .INSTALLED {
+      background: rgba(21,128,61,.10);
+    }
+    .DEGRADED, .unknown, .SUGGESTED {
+      background: rgba(255,211,106,.13); color: var(--warn);
+      border: 1px solid rgba(255,211,106,.28);
+    }
+    [data-theme="light"] .DEGRADED, [data-theme="light"] .unknown, [data-theme="light"] .SUGGESTED {
+      background: rgba(180,83,9,.10);
+    }
+    .BLOCKED, .blocked, .MISSING {
+      background: rgba(255,107,125,.13); color: var(--bad);
+      border: 1px solid rgba(255,107,125,.28);
+    }
+    [data-theme="light"] .BLOCKED, [data-theme="light"] .blocked, [data-theme="light"] .MISSING {
+      background: rgba(190,18,60,.10);
+    }
+    .UNKNOWN {
+      background: rgba(255,255,255,.10); color: var(--muted);
+      border: 1px solid var(--line);
+    }
+
+    .pill {
+      display: inline-block; margin: 2px 4px 2px 0; padding: 3px 7px;
+      border: 1px solid var(--line); border-radius: var(--radius-pill);
+      color: var(--muted); font-size: 11px;
+    }
+    .small { font-size: 12px; color: var(--muted); }
+    .mono { font-family: var(--font-mono); }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 640px) { .split { grid-template-columns: 1fr; } }
+
+    /* ===== TERMINAL ===== */
+    .terminal {
+      background: rgba(0,0,0,.35); border: 1px solid var(--line); border-radius: var(--radius-md);
+      padding: 10px; font-family: var(--font-mono); font-size: 12px; line-height: 1.5;
+      height: 200px; overflow: auto; white-space: pre-wrap; word-break: break-word;
+    }
+    [data-theme="light"] .terminal { background: rgba(0,0,0,.04); }
+    .terminal-input { display: flex; gap: 6px; margin-top: 6px; }
+    .terminal-input input { flex: 1; }
+
+    /* ===== TOAST ===== */
+    .toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(0);
+      background: linear-gradient(135deg, rgba(114,229,255,.25), rgba(108,242,166,.15));
+      border: 1px solid rgba(114,229,255,.35); padding: 10px 16px; border-radius: var(--radius-md);
+      font-weight: 700; box-shadow: var(--shadow); display: none; z-index: 9999; font-size: 13px;
+      transition: transform .25s ease, opacity .25s ease; opacity: 0;
+      max-width: min(90vw, 480px); text-align: center; pointer-events: none;
+    }
+    .toast.show { display: block; opacity: 1; }
+    .toast.error {
+      background: linear-gradient(135deg, rgba(255,107,125,.20), rgba(255,107,125,.10));
+      border-color: rgba(255,107,125,.45); color: var(--bad);
+    }
+    .toast.warn {
+      background: linear-gradient(135deg, rgba(255,211,106,.20), rgba(255,211,106,.10));
+      border-color: rgba(255,211,106,.45); color: var(--warn);
+    }
+    [data-theme="light"] .toast {
+      background: #e0f2fe; border-color: #7dd3fc; color: #0c4a6e;
+    }
+    [data-theme="light"] .toast.error { background: #ffe4e6; border-color: #fda4af; color: #881337; }
+    [data-theme="light"] .toast.warn { background: #fef3c7; border-color: #fcd34d; color: #78350f; }
+
+    /* ===== KV LISTS ===== */
+    .kv { display: grid; grid-template-columns: auto 1fr; gap: 5px 10px; font-size: 12px; }
+    .kv div:nth-child(odd) { color: var(--muted); }
+    .kv div:nth-child(even) { color: var(--text); }
+
+    .envfile {
+      border: 1px solid var(--line); border-radius: 10px; padding: 8px; margin-bottom: 6px;
+      background: rgba(0,0,0,.12);
+    }
+    [data-theme="light"] .envfile { background: rgba(0,0,0,.03); }
+    .listline { border-bottom: 1px solid var(--line); padding: 8px 0; }
+    .listline:last-child { border-bottom: none; }
+    .links a { color: var(--accent); margin-right: 8px; font-size: 11px; }
+
+    /* ===== SESSION TABS ===== */
+    .session-tabs { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 6px; }
+    .session-tab {
+      padding: 5px 10px; border-radius: var(--radius-sm); border: 1px solid var(--line);
+      background: rgba(255,255,255,.06); cursor: pointer; font-size: 11px;
+      transition: .15s background, .15s border-color;
+    }
+    [data-theme="light"] .session-tab { background: rgba(0,0,0,.03); }
+    .session-tab:hover { background: rgba(114,229,255,.10); }
+    .session-tab.active { background: rgba(114,229,255,.18); border-color: rgba(114,229,255,.4); }
+    .session-tab.exited { background: rgba(108,242,166,.12); border-color: rgba(108,242,166,.3); }
+    .session-tab.error { background: rgba(255,107,125,.12); border-color: rgba(255,107,125,.3); }
+
+    .project-select { min-width: 180px; font-weight: 700; }
+    @media (max-width: 640px) { .project-select { min-width: 140px; width: 100%; } }
+    .git-warn { color: var(--warn); font-weight: 700; }
+    .git-ok { color: var(--good); font-weight: 700; }
+    .git-bad { color: var(--bad); font-weight: 700; }
+
+    .advisor-output {
+      background: rgba(0,0,0,.25); border: 1px solid var(--line); border-radius: var(--radius-md);
+      padding: 12px; font-size: 12px; line-height: 1.6; max-height: 400px; overflow: auto; white-space: pre-wrap;
+    }
+    [data-theme="light"] .advisor-output { background: rgba(0,0,0,.04); }
+    .agents-md-panel {
+      background: rgba(0,0,0,.2); border: 1px solid var(--line); border-radius: var(--radius-md);
+      padding: 10px; font-size: 12px; max-height: 180px; overflow: auto; white-space: pre-wrap;
+    }
+    [data-theme="light"] .agents-md-panel { background: rgba(0,0,0,.03); }
+
+    /* ===== INSTALL CARDS ===== */
+    .install-card {
+      border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px;
+      background: rgba(0,0,0,.15); margin-bottom: 8px;
+    }
+    [data-theme="light"] .install-card { background: rgba(0,0,0,.03); }
+    .install-card h4 { margin: 0 0 5px; color: var(--accent); font-size: 13px; }
+    .install-card .cmd {
+      background: rgba(0,0,0,.3); border-radius: var(--radius-sm); padding: 8px;
+      font-family: var(--font-mono); font-size: 11px; margin: 6px 0; cursor: pointer;
+      transition: .15s background; word-break: break-all;
+    }
+    [data-theme="light"] .install-card .cmd { background: rgba(0,0,0,.06); }
+    .install-card .cmd:hover { background: rgba(0,0,0,.4); }
+    [data-theme="light"] .install-card .cmd:hover { background: rgba(0,0,0,.10); }
+
+    /* ===== CHAT ===== */
+    .chat-window {
+      position: fixed; bottom: 16px; right: 16px; width: 400px; height: 480px;
+      background: linear-gradient(180deg, var(--panel2), var(--panel));
+      border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow);
+      display: none; flex-direction: column; z-index: 9998; backdrop-filter: blur(20px);
+    }
+    .chat-header {
+      padding: 12px 16px; border-bottom: 1px solid var(--line);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .chat-header h3 { margin: 0; font-size: 14px; }
+    .chat-messages { flex: 1; padding: 12px; overflow: auto; font-size: 12px; line-height: 1.5; }
+    .chat-msg { margin-bottom: 8px; padding: 8px 10px; border-radius: var(--radius-md); max-width: 94%; }
+    .chat-msg.user { background: rgba(114,229,255,.12); margin-left: auto; border: 1px solid rgba(114,229,255,.2); }
+    [data-theme="light"] .chat-msg.user { background: #e0f2fe; border-color: #7dd3fc; }
+    .chat-msg.ai { background: rgba(108,242,166,.08); margin-right: auto; border: 1px solid rgba(108,242,166,.15); }
+    [data-theme="light"] .chat-msg.ai { background: #dcfce7; border-color: #86efac; }
+    .chat-input { padding: 8px 12px; border-top: 1px solid var(--line); display: flex; gap: 6px; }
+    .chat-input input { flex: 1; font-size: 12px; }
+
+    .mascot-btn {
+      position: fixed; bottom: 16px; right: 16px; width: 52px; height: 52px; border-radius: 50%;
+      background: linear-gradient(135deg, rgba(114,229,255,.3), rgba(108,242,166,.2));
+      border: 1px solid rgba(114,229,255,.4); cursor: pointer; font-size: 22px;
+      display: flex; align-items: center; justify-content: center; z-index: 9997;
+      box-shadow: var(--shadow); transition: .2s transform;
+    }
+    .mascot-btn:hover { transform: scale(1.08); }
+    .mascot-btn.pulse { animation: mascotPulse 2s infinite; }
+    @keyframes mascotPulse {
+      0% { box-shadow: 0 0 0 0 rgba(114,229,255,.4); }
+      70% { box-shadow: 0 0 0 10px rgba(114,229,255,0); }
+      100% { box-shadow: 0 0 0 0 rgba(114,229,255,0); }
+    }
+
+    .command-btn {
+      background: rgba(114,229,255,.12); border: 1px solid rgba(114,229,255,.25);
+      border-radius: 6px; padding: 3px 7px; font-size: 10px; cursor: pointer; margin: 2px; display: inline-block;
+    }
+    .outcome-btns { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
+    .outcome-btn { padding: 3px 8px; border-radius: 6px; font-size: 10px; border: 1px solid var(--line); cursor: pointer; }
+
+    .troubleshoot-box {
+      background: rgba(255,107,125,.08); border: 1px solid rgba(255,107,125,.2);
+      border-radius: var(--radius-md); padding: 12px; margin-top: 10px;
+    }
+    [data-theme="light"] .troubleshoot-box { background: rgba(190,18,60,.05); }
+
+    .easy-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+    @media (max-width: 640px) { .easy-grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 420px) { .easy-grid { grid-template-columns: 1fr; } }
+    .easy-card {
+      padding: 16px; border-radius: 14px; border: 1px solid var(--line);
+      background: rgba(0,0,0,.15); cursor: pointer; text-align: center;
+      transition: .15s transform, .15s background, .15s border-color;
+    }
+    [data-theme="light"] .easy-card { background: rgba(0,0,0,.03); }
+    .easy-card:hover { transform: translateY(-2px); background: rgba(114,229,255,.08); border-color: rgba(114,229,255,.25); }
+    .easy-card .icon { font-size: 28px; margin-bottom: 6px; }
+    .easy-card .label { font-weight: 700; font-size: 13px; }
+    .easy-card .sub { color: var(--muted); font-size: 11px; margin-top: 4px; }
+
+    .hidden { display: none !important; }
+
+    /* ===== LOADING OVERLAY ===== */
+    .loading-overlay {
+      position: fixed; inset: 0; background: rgba(8,12,24,.75); backdrop-filter: blur(4px);
+      z-index: 10000; display: none; align-items: center; justify-content: center; flex-direction: column;
+      gap: 14px; opacity: 0; transition: opacity .25s ease;
+    }
+    [data-theme="light"] .loading-overlay { background: rgba(244,246,250,.75); }
+    .loading-overlay.show { display: flex; opacity: 1; }
+    .spinner {
+      width: 44px; height: 44px; border-radius: 50%;
+      border: 3px solid var(--line); border-top-color: var(--accent);
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { font-size: 14px; font-weight: 600; color: var(--muted); }
+
+    /* ===== SHORTCUTS MODAL ===== */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 10001;
+      display: none; align-items: center; justify-content: center; opacity: 0; transition: opacity .2s ease;
+    }
+    [data-theme="light"] .modal-overlay { background: rgba(0,0,0,.35); }
+    .modal-overlay.show { display: flex; opacity: 1; }
+    .modal {
+      background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-lg);
+      padding: 20px; width: min(90vw, 420px); box-shadow: var(--shadow); max-height: 80vh; overflow: auto;
+    }
+    .modal h2 { margin-bottom: 12px; }
+    .modal table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .modal th, .modal td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+    .modal th { color: var(--muted); font-weight: 600; }
+    .modal kbd {
+      background: var(--panel2); border: 1px solid var(--line); border-radius: 4px;
+      padding: 2px 5px; font-family: var(--font-mono); font-size: 11px;
+    }
+    .modal-close {
+      float: right; background: none; border: none; font-size: 18px; cursor: pointer; color: var(--muted);
+    }
+    .modal-close:hover { color: var(--text); }
+
+    /* ===== MEDIA QUERIES ===== */
+    @media (max-width: 900px) {
+      .chat-window { width: calc(100vw - 32px); height: calc(100vh - 90px); bottom: 8px; right: 8px; }
+    }
+    @media (max-width: 640px) {
+      header .row { width: 100%; justify-content: space-between; }
+      header .row:last-child { margin-top: 4px; }
+      .split { grid-template-columns: 1fr; }
+      .terminal { height: 160px; font-size: 11px; }
+      .chat-window { width: calc(100vw - 16px); height: calc(100vh - 80px); bottom: 4px; right: 4px; border-radius: 14px; }
+      .mascot-btn { width: 48px; height: 48px; font-size: 20px; bottom: 12px; right: 12px; }
+    }
   </style>
 </head>
 <body>
+<a href="#main" class="skip-link">Skip to content</a>
+
 <header>
-  <div class="row">
+  <div class="row" aria-label=" branding">
     <h1>🤖 AgentDock</h1>
     <span class="pill" style="margin-left:8px">2.0</span>
   </div>
-  <div class="row">
-    <select id="projectSelect" class="project-select" onchange="changeProject(this.value)">
+  <div class="row" role="toolbar" aria-label="Main controls">
+    <select id="projectSelect" class="project-select" onchange="changeProject(this.value)" aria-label="Select project">
       <option value="">📁 Select project...</option>
     </select>
-    <button id="modeEasy" class="mode-toggle active" onclick="setMode('easy')">🟢 Easy</button>
-    <button id="modeAdvanced" class="mode-toggle" onclick="setMode('advanced')">⚙️ Advanced</button>
-    <button class="primary smallbtn" onclick="runScan()">🔍 Scan</button>
+    <button id="modeEasy" class="mode-toggle active" onclick="setMode('easy')" aria-pressed="true">🟢 Easy</button>
+    <button id="modeAdvanced" class="mode-toggle" onclick="setMode('advanced')" aria-pressed="false">⚙️ Advanced</button>
+    <button class="primary smallbtn" onclick="runScan()" aria-label="Run system scan">🔍 Scan</button>
+    <button class="smallbtn" id="themeToggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle light or dark theme">🌓</button>
+    <button class="smallbtn" onclick="showShortcuts()" title="Keyboard shortcuts" aria-label="Show keyboard shortcuts">⌨️</button>
   </div>
 </header>
 
-<main>
+<main id="main">
   <!-- EASY MODE -->
   <div id="easyMode">
     <div class="panel" id="easyProjectPanel" style="display:none">
@@ -119,22 +453,22 @@
       <h2>🚀 Quick Launch</h2>
       <p class="small">One-click launch for common tasks on this project</p>
       <div class="easy-grid" id="easyQuickLaunch">
-        <div class="easy-card" onclick="launchProfile('local-safe-audit')">
+        <div class="easy-card" onclick="launchProfile('local-safe-audit')" tabindex="0" role="button" aria-label="Launch Safe Audit" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();launchProfile('local-safe-audit');}">
           <div class="icon">🔒</div>
           <div class="label">Safe Audit</div>
           <div class="sub">Local, read-only</div>
         </div>
-        <div class="easy-card" onclick="launchProfile('cloud-heavy-refactor-claude')">
+        <div class="easy-card" onclick="launchProfile('cloud-heavy-refactor-claude')" tabindex="0" role="button" aria-label="Launch Heavy Refactor" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();launchProfile('cloud-heavy-refactor-claude');}">
           <div class="icon">🔨</div>
           <div class="label">Heavy Refactor</div>
           <div class="sub">Claude cloud</div>
         </div>
-        <div class="easy-card" onclick="launchProfile('cloud-patch-test-codex')">
+        <div class="easy-card" onclick="launchProfile('cloud-patch-test-codex')" tabindex="0" role="button" aria-label="Launch Quick Patch" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();launchProfile('cloud-patch-test-codex');}">
           <div class="icon">🩹</div>
           <div class="label">Quick Patch</div>
           <div class="sub">Codex cloud</div>
         </div>
-        <div class="easy-card" onclick="launchProfile('hybrid-bug-hunt-aider')">
+        <div class="easy-card" onclick="launchProfile('hybrid-bug-hunt-aider')" tabindex="0" role="button" aria-label="Launch Bug Hunt" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();launchProfile('hybrid-bug-hunt-aider');}">
           <div class="icon">🐛</div>
           <div class="label">Bug Hunt</div>
           <div class="sub">Aider hybrid</div>
@@ -176,7 +510,13 @@
     <div class="panel">
       <h2>Goal Planner</h2>
       <div class="row">
-        <select id="goal"><option value="privacy">Maximum Privacy</option><option value="fastest">Fastest Coding</option><option value="cheapest">Cheapest Cloud</option><option value="heavy">Heavy Refactor</option><option value="audit">Safe Audit</option></select>
+        <select id="goal" aria-label="Planning goal">
+          <option value="privacy">Maximum Privacy</option>
+          <option value="fastest">Fastest Coding</option>
+          <option value="cheapest">Cheapest Cloud</option>
+          <option value="heavy">Heavy Refactor</option>
+          <option value="audit">Safe Audit</option>
+        </select>
         <button class="primary" onclick="makePlan()">Plan From Scan</button>
       </div>
       <div id="plan" class="grid" style="margin-top:12px"></div>
@@ -185,14 +525,14 @@
     <div class="panel wide">
       <h2>Managed Terminal</h2>
       <p class="small">Monitored output from launched agent sessions.</p>
-      <div class="session-tabs" id="sessionTabs"></div>
+      <div class="session-tabs" id="sessionTabs" role="tablist" aria-label="Session tabs"></div>
       <div class="row">
-        <select id="sessionSelect" onchange="selectSession(this.value)"></select>
+        <select id="sessionSelect" onchange="selectSession(this.value)" aria-label="Select session"></select>
         <button onclick="loadSessions()">Refresh</button>
         <button class="danger" onclick="stopSelectedSession()">Stop</button>
       </div>
-      <div id="terminal" class="terminal">No session yet. Launch a profile to start monitoring.</div>
-      <div class="terminal-input"><input id="terminalInput" placeholder="Send input to session..." onkeydown="if(event.key==='Enter') sendInput()"/><button onclick="sendInput()">Send</button></div>
+      <div id="terminal" class="terminal" role="log" aria-live="polite" aria-label="Terminal output">No session yet. Launch a profile to start monitoring.</div>
+      <div class="terminal-input"><input id="terminalInput" placeholder="Send input to session..." onkeydown="if(event.key==='Enter') sendInput()" aria-label="Terminal input"/><button onclick="sendInput()">Send</button></div>
       <div id="outcomePanel" style="display:none;margin-top:6px">
         <span class="small">How did it go?</span>
         <div class="outcome-btns">
@@ -228,7 +568,7 @@
       <pre id="brief" class="terminal" style="height:200px"></pre>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div class="split">
       <div class="panel">
         <h2>System Snapshot</h2>
         <div id="scanSummary" class="kv"><div>Status</div><div>Not scanned yet.</div></div>
@@ -246,7 +586,7 @@
 
     <div class="panel">
       <h2>Memory</h2>
-      <textarea id="memory" class="mono" style="width:100%;min-height:100px;background:rgba(0,0,0,.2);border:1px solid var(--line);border-radius:12px;padding:8px;color:var(--text);font:inherit;font-size:12px"></textarea>
+      <textarea id="memory" class="mono" style="width:100%;min-height:100px;background:rgba(0,0,0,.2);border:1px solid var(--line);border-radius:12px;padding:8px;color:var(--text);font:inherit;font-size:12px" aria-label="Memory markdown"></textarea>
       <div class="row"><button class="smallbtn" onclick="saveMemory()">Save</button><button class="smallbtn" onclick="loadMemory()">Reload</button></div>
     </div>
 
@@ -258,17 +598,46 @@
   </div>
 </main>
 
-<div id="toast" class="toast"></div>
+<!-- Toast -->
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<div class="mascot-btn" id="mascotBtn" onclick="toggleChat()" title="AI Assistant">🤖</div>
-<div class="chat-window" id="chatWindow">
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="loading-overlay" aria-hidden="true">
+  <div class="spinner" role="img" aria-label="Loading"></div>
+  <div class="loading-text" id="loadingText">Loading…</div>
+</div>
+
+<!-- Shortcuts Modal -->
+<div id="shortcutsModal" class="modal-overlay" onclick="if(event.target===this)hideShortcuts()" role="dialog" aria-modal="true" aria-labelledby="shortcutsTitle">
+  <div class="modal">
+    <button class="modal-close" onclick="hideShortcuts()" aria-label="Close shortcuts">✕</button>
+    <h2 id="shortcutsTitle">⌨️ Keyboard Shortcuts</h2>
+    <table>
+      <thead><tr><th>Shortcut</th><th>Action</th></tr></thead>
+      <tbody>
+        <tr><td><kbd>Ctrl</kbd> <kbd>K</kbd></td><td>Focus project search</td></tr>
+        <tr><td><kbd>Ctrl</kbd> <kbd>/</kbd></td><td>Show / hide shortcuts</td></tr>
+        <tr><td><kbd>Ctrl</kbd> <kbd>.</kbd></td><td>Toggle theme</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Close chat or modal</td></tr>
+        <tr><td><kbd>Ctrl</kbd> <kbd>Enter</kbd></td><td>Send chat message</td></tr>
+        <tr><td><kbd>Ctrl</kbd> <kbd>1</kbd></td><td>Switch to Easy mode</td></tr>
+        <tr><td><kbd>Ctrl</kbd> <kbd>2</kbd></td><td>Switch to Advanced mode</td></tr>
+        <tr><td><kbd>Ctrl</kbd> <kbd>S</kbd></td><td>Run system scan</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Chat -->
+<div class="mascot-btn" id="mascotBtn" onclick="toggleChat()" title="AI Assistant" role="button" tabindex="0" aria-label="Open AI assistant" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleChat();}">🤖</div>
+<div class="chat-window" id="chatWindow" role="dialog" aria-label="AI Assistant chat">
   <div class="chat-header">
     <h3>🤖 AgentDock AI</h3>
-    <button class="smallbtn" onclick="toggleChat()">✕</button>
+    <button class="smallbtn" onclick="toggleChat()" aria-label="Close chat">✕</button>
   </div>
-  <div class="chat-messages" id="chatMessages"></div>
+  <div class="chat-messages" id="chatMessages" role="log" aria-live="polite"></div>
   <div class="chat-input">
-    <input id="chatInput" placeholder="Ask me anything..." style="flex:1" onkeydown="if(event.key==='Enter') sendChat()"/>
+    <input id="chatInput" placeholder="Ask me anything…" style="flex:1" onkeydown="if(event.key==='Enter' && !event.ctrlKey) sendChat(); if(event.key==='Enter' && event.ctrlKey) sendChat();" aria-label="Chat message" />
     <button class="smallbtn" onclick="sendChat()">Send</button>
     <button class="smallbtn" onclick="clearChat()">Clear</button>
   </div>
@@ -279,75 +648,551 @@ let scan=null, profiles=[], plan=null, catalog=null, currentSession=null, cursor
 let projects=[], activeProject=null, sessionCursors={}, advMode='easy';
 const CHAT_SESSION = 'user-' + Math.random().toString(36).slice(2, 8);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-async function api(url, opts={}){const r=await fetch(url,{headers:{'Content-Type':'application/json'},...opts});const t=await r.text();let j;try{j=JSON.parse(t)}catch{j={text:t}} if(!r.ok)throw new Error(j.error||t);return j;}
-function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.style.display='block';setTimeout(()=>el.style.display='none',3000)}
+
+async function api(url, opts={}){
+  let attempts = 0;
+  const maxAttempts = 2;
+  while (true) {
+    try {
+      const r = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
+      const t = await r.text();
+      let j;
+      try { j = JSON.parse(t); } catch { j = { text: t }; }
+      if (!r.ok) throw new Error(j.error || t);
+      return j;
+    } catch (e) {
+      attempts++;
+      if (attempts >= maxAttempts) {
+        toast('Network error: ' + e.message, 'error');
+        throw e;
+      }
+      await new Promise(r => setTimeout(r, 400));
+    }
+  }
+}
+
+function toast(msg, type='info'){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show ' + (type === 'error' ? 'error' : type === 'warn' ? 'warn' : '');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+function setLoading(show, text='Loading…'){
+  const el = document.getElementById('loadingOverlay');
+  document.getElementById('loadingText').textContent = text;
+  if (show) { el.classList.add('show'); el.setAttribute('aria-hidden','false'); }
+  else { el.classList.remove('show'); el.setAttribute('aria-hidden','true'); }
+}
+
+// ===== THEME =====
+function toggleTheme(){
+  const html = document.documentElement;
+  const next = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+  html.setAttribute('data-theme', next);
+  localStorage.setItem('agentdock-theme', next);
+}
+(function initTheme(){
+  const saved = localStorage.getItem('agentdock-theme');
+  if (saved) document.documentElement.setAttribute('data-theme', saved);
+  else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+    document.documentElement.setAttribute('data-theme', 'light');
+  }
+})();
+
+// ===== KEYBOARD SHORTCUTS =====
+function showShortcuts(){ document.getElementById('shortcutsModal').classList.add('show'); }
+function hideShortcuts(){ document.getElementById('shortcutsModal').classList.remove('show'); }
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    const modal = document.getElementById('shortcutsModal');
+    if (modal.classList.contains('show')) { hideShortcuts(); return; }
+    const chat = document.getElementById('chatWindow');
+    if (chat.style.display === 'flex') { toggleChat(); return; }
+  }
+  if (!e.ctrlKey) return;
+  switch (e.key.toLowerCase()) {
+    case 'k': e.preventDefault(); document.getElementById('projectSelect').focus(); break;
+    case '/': e.preventDefault(); showShortcuts(); break;
+    case '.': e.preventDefault(); toggleTheme(); break;
+    case 'enter': e.preventDefault(); sendChat(); break;
+    case '1': e.preventDefault(); setMode('easy'); break;
+    case '2': e.preventDefault(); setMode('advanced'); break;
+    case 's': e.preventDefault(); runScan(); break;
+  }
+});
 
 // ===== MODE TOGGLE =====
-function setMode(mode){advMode=mode;document.getElementById('modeEasy').className='mode-toggle '+(mode==='easy'?'active':'');document.getElementById('modeAdvanced').className='mode-toggle '+(mode==='advanced'?'active':'');document.getElementById('easyMode').classList.toggle('hidden',mode!=='easy');document.getElementById('advancedMode').classList.toggle('hidden',mode!=='advanced');}
+function setMode(mode){
+  advMode = mode;
+  const easyBtn = document.getElementById('modeEasy');
+  const advBtn = document.getElementById('modeAdvanced');
+  easyBtn.className = 'mode-toggle ' + (mode === 'easy' ? 'active' : '');
+  easyBtn.setAttribute('aria-pressed', mode === 'easy');
+  advBtn.className = 'mode-toggle ' + (mode === 'advanced' ? 'active' : '');
+  advBtn.setAttribute('aria-pressed', mode === 'advanced');
+  document.getElementById('easyMode').classList.toggle('hidden', mode !== 'easy');
+  document.getElementById('advancedMode').classList.toggle('hidden', mode !== 'advanced');
+}
 
 // ===== AI CHAT =====
-function toggleChat(){const w=document.getElementById('chatWindow');w.style.display=w.style.display==='flex'?'none':'flex';if(w.style.display==='flex')document.getElementById('chatInput').focus();}
-function addChatMsg(text,from){const d=document.getElementById('chatMessages');const div=document.createElement('div');div.className='chat-msg '+(from==='user'?'user':'ai');div.innerHTML=esc(text).replace(/\n/g,'<br>');d.appendChild(div);d.scrollTop=d.scrollHeight;}
-async function sendChat(){const inp=document.getElementById('chatInput');const text=inp.value.trim();if(!text)return;inp.value='';addChatMsg(text,'user');try{const r=await api('/api/chat',{method:'POST',body:JSON.stringify({sessionId:CHAT_SESSION,text})});addChatMsg(r.text||'...','ai');executeAiCommands(r.commands||[]);}catch(e){addChatMsg('Error: '+e.message,'ai');}}
-async function reportEvent(type,data){try{await api('/api/chat',{method:'POST',body:JSON.stringify({sessionId:CHAT_SESSION,event:{type,data}})});}catch(e){}}
-async function clearChat(){try{await api('/api/chat/clear',{method:'POST',body:JSON.stringify({sessionId:CHAT_SESSION})});document.getElementById('chatMessages').innerHTML='';addChatMsg('Chat cleared. How can I help?','ai');}catch(e){}}
-function executeAiCommands(commands){for(const cmd of commands||[]){switch(cmd.type){case'launch':launchProfile(cmd.profileId);break;case'switchProject':changeProject(cmd.path);break;case'runScan':runScan();break;case'generatePlan':document.getElementById('goal').value=cmd.goal||'privacy';makePlan();break;case'showMessage':toast(cmd.text);break;case'openUrl':window.open(cmd.url,'_blank');break;case'askUser':const ans=prompt(cmd.question);if(ans)sendChatWithText('User answered: '+ans);break;}}}
-function sendChatWithText(text){addChatMsg(text,'user');api('/api/chat',{method:'POST',body:JSON.stringify({sessionId:CHAT_SESSION,text})}).then(r=>{addChatMsg(r.text||'...','ai');executeAiCommands(r.commands||[]);}).catch(e=>addChatMsg('Error: '+e.message,'ai'));}
+function toggleChat(){
+  const w = document.getElementById('chatWindow');
+  w.style.display = w.style.display === 'flex' ? 'none' : 'flex';
+  if (w.style.display === 'flex') document.getElementById('chatInput').focus();
+}
+function addChatMsg(text, from){
+  const d = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'chat-msg ' + (from === 'user' ? 'user' : 'ai');
+  div.innerHTML = esc(text).replace(/\n/g, '<br>');
+  d.appendChild(div);
+  d.scrollTop = d.scrollHeight;
+}
+async function sendChat(){
+  const inp = document.getElementById('chatInput');
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value = '';
+  addChatMsg(text, 'user');
+  try {
+    const r = await api('/api/chat', { method: 'POST', body: JSON.stringify({ sessionId: CHAT_SESSION, text }) });
+    addChatMsg(r.text || '…', 'ai');
+    executeAiCommands(r.commands || []);
+  } catch (e) { addChatMsg('Error: ' + e.message, 'ai'); }
+}
+async function reportEvent(type, data){
+  try { await api('/api/chat', { method: 'POST', body: JSON.stringify({ sessionId: CHAT_SESSION, event: { type, data } }) }); } catch (e) {}
+}
+async function clearChat(){
+  try {
+    await api('/api/chat/clear', { method: 'POST', body: JSON.stringify({ sessionId: CHAT_SESSION }) });
+    document.getElementById('chatMessages').innerHTML = '';
+    addChatMsg('Chat cleared. How can I help?', 'ai');
+  } catch (e) { toast('Failed to clear chat', 'error'); }
+}
+function executeAiCommands(commands){
+  for (const cmd of commands || []) {
+    switch (cmd.type) {
+      case 'launch': launchProfile(cmd.profileId); break;
+      case 'switchProject': changeProject(cmd.path); break;
+      case 'runScan': runScan(); break;
+      case 'generatePlan': document.getElementById('goal').value = cmd.goal || 'privacy'; makePlan(); break;
+      case 'showMessage': toast(cmd.text); break;
+      case 'openUrl': window.open(cmd.url, '_blank'); break;
+      case 'askUser':
+        const ans = prompt(cmd.question);
+        if (ans) sendChatWithText('User answered: ' + ans);
+        break;
+    }
+  }
+}
+function sendChatWithText(text){
+  addChatMsg(text, 'user');
+  api('/api/chat', { method: 'POST', body: JSON.stringify({ sessionId: CHAT_SESSION, text }) })
+    .then(r => { addChatMsg(r.text || '…', 'ai'); executeAiCommands(r.commands || []); })
+    .catch(e => addChatMsg('Error: ' + e.message, 'ai'));
+}
 
 // ===== PROJECTS =====
-async function loadProjects(){const data=await api('/api/projects');projects=data.projects||[];activeProject=data.active;renderProjectSelect();renderProjectPanel();renderEasyProject();renderInstallGuides();}
-function renderProjectSelect(){const sel=document.getElementById('projectSelect');sel.innerHTML='<option value="">📁 Select project...</option>'+projects.map(p=>`<option value="${esc(p.path)}" ${p.path===activeProject?'selected':''}>${esc(p.name)} ${p.type!=='generic'?'('+p.type+')':''}</option>`).join('');}
-async function changeProject(path){if(!path){activeProject=null;return;}await api('/api/active-project',{method:'POST',body:JSON.stringify({path})});activeProject=path;await loadProjects();toast('Project: '+projects.find(p=>p.path===path)?.name);reportEvent('projectSwitched',{project:path});}
-function renderProjectPanel(){const panel=document.getElementById('projectPanel');if(!activeProject){panel.style.display='none';return;}const p=projects.find(x=>x.path===activeProject);if(!p){panel.style.display='none';return;}panel.style.display='';const g=p.git||{};const gitClass=g.clean?'git-ok':g.hasRemote?'git-warn':'git-bad';document.getElementById('projectInfo').innerHTML=`<div>Name</div><div>${esc(p.name)}</div><div>Path</div><div class="mono">${esc(p.path)}</div><div>Type</div><div>${esc(p.type)}</div><div>Git</div><div class="${gitClass}">${g.present?(g.clean?'clean':'dirty '+g.uncommitted):'no repo'}</div><div>Branch</div><div>${esc(g.branch||'N/A')}</div><div>Remote</div><div>${g.hasRemote?'connected':'none'}</div>${g.ahead||g.behind?`<div>Sync</div><div>${g.ahead?'+'+g.ahead:''}${g.behind?'-'+g.behind:''}</div>`:''}`;}
-function renderEasyProject(){const panel=document.getElementById('easyProjectPanel');if(!activeProject){panel.style.display='none';return;}const p=projects.find(x=>x.path===activeProject);if(!p){panel.style.display='none';return;}panel.style.display='';document.getElementById('easyProjectName').textContent=p.name+' ('+p.type+')';const g=p.git||{};const status=g.clean?'✅ Clean':g.hasRemote?'⚠️ Dirty ('+g.uncommitted+')':'🚨 No remote';document.getElementById('easyGitStatus').innerHTML=`<span class="pill">${esc(g.branch||'no branch')}</span><span class="pill">${esc(status)}</span>`;}
-async function refreshGit(){if(!activeProject)return;toast('Refreshing git...');await loadProjects();toast('Git refreshed.');}
-async function loadAgentsMd(){if(!activeProject)return;const data=await api('/api/project/'+encodeURIComponent(activeProject)+'/agents-md');const p1=document.getElementById('agentsMdPanel');const p2=document.getElementById('agentsMdPanelAdvanced');if(data.present){const txt=data.text;(p1||{}).textContent=txt;(p2||{}).textContent=txt;(p1||{}).style.display='block';(p2||{}).style.display='block';}else{(p1||{}).textContent='No AGENTS.md';(p2||{}).textContent='No AGENTS.md';(p1||{}).style.display='block';(p2||{}).style.display='block';}}
+async function loadProjects(){
+  const data = await api('/api/projects');
+  projects = data.projects || [];
+  activeProject = data.active;
+  renderProjectSelect();
+  renderProjectPanel();
+  renderEasyProject();
+  renderInstallGuides();
+}
+function renderProjectSelect(){
+  const sel = document.getElementById('projectSelect');
+  sel.innerHTML = '<option value="">📁 Select project…</option>' + projects.map(p => `<option value="${esc(p.path)}" ${p.path === activeProject ? 'selected' : ''}>${esc(p.name)} ${p.type !== 'generic' ? '(' + p.type + ')' : ''}</option>`).join('');
+}
+async function changeProject(path){
+  if (!path) { activeProject = null; return; }
+  setLoading(true, 'Switching project…');
+  try {
+    await api('/api/active-project', { method: 'POST', body: JSON.stringify({ path }) });
+    activeProject = path;
+    await loadProjects();
+    toast('Project: ' + (projects.find(p => p.path === path)?.name || path));
+    reportEvent('projectSwitched', { project: path });
+  } catch (e) { toast('Failed to switch project', 'error'); }
+  finally { setLoading(false); }
+}
+function renderProjectPanel(){
+  const panel = document.getElementById('projectPanel');
+  if (!activeProject) { panel.style.display = 'none'; return; }
+  const p = projects.find(x => x.path === activeProject);
+  if (!p) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+  const g = p.git || {};
+  const gitClass = g.clean ? 'git-ok' : g.hasRemote ? 'git-warn' : 'git-bad';
+  document.getElementById('projectInfo').innerHTML = `<div>Name</div><div>${esc(p.name)}</div><div>Path</div><div class="mono">${esc(p.path)}</div><div>Type</div><div>${esc(p.type)}</div><div>Git</div><div class="${gitClass}">${g.present ? (g.clean ? 'clean' : 'dirty ' + g.uncommitted) : 'no repo'}</div><div>Branch</div><div>${esc(g.branch || 'N/A')}</div><div>Remote</div><div>${g.hasRemote ? 'connected' : 'none'}</div>${g.ahead || g.behind ? `<div>Sync</div><div>${g.ahead ? '+' + g.ahead : ''}${g.behind ? '-' + g.behind : ''}</div>` : ''}`;
+}
+function renderEasyProject(){
+  const panel = document.getElementById('easyProjectPanel');
+  if (!activeProject) { panel.style.display = 'none'; return; }
+  const p = projects.find(x => x.path === activeProject);
+  if (!p) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+  document.getElementById('easyProjectName').textContent = p.name + ' (' + p.type + ')';
+  const g = p.git || {};
+  const status = g.clean ? '✅ Clean' : g.hasRemote ? '⚠️ Dirty (' + g.uncommitted + ')' : '🚨 No remote';
+  document.getElementById('easyGitStatus').innerHTML = `<span class="pill">${esc(g.branch || 'no branch')}</span><span class="pill">${esc(status)}</span>`;
+}
+async function refreshGit(){
+  if (!activeProject) return;
+  toast('Refreshing git…');
+  await loadProjects();
+  toast('Git refreshed.');
+}
+async function loadAgentsMd(){
+  if (!activeProject) return;
+  try {
+    const data = await api('/api/project/' + encodeURIComponent(activeProject) + '/agents-md');
+    const p1 = document.getElementById('agentsMdPanel');
+    const p2 = document.getElementById('agentsMdPanelAdvanced');
+    const txt = data.present ? data.text : 'No AGENTS.md';
+    if (p1) { p1.textContent = txt; p1.style.display = 'block'; }
+    if (p2) { p2.textContent = txt; p2.style.display = 'block'; }
+  } catch (e) { toast('Failed to load AGENTS.md', 'error'); }
+}
 
 // ===== INSTALL GUIDES =====
-function renderInstallGuides(){const el=document.getElementById('installGuides');const easyEl=document.getElementById('easyInstallList');if(!catalog||!scan){if(el)el.innerHTML='Run a scan to see install guides.';return;}const missing=(scan.coders||[]).filter(c=>!c.detection?.present).map(c=>c.id);if(!scan.tools?.ollama?.present)missing.push('ollama');const guides=[];for(const tool of catalog.tools||[]){if(missing.includes(tool.id)&&tool.install_guide){guides.push(tool);}}if(!guides.length){if(el)el.innerHTML='<p class="small">All tools installed.</p>';if(easyEl){easyEl.parentElement.style.display='none';}return;}if(el)el.innerHTML=guides.map(t=>`<div class="install-card"><h4>${esc(t.name)} <span class="pill">${esc(t.category)}</span></h4><p class="small">${esc(t.best_for)}</p><div class="cmd" onclick="copyText(this)">${esc(t.install_windows||t.install_guide)}</div><div class="row"><a href="${esc(t.official)}" target="_blank" rel="noopener"><button class="smallbtn">Official ↗</button></a><button class="smallbtn primary" onclick="copyInstall('${esc(t.id)}')">📋 Copy</button></div></div>`).join('');if(easyEl){easyEl.parentElement.style.display='';easyEl.innerHTML=guides.slice(0,4).map(t=>`<div class="install-card"><h4>${esc(t.name)}</h4><div class="cmd" onclick="copyText(this)">${esc(t.install_windows||t.install_guide)}</div><a href="${esc(t.official)}" target="_blank"><button class="smallbtn">Official ↗</button></a></div>`).join('');}}
-function copyInstall(id){const tool=catalog.tools.find(t=>t.id===id);if(!tool)return;const cmd=tool.install_windows||tool.install_guide;navigator.clipboard.writeText(cmd).then(()=>toast('Copied!'));}function copyText(el){navigator.clipboard.writeText(el.textContent).then(()=>toast('Copied!'));}
+function renderInstallGuides(){
+  const el = document.getElementById('installGuides');
+  const easyEl = document.getElementById('easyInstallList');
+  if (!catalog || !scan) { if (el) el.innerHTML = 'Run a scan to see install guides.'; return; }
+  const missing = (scan.coders || []).filter(c => !c.detection?.present).map(c => c.id);
+  if (!scan.tools?.ollama?.present) missing.push('ollama');
+  const guides = [];
+  for (const tool of catalog.tools || []) { if (missing.includes(tool.id) && tool.install_guide) guides.push(tool); }
+  if (!guides.length) {
+    if (el) el.innerHTML = '<p class="small">All tools installed.</p>';
+    if (easyEl) { easyEl.parentElement.style.display = 'none'; }
+    return;
+  }
+  if (el) el.innerHTML = guides.map(t => `<div class="install-card"><h4>${esc(t.name)} <span class="pill">${esc(t.category)}</span></h4><p class="small">${esc(t.best_for)}</p><div class="cmd" onclick="copyText(this)" tabindex="0" role="button" aria-label="Copy install command" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();copyText(this);}">${esc(t.install_windows || t.install_guide)}</div><div class="row"><a href="${esc(t.official)}" target="_blank" rel="noopener"><button class="smallbtn">Official ↗</button></a><button class="smallbtn primary" onclick="copyInstall('${esc(t.id)}')">📋 Copy</button></div></div>`).join('');
+  if (easyEl) {
+    easyEl.parentElement.style.display = '';
+    easyEl.innerHTML = guides.slice(0, 4).map(t => `<div class="install-card"><h4>${esc(t.name)}</h4><div class="cmd" onclick="copyText(this)" tabindex="0" role="button" aria-label="Copy install command" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();copyText(this);}">${esc(t.install_windows || t.install_guide)}</div><a href="${esc(t.official)}" target="_blank"><button class="smallbtn">Official ↗</button></a></div>`).join('');
+  }
+}
+function copyInstall(id){
+  const tool = catalog.tools.find(t => t.id === id);
+  if (!tool) return;
+  const cmd = tool.install_windows || tool.install_guide;
+  navigator.clipboard.writeText(cmd).then(() => toast('Copied!'));
+}
+function copyText(el){
+  navigator.clipboard.writeText(el.textContent).then(() => toast('Copied!'));
+}
 
 // ===== LOCAL MODELS =====
-function renderLocalModels(){const el=document.getElementById('localModelsPanel');if(!scan||!scan.local_models){el.textContent='Run a scan to detect local models.';return;}const lm=scan.local_models;const backends=(lm.backends||[]).filter(b=>b.present);const ggufs=lm.discovered_ggufs||[];let html='';if(backends.length){html+='<p class="small"><b>Local Backends Detected:</b></p>';for(const b of backends){html+=`<div class="card" style="margin-bottom:6px"><div class="row" style="justify-content:space-between"><b>${esc(b.name)}</b><span class="status INSTALLED">RUNNING</span></div>`;if(b.model_count!==undefined&&b.model_count>0){html+=`<div class="small">${b.model_count} model(s)</div>`;}if(b.models&&b.models.length){html+='<div class="small mono">'+b.models.slice(0,3).map(m=>esc(m.name)+' ('+m.size_mb+'MB)').join('<br>')+'</div>';}html+='</div>';}}else{html+='<p class="small">No local backends running (checked LM Studio, LocalAI, KoboldCPP, llama.cpp, vLLM, text-generation-webui).</p>';}if(ggufs.length){html+='<p class="small" style="margin-top:8px"><b>Discovered .gguf files:</b></p>';for(const g of ggufs.slice(0,5)){html+=`<div class="small mono">${esc(g.name)} (${g.size_mb}MB)</div>`;}}el.innerHTML=html;}
+function renderLocalModels(){
+  const el = document.getElementById('localModelsPanel');
+  if (!scan || !scan.local_models) { el.textContent = 'Run a scan to detect local models.'; return; }
+  const lm = scan.local_models;
+  const backends = (lm.backends || []).filter(b => b.present);
+  const ggufs = lm.discovered_ggufs || [];
+  let html = '';
+  if (backends.length) {
+    html += '<p class="small"><b>Local Backends Detected:</b></p>';
+    for (const b of backends) {
+      html += `<div class="card" style="margin-bottom:6px"><div class="row" style="justify-content:space-between"><b>${esc(b.name)}</b><span class="status INSTALLED">RUNNING</span></div>`;
+      if (b.model_count !== undefined && b.model_count > 0) html += `<div class="small">${b.model_count} model(s)</div>`;
+      if (b.models && b.models.length) html += '<div class="small mono">' + b.models.slice(0, 3).map(m => esc(m.name) + ' (' + m.size_mb + 'MB)').join('<br>') + '</div>';
+      html += '</div>';
+    }
+  } else { html += '<p class="small">No local backends running (checked LM Studio, LocalAI, KoboldCPP, llama.cpp, vLLM, text-generation-webui).</p>'; }
+  if (ggufs.length) {
+    html += '<p class="small" style="margin-top:8px"><b>Discovered .gguf files:</b></p>';
+    for (const g of ggufs.slice(0, 5)) html += `<div class="small mono">${esc(g.name)} (${g.size_mb}MB)</div>`;
+  }
+  el.innerHTML = html;
+}
 
 // ===== SCAN =====
-async function runScan(){toast('Scanning...');scan=await api('/api/scan?repo='+encodeURIComponent(activeProject||''));renderScan();renderLocalModels();renderInstallGuides();makePlan();toast('Scan complete.');reportEvent('scanCompleted',{});}
-function renderScan(){if(!scan)return;const gpu=(scan.hardware?.gpu||[])[0]||{};const loaded=scan.ollama?.loaded_models||[];const envCount=(scan.env_files||[]).length;const el=document.getElementById('scanSummary');if(el)el.innerHTML=`<div>OS</div><div>${esc(scan.system?.os||'unknown')}</div><div>CPU</div><div>${esc(scan.hardware?.cpu||'unknown')}</div><div>RAM</div><div>${esc(scan.hardware?.ram_gb||'?')} GB</div><div>GPU</div><div>${esc(gpu.name||'none')}</div><div>VRAM</div><div>${esc(gpu.memory_total_mb?Math.round(gpu.memory_total_mb/1024)+' GB':'?')}</div><div>Ollama</div><div>${scan.tools?.ollama?.present?'yes':'no'}</div><div>Loaded</div><div>${loaded.length?loaded.map(m=>esc(m.name+' @ '+m.context)).join('<br>'):'none'}</div><div>.env files</div><div>${envCount}</div>`;renderCoders();renderEnvFiles();}
+async function runScan(){
+  setLoading(true, 'Scanning system…');
+  try {
+    scan = await api('/api/scan?repo=' + encodeURIComponent(activeProject || ''));
+    renderScan();
+    renderLocalModels();
+    renderInstallGuides();
+    makePlan();
+    toast('Scan complete.');
+    reportEvent('scanCompleted', {});
+  } catch (e) { toast('Scan failed: ' + e.message, 'error'); }
+  finally { setLoading(false); }
+}
+function renderScan(){
+  if (!scan) return;
+  const gpu = (scan.hardware?.gpu || [])[0] || {};
+  const loaded = scan.ollama?.loaded_models || [];
+  const envCount = (scan.env_files || []).length;
+  const el = document.getElementById('scanSummary');
+  if (el) el.innerHTML = `<div>OS</div><div>${esc(scan.system?.os || 'unknown')}</div><div>CPU</div><div>${esc(scan.hardware?.cpu || 'unknown')}</div><div>RAM</div><div>${esc(scan.hardware?.ram_gb || '?')} GB</div><div>GPU</div><div>${esc(gpu.name || 'none')}</div><div>VRAM</div><div>${esc(gpu.memory_total_mb ? Math.round(gpu.memory_total_mb / 1024) + ' GB' : '?')}</div><div>Ollama</div><div>${scan.tools?.ollama?.present ? 'yes' : 'no'}</div><div>Loaded</div><div>${loaded.length ? loaded.map(m => esc(m.name + ' @ ' + m.context)).join('<br>') : 'none'}</div><div>.env files</div><div>${envCount}</div>`;
+  renderCoders();
+  renderEnvFiles();
+}
 
-async function askAdvisor(){const q=document.getElementById('advisorQuestion')?.value||'';const out=document.getElementById('advisorOutput');if(!out)return;out.textContent='Thinking...';try{const r=await api('/api/advisor/analyze',{method:'POST',body:JSON.stringify({question:q})});out.textContent=r.advice||r.fallback||'No advice.';}catch(e){out.textContent='Advisor error: '+e.message;}}
+async function askAdvisor(){
+  const q = document.getElementById('advisorQuestion')?.value || '';
+  const out = document.getElementById('advisorOutput');
+  if (!out) return;
+  out.textContent = 'Thinking…';
+  try {
+    const r = await api('/api/advisor/analyze', { method: 'POST', body: JSON.stringify({ question: q }) });
+    out.textContent = r.advice || r.fallback || 'No advice.';
+  } catch (e) { out.textContent = 'Advisor error: ' + e.message; }
+}
 
-async function loadTemplates(){try{const t=await api('/api/templates');const el=document.getElementById('templates');if(el)el.innerHTML=t.templates.map(x=>`<button class="primary smallbtn" onclick="launchProfile('${esc(x.id)}')">${esc(x.label)}</button>`).join('')||'<span class="small">Select a project.</span>';}catch(e){}}
+async function loadTemplates(){
+  try {
+    const t = await api('/api/templates');
+    const el = document.getElementById('templates');
+    if (el) el.innerHTML = t.templates.map(x => `<button class="primary smallbtn" onclick="launchProfile('${esc(x.id)}')">${esc(x.label)}</button>`).join('') || '<span class="small">Select a project.</span>';
+  } catch (e) { toast('Failed to load templates', 'error'); }
+}
 
-async function loadProfiles(){profiles=await api('/api/profiles');renderProfiles();document.getElementById('profileCount').textContent=profiles.length+' total';}
-async function loadCatalog(){catalog=await api('/api/catalog');renderCoders();renderInstallGuides();}
-function renderProfiles(){const el=document.getElementById('profiles');if(el)el.innerHTML=profiles.map(p=>profileCard(p)).join('');}
-function profileCard(p, evalInfo={}){const meta=p.meta||{};const id=p.id;const state=evalInfo.state||meta.status||'UNKNOWN';const reasons=evalInfo.reasons||[];const stats=evalInfo.stats||{};let badges='';if(stats.total>0){badges+=`<span class="pill" style="color:${stats.successRate>=80?'var(--good)':stats.successRate>=40?'var(--warn)':'var(--bad)'}">${stats.successRate}% success</span>`;if(stats.lastOutcome==='failure')badges+=`<span class="pill" style="color:var(--bad)">last failed</span>`;}return `<div class="card"><div class="row" style="justify-content:space-between"><h3>${esc(p.name)}</h3><span class="status ${esc(state)}">${esc(state)}</span></div><div><span class="pill">${esc(meta.frontend||'?')}</span><span class="pill">${esc(meta.backend||'?')}</span><span class="pill">${esc(meta.mode||'?')}</span>${badges}</div><p class="small">${esc(meta.description||meta.model||'')}</p>${reasons.length?`<details><summary class="small">Reasons</summary><ul class="small">${reasons.map(r=>`<li>${esc(r)}</li>`).join('')}</ul></details>`:''}<div class="row"><button class="smallbtn" onclick="dryRun('${esc(id)}')">Preview</button><button class="smallbtn primary" onclick="launchProfile('${esc(id)}')">Launch</button><button class="smallbtn danger" onclick="blockProfile('${esc(id)}')">Block</button></div></div>`;}
-async function makePlan(){const goal=document.getElementById('goal').value;plan=await api('/api/plan',{method:'POST',body:JSON.stringify({goal})});const el=document.getElementById('plan');if(el)el.innerHTML=plan.recommended.map(p=>profileCard(p,p)).join('')+(plan.blocked.length?`<div class="card"><h3>Blocked</h3>${plan.blocked.map(p=>`<p class="small"><b>${esc(p.name)}</b><br>${esc((p.reasons||[]).join('; '))}</p>`).join('')}</div>`:'');renderCoders(plan.suggestions);loadTemplates();}
-function renderCoders(suggestions){const el=document.getElementById('coders');if(!el)return;const src=suggestions||plan?.suggestions||catalog?.tools||[];const detected=scan?.coders||[];el.innerHTML=src.map(t=>{const det=detected.find(c=>c.id===t.id||c.command===t.command);const present=t.detected ?? det?.detection?.present;const status=present?'INSTALLED':'SUGGESTED';const links=(t.docs||[t.official]).filter(Boolean).map((u,i)=>`<a href="${esc(u)}" target="_blank" rel="noopener">${i?'docs':'official'}</a>`).join(' ');const path=det?.detection?.path||'';const version=det?.detection?.version||'';const hints=(t.authHints||[]).map(h=>`<span class="pill">${esc(h)}</span>`).join('');return `<div class="listline"><div class="row" style="justify-content:space-between"><b>${esc(t.name)}</b><span class="status ${status}">${status}</span></div><div class="links">${links}</div><div class="small">${esc(t.best_for||'')}</div>${path?`<div class="small mono">${esc(path)} ${esc(version)}</div>`:''}<div>${hints}</div></div>`}).join('')||'No catalog.';}
-function renderEnvFiles(){const el=document.getElementById('envFiles');if(!el)return;const files=scan?.env_files||[];el.innerHTML=files.length?files.map(f=>`<div class="envfile"><div class="mono small">${esc(f.path)}</div><div>${(f.provider_hints||[]).map(x=>`<span class="pill">${esc(x)}</span>`).join('')}</div><div class="small"><b>Keys:</b> ${esc((f.key_names||[]).join(', '))}</div><div class="small"><b>Secrets:</b> ${esc(f.secret_count||0)} redacted</div></div>`).join(''):'No .env files found.';}
-async function dryRun(id){const data=await api('/api/launch/'+encodeURIComponent(id),{method:'POST',body:JSON.stringify({dryRun:true})});const el=document.getElementById('logText');if(el)el.textContent=(data.dangerous?'WARNING: dangerous patterns.\n\n':'')+'Project: '+(data.project||'none')+'\n\n'+data.script;toast('Preview loaded.');}
-async function launchProfile(id){let body={};try{let data=await api('/api/launch/'+encodeURIComponent(id),{method:'POST',body:JSON.stringify(body)});if(data.blocked){const reason=prompt(data.message+'\n\nOverride reason:');if(!reason)return;body.overrideReason=reason;data=await api('/api/launch/'+encodeURIComponent(id),{method:'POST',body:JSON.stringify(body)});}if(data.session){currentSession=data.session.id;sessionCursors[currentSession]=0;document.getElementById('outcomePanel').style.display='block';document.getElementById('troubleshootPanel').style.display='none';await loadSessions();selectSession(currentSession);toast('Launched!');reportEvent('profileLaunched',{profileId:id});}else{toast(data.launched?'Launched.':'Not launched.');}}catch(e){showTroubleshoot('Launch failed: '+e.message+'\n\nCheck that the tool is installed and on PATH. See Install Guides panel.');}}
-function showTroubleshoot(msg){const tp=document.getElementById('troubleshootPanel');const tt=document.getElementById('troubleshootText');if(tp&&tt){tp.style.display='block';tt.textContent=msg;}}
-async function blockProfile(id){const reason=prompt('Reason for blocking?');if(!reason)return;await api('/api/block/'+encodeURIComponent(id),{method:'POST',body:JSON.stringify({reason})});toast('Blocked.');await loadMemory();await makePlan();}
-async function reportOutcome(outcome){if(!currentSession)return;try{await api('/api/session/'+encodeURIComponent(currentSession)+'/outcome',{method:'POST',body:JSON.stringify({outcome})});toast('Recorded: '+outcome);document.getElementById('outcomePanel').style.display='none';reportEvent('sessionOutcome',{sessionId:currentSession,outcome});}catch(e){toast('Failed to record');}}
-async function loadMemory(){const m=await api('/api/memory');const el=document.getElementById('memory');if(el)el.value=m.text;}
-async function saveMemory(){await api('/api/memory',{method:'POST',body:JSON.stringify({text:document.getElementById('memory').value})});toast('Saved.');}
-async function runResearch(){toast('Running research...');const r=await api('/api/research/run',{method:'POST',body:'{}'});const el=document.getElementById('brief');if(el)el.textContent=r.text;toast('Done.');}
-async function loadBrief(){const b=await api('/api/research/latest');const el=document.getElementById('brief');if(el)el.textContent=(b.name?'# '+b.name+'\n\n':'')+b.text;}
-async function loadLogs(){const data=await api('/api/logs');const el=document.getElementById('logs');if(el)el.innerHTML=data.logs.map(l=>`<button class="smallbtn" onclick="loadLog('${esc(l)}')">${esc(l)}</button>`).join(' ');}
-async function loadLog(name){const data=await api('/api/log/'+encodeURIComponent(name));const el=document.getElementById('logText');if(el)el.textContent=data.text;}
+async function loadProfiles(){
+  try {
+    profiles = await api('/api/profiles');
+    renderProfiles();
+    document.getElementById('profileCount').textContent = profiles.length + ' total';
+  } catch (e) { toast('Failed to load profiles', 'error'); }
+}
+async function loadCatalog(){
+  try {
+    catalog = await api('/api/catalog');
+    renderCoders();
+    renderInstallGuides();
+  } catch (e) { toast('Failed to load catalog', 'error'); }
+}
+function renderProfiles(){
+  const el = document.getElementById('profiles');
+  if (el) el.innerHTML = profiles.map(p => profileCard(p)).join('');
+}
+function profileCard(p, evalInfo={}){
+  const meta = p.meta || {};
+  const id = p.id;
+  const state = evalInfo.state || meta.status || 'UNKNOWN';
+  const reasons = evalInfo.reasons || [];
+  const stats = evalInfo.stats || {};
+  let badges = '';
+  if (stats.total > 0) {
+    badges += `<span class="pill" style="color:${stats.successRate >= 80 ? 'var(--good)' : stats.successRate >= 40 ? 'var(--warn)' : 'var(--bad)'}">${stats.successRate}% success</span>`;
+    if (stats.lastOutcome === 'failure') badges += `<span class="pill" style="color:var(--bad)">last failed</span>`;
+  }
+  return `<div class="card"><div class="row" style="justify-content:space-between"><h3>${esc(p.name)}</h3><span class="status ${esc(state)}">${esc(state)}</span></div><div><span class="pill">${esc(meta.frontend || '?')}</span><span class="pill">${esc(meta.backend || '?')}</span><span class="pill">${esc(meta.mode || '?')}</span>${badges}</div><p class="small">${esc(meta.description || meta.model || '')}</p>${reasons.length ? `<details><summary class="small">Reasons</summary><ul class="small">${reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul></details>` : ''}<div class="row"><button class="smallbtn" onclick="dryRun('${esc(id)}')">Preview</button><button class="smallbtn primary" onclick="launchProfile('${esc(id)}')">Launch</button><button class="smallbtn danger" onclick="blockProfile('${esc(id)}')">Block</button></div></div>`;
+}
+async function makePlan(){
+  const goal = document.getElementById('goal').value;
+  setLoading(true, 'Building plan…');
+  try {
+    plan = await api('/api/plan', { method: 'POST', body: JSON.stringify({ goal }) });
+    const el = document.getElementById('plan');
+    if (el) el.innerHTML = plan.recommended.map(p => profileCard(p, p)).join('') + (plan.blocked.length ? `<div class="card"><h3>Blocked</h3>${plan.blocked.map(p => `<p class="small"><b>${esc(p.name)}</b><br>${esc((p.reasons || []).join('; '))}</p>`).join('')}</div>` : '');
+    renderCoders(plan.suggestions);
+    loadTemplates();
+  } catch (e) { toast('Failed to build plan', 'error'); }
+  finally { setLoading(false); }
+}
+function renderCoders(suggestions){
+  const el = document.getElementById('coders');
+  if (!el) return;
+  const src = suggestions || plan?.suggestions || catalog?.tools || [];
+  const detected = scan?.coders || [];
+  el.innerHTML = src.map(t => {
+    const det = detected.find(c => c.id === t.id || c.command === t.command);
+    const present = t.detected ?? det?.detection?.present;
+    const status = present ? 'INSTALLED' : 'SUGGESTED';
+    const links = (t.docs || [t.official]).filter(Boolean).map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noopener">${i ? 'docs' : 'official'}</a>`).join(' ');
+    const path = det?.detection?.path || '';
+    const version = det?.detection?.version || '';
+    const hints = (t.authHints || []).map(h => `<span class="pill">${esc(h)}</span>`).join('');
+    return `<div class="listline"><div class="row" style="justify-content:space-between"><b>${esc(t.name)}</b><span class="status ${status}">${status}</span></div><div class="links">${links}</div><div class="small">${esc(t.best_for || '')}</div>${path ? `<div class="small mono">${esc(path)} ${esc(version)}</div>` : ''}<div>${hints}</div></div>`;
+  }).join('') || 'No catalog.';
+}
+function renderEnvFiles(){
+  const el = document.getElementById('envFiles');
+  if (!el) return;
+  const files = scan?.env_files || [];
+  el.innerHTML = files.length ? files.map(f => `<div class="envfile"><div class="mono small">${esc(f.path)}</div><div>${(f.provider_hints || []).map(x => `<span class="pill">${esc(x)}</span>`).join('')}</div><div class="small"><b>Keys:</b> ${esc((f.key_names || []).join(', '))}</div><div class="small"><b>Secrets:</b> ${esc(f.secret_count || 0)} redacted</div></div>`).join('') : 'No .env files found.';
+}
+async function dryRun(id){
+  setLoading(true, 'Generating preview…');
+  try {
+    const data = await api('/api/launch/' + encodeURIComponent(id), { method: 'POST', body: JSON.stringify({ dryRun: true }) });
+    const el = document.getElementById('logText');
+    if (el) el.textContent = (data.dangerous ? 'WARNING: dangerous patterns.\n\n' : '') + 'Project: ' + (data.project || 'none') + '\n\n' + data.script;
+    toast('Preview loaded.');
+  } catch (e) { toast('Preview failed: ' + e.message, 'error'); }
+  finally { setLoading(false); }
+}
+async function launchProfile(id){
+  let body = {};
+  try {
+    let data = await api('/api/launch/' + encodeURIComponent(id), { method: 'POST', body: JSON.stringify(body) });
+    if (data.blocked) {
+      const reason = prompt(data.message + '\n\nOverride reason:');
+      if (!reason) return;
+      body.overrideReason = reason;
+      data = await api('/api/launch/' + encodeURIComponent(id), { method: 'POST', body: JSON.stringify(body) });
+    }
+    if (data.session) {
+      currentSession = data.session.id;
+      sessionCursors[currentSession] = 0;
+      document.getElementById('outcomePanel').style.display = 'block';
+      document.getElementById('troubleshootPanel').style.display = 'none';
+      await loadSessions();
+      selectSession(currentSession);
+      toast('Launched!');
+      reportEvent('profileLaunched', { profileId: id });
+    } else { toast(data.launched ? 'Launched.' : 'Not launched.'); }
+  } catch (e) { showTroubleshoot('Launch failed: ' + e.message + '\n\nCheck that the tool is installed and on PATH. See Install Guides panel.'); }
+}
+function showTroubleshoot(msg){
+  const tp = document.getElementById('troubleshootPanel');
+  const tt = document.getElementById('troubleshootText');
+  if (tp && tt) { tp.style.display = 'block'; tt.textContent = msg; toast(msg, 'error'); }
+}
+async function blockProfile(id){
+  const reason = prompt('Reason for blocking?');
+  if (!reason) return;
+  try {
+    await api('/api/block/' + encodeURIComponent(id), { method: 'POST', body: JSON.stringify({ reason }) });
+    toast('Blocked.');
+    await loadMemory();
+    await makePlan();
+  } catch (e) { toast('Failed to block', 'error'); }
+}
+async function reportOutcome(outcome){
+  if (!currentSession) return;
+  try {
+    await api('/api/session/' + encodeURIComponent(currentSession) + '/outcome', { method: 'POST', body: JSON.stringify({ outcome }) });
+    toast('Recorded: ' + outcome);
+    document.getElementById('outcomePanel').style.display = 'none';
+    reportEvent('sessionOutcome', { sessionId: currentSession, outcome });
+  } catch (e) { toast('Failed to record', 'error'); }
+}
+async function loadMemory(){
+  try {
+    const m = await api('/api/memory');
+    const el = document.getElementById('memory');
+    if (el) el.value = m.text;
+  } catch (e) { toast('Failed to load memory', 'error'); }
+}
+async function saveMemory(){
+  try {
+    await api('/api/memory', { method: 'POST', body: JSON.stringify({ text: document.getElementById('memory').value }) });
+    toast('Saved.');
+  } catch (e) { toast('Failed to save memory', 'error'); }
+}
+async function runResearch(){
+  setLoading(true, 'Running research…');
+  try {
+    const r = await api('/api/research/run', { method: 'POST', body: '{}' });
+    const el = document.getElementById('brief');
+    if (el) el.textContent = r.text;
+    toast('Done.');
+  } catch (e) { toast('Research failed', 'error'); }
+  finally { setLoading(false); }
+}
+async function loadBrief(){
+  try {
+    const b = await api('/api/research/latest');
+    const el = document.getElementById('brief');
+    if (el) el.textContent = (b.name ? '# ' + b.name + '\n\n' : '') + b.text;
+  } catch (e) { toast('Failed to load brief', 'error'); }
+}
+async function loadLogs(){
+  try {
+    const data = await api('/api/logs');
+    const el = document.getElementById('logs');
+    if (el) el.innerHTML = data.logs.map(l => `<button class="smallbtn" onclick="loadLog('${esc(l)}')">${esc(l)}</button>`).join(' ');
+  } catch (e) { toast('Failed to load logs', 'error'); }
+}
+async function loadLog(name){
+  try {
+    const data = await api('/api/log/' + encodeURIComponent(name));
+    const el = document.getElementById('logText');
+    if (el) el.textContent = data.text;
+  } catch (e) { toast('Failed to load log', 'error'); }
+}
 
-async function loadSessions(){const data=await api('/api/sessions');renderSessionTabs(data.sessions);const sel=document.getElementById('sessionSelect');if(sel)sel.innerHTML=data.sessions.map(s=>`<option value="${esc(s.id)}" ${s.id===currentSession?'selected':''}>${esc(s.profileName)} \u00b7 ${esc(s.status)}</option>`).join('');if(!currentSession&&data.sessions[0])selectSession(data.sessions[0].id);}
-function renderSessionTabs(sessList){const el=document.getElementById('sessionTabs');if(!el)return;el.innerHTML=sessList.map(s=>`<div class="session-tab ${s.status==='running'?'active':s.status==='exited'?'exited':s.status==='error'?'error':''}" onclick="selectSession('${esc(s.id)}')">${esc(s.profileName)} \u00b7 ${esc(s.status)}</div>`).join('');}
-function selectSession(id){if(!id)return;currentSession=id;if(!sessionCursors[id])sessionCursors[id]=0;cursor=sessionCursors[id];const term=document.getElementById('terminal');if(term)term.textContent='';if(pollTimer)clearInterval(pollTimer);pollTerminal();pollTimer=setInterval(pollTerminal,900)}
-async function pollTerminal(){if(!currentSession)return;try{const data=await api('/api/session/'+encodeURIComponent(currentSession)+'/output?since='+cursor);cursor=data.cursor;sessionCursors[currentSession]=cursor;if(data.chunk){const el=document.getElementById('terminal');if(el){el.textContent+=data.chunk;el.scrollTop=el.scrollHeight}}await loadSessionsNoSelect();const sess=data.session;if(sess&&sess.status==='exited'){document.getElementById('outcomePanel').style.display='block';}}catch(e){}}
-async function loadSessionsNoSelect(){const data=await api('/api/sessions');renderSessionTabs(data.sessions);const sel=document.getElementById('sessionSelect');if(!sel)return;const old=sel.value||currentSession;sel.innerHTML=data.sessions.map(s=>`<option value="${esc(s.id)}" ${s.id===old?'selected':''}>${esc(s.profileName)} \u00b7 ${esc(s.status)}</option>`).join('');}
-async function sendInput(){if(!currentSession)return alert('No session.');const inp=document.getElementById('terminalInput');await api('/api/session/'+encodeURIComponent(currentSession)+'/input',{method:'POST',body:JSON.stringify({text:inp.value})});inp.value='';}
-async function stopSelectedSession(){if(!currentSession)return;await api('/api/session/'+encodeURIComponent(currentSession)+'/stop',{method:'POST',body:'{}'});toast('Stop requested.');}
+async function loadSessions(){
+  try {
+    const data = await api('/api/sessions');
+    renderSessionTabs(data.sessions);
+    const sel = document.getElementById('sessionSelect');
+    if (sel) sel.innerHTML = data.sessions.map(s => `<option value="${esc(s.id)}" ${s.id === currentSession ? 'selected' : ''}>${esc(s.profileName)} · ${esc(s.status)}</option>`).join('');
+    if (!currentSession && data.sessions[0]) selectSession(data.sessions[0].id);
+  } catch (e) { toast('Failed to load sessions', 'error'); }
+}
+function renderSessionTabs(sessList){
+  const el = document.getElementById('sessionTabs');
+  if (!el) return;
+  el.innerHTML = sessList.map(s => `<div class="session-tab ${s.status === 'running' ? 'active' : s.status === 'exited' ? 'exited' : s.status === 'error' ? 'error' : ''}" onclick="selectSession('${esc(s.id)}')" role="tab" tabindex="0" aria-selected="${s.id === currentSession}" aria-label="${esc(s.profileName)} ${esc(s.status)}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectSession('${esc(s.id)}');}">${esc(s.profileName)} · ${esc(s.status)}</div>`).join('');
+}
+function selectSession(id){
+  if (!id) return;
+  currentSession = id;
+  if (!sessionCursors[id]) sessionCursors[id] = 0;
+  cursor = sessionCursors[id];
+  const term = document.getElementById('terminal');
+  if (term) term.textContent = '';
+  if (pollTimer) clearInterval(pollTimer);
+  pollTerminal();
+  pollTimer = setInterval(pollTerminal, 900);
+}
+async function pollTerminal(){
+  if (!currentSession) return;
+  try {
+    const data = await api('/api/session/' + encodeURIComponent(currentSession) + '/output?since=' + cursor);
+    cursor = data.cursor;
+    sessionCursors[currentSession] = cursor;
+    if (data.chunk) {
+      const el = document.getElementById('terminal');
+      if (el) { el.textContent += data.chunk; el.scrollTop = el.scrollHeight; }
+    }
+    await loadSessionsNoSelect();
+    const sess = data.session;
+    if (sess && sess.status === 'exited') { document.getElementById('outcomePanel').style.display = 'block'; }
+  } catch (e) {}
+}
+async function loadSessionsNoSelect(){
+  try {
+    const data = await api('/api/sessions');
+    renderSessionTabs(data.sessions);
+    const sel = document.getElementById('sessionSelect');
+    if (!sel) return;
+    const old = sel.value || currentSession;
+    sel.innerHTML = data.sessions.map(s => `<option value="${esc(s.id)}" ${s.id === old ? 'selected' : ''}>${esc(s.profileName)} · ${esc(s.status)}</option>`).join('');
+  } catch (e) {}
+}
+async function sendInput(){
+  if (!currentSession) return alert('No session.');
+  const inp = document.getElementById('terminalInput');
+  try {
+    await api('/api/session/' + encodeURIComponent(currentSession) + '/input', { method: 'POST', body: JSON.stringify({ text: inp.value }) });
+    inp.value = '';
+  } catch (e) { toast('Failed to send input', 'error'); }
+}
+async function stopSelectedSession(){
+  if (!currentSession) return;
+  try {
+    await api('/api/session/' + encodeURIComponent(currentSession) + '/stop', { method: 'POST', body: '{}' });
+    toast('Stop requested.');
+  } catch (e) { toast('Failed to stop session', 'error'); }
+}
 
 // Init
-addChatMsg('Hello! I am your AgentDock AI assistant. I can launch agents, switch projects, run scans, and help you choose the right stack. What are we working on today?','ai');
-loadProjects();loadProfiles();loadCatalog();loadMemory();loadBrief();loadLogs();loadSessions();loadTemplates();
+addChatMsg('Hello! I am your AgentDock AI assistant. I can launch agents, switch projects, run scans, and help you choose the right stack. What are we working on today?', 'ai');
+loadProjects(); loadProfiles(); loadCatalog(); loadMemory(); loadBrief(); loadLogs(); loadSessions(); loadTemplates();
 </script>
 </body>
 </html>
