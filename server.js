@@ -40,6 +40,8 @@ const FILES = {
   projects: path.join(DIRS.state, 'projects.json'),
 };
 const UI_DIST = path.join(ROOT, 'ui', 'dist');
+const SKILLS_DIR = path.join(ROOT, 'skills', 'compound-engineering');
+const SKILLS_CATALOG = path.join(SKILLS_DIR, 'skills-catalog.json');
 
 let lastScan = null;
 let activeProject = null;
@@ -990,6 +992,25 @@ async function runResearchWatch() {
   return { file: path.basename(file), text };
 }
 
+function loadSkillsCatalog() {
+  return readJSON(SKILLS_CATALOG, { source: '', version: '', skills: [] });
+}
+
+function findSkill(id) {
+  const catalog = loadSkillsCatalog();
+  return catalog.skills.find(s => s.id === id) || null;
+}
+
+function readSkillContent(skill) {
+  if (skill.cached && skill.local_path) {
+    const fullPath = path.join(ROOT, skill.local_path);
+    if (fs.existsSync(fullPath)) {
+      try { return fs.readFileSync(fullPath, 'utf8'); } catch { return null; }
+    }
+  }
+  return null;
+}
+
 function serveStatic(req, res) {
   const url = new URL(req.url, `http://${HOST}:${PORT}`);
   let pathname = decodeURIComponent(url.pathname);
@@ -1032,6 +1053,22 @@ async function route(req, res) {
       return send(res, 200, await runScanner(repo));
     }
     if (pathName === '/api/catalog' && req.method === 'GET') return send(res, 200, loadCatalog());
+    if (pathName === '/api/skills' && req.method === 'GET') {
+      return send(res, 200, loadSkillsCatalog());
+    }
+    if (pathName.startsWith('/api/skills/') && req.method === 'GET') {
+      const rest = pathName.slice('/api/skills/'.length);
+      const parts = rest.split('/');
+      const id = decodeURIComponent(parts[0]);
+      const skill = findSkill(id);
+      if (!skill) return send(res, 404, { error: 'Skill not found' });
+      if (parts[1] === 'content') {
+        const content = readSkillContent(skill);
+        if (content !== null) return send(res, 200, { id, content });
+        return send(res, 200, { id, content: 'Skill content not cached. Download from: ' + skill.upstream_url });
+      }
+      return send(res, 200, skill);
+    }
     if (pathName === '/api/suggestions' && req.method === 'GET') return send(res, 200, { suggestions: buildSuggestions(lastScan) });
     if (pathName === '/api/profiles' && req.method === 'GET') return send(res, 200, listProfiles());
     if (pathName === '/api/profiles/create' && req.method === 'POST') {
