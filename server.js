@@ -39,6 +39,7 @@ const FILES = {
   usage: path.join(DIRS.state, 'stack-usage.json'),
   projects: path.join(DIRS.state, 'projects.json'),
 };
+const UI_DIST = path.join(ROOT, 'ui', 'dist');
 
 let lastScan = null;
 let activeProject = null;
@@ -560,6 +561,310 @@ function getQuickTemplates() {
   return { projectType: type, templates };
 }
 
+// ===== PROFILE MATRIX & COOKBOOK ENGINE =====
+
+const TASK_TYPES = ['architecture', 'bug-hunt', 'code-review', 'documentation', 'performance', 'security-audit', 'safe-audit', 'heavy-refactor', 'patch-test'];
+
+function detectTaskMode(profile) {
+  const id = String(profile.id || '').toLowerCase();
+  const tm = String(profile.meta.task_mode || '').toLowerCase();
+  for (const t of TASK_TYPES) {
+    if (tm.includes(t.replace('-', '')) || id.includes(t)) return t;
+  }
+  if (id.includes('audit')) return 'safe-audit';
+  if (id.includes('refactor')) return 'heavy-refactor';
+  if (id.includes('patch')) return 'patch-test';
+  return 'general';
+}
+
+function generateFixes(profile, evalResult, scan) {
+  const fixes = [];
+  const catalog = loadCatalog();
+  const command = String(profile.meta.command || profile.meta.frontend || '').toLowerCase();
+  const backend = String(profile.meta.backend || '').toLowerCase();
+  const model = profile.meta.model;
+  const requiredContext = Number(profile.meta.required_context || 0);
+  const requiredEnv = Array.isArray(profile.meta.required_env) ? profile.meta.required_env : (profile.meta.required_env ? [profile.meta.required_env] : []);
+
+  // Fix 1: missing command / frontend tool
+  if (command && scan && !toolPresent(scan, command)) {
+    const tool = catalog.tools.find(t => t.id === command || t.command === command);
+    if (tool) {
+      const installCmd = isWindows() ? (tool.install_windows || tool.install_guide) : tool.install_guide;
+      fixes.push({ order: 1, action: 'install', target: tool.name, command: installCmd, verify: tool.verify, why: `${tool.name} not detected on PATH`, docs: tool.docs?.[0] });
+    } else {
+      fixes.push({ order: 1, action: 'install', target: command, command: null, why: `${command} not detected on PATH — no catalog entry`, docs: null });
+    }
+  }
+
+  // Fix 2: missing backend tool (e.g. ollama)
+  if (backend && backend !== 'anthropic' && backend !== 'openai' && backend !== 'openrouter' && backend !== 'google') {
+    if (scan && !toolPresent(scan, backend)) {
+      const tool = catalog.tools.find(t => t.id === backend || t.command === backend);
+      if (tool) {
+        const installCmd = isWindows() ? (tool.install_windows || tool.install_guide) : tool.install_guide;
+        fixes.push({ order: 2, action: 'install_backend', target: tool.name, command: installCmd, verify: tool.verify, why: `${tool.name} backend not detected`, docs: tool.docs?.[0] });
+      }
+    }
+  }
+
+  // Fix 3: missing env vars
+  for (const envName of requiredEnv) {
+    if (!envPresent(scan, envName)) {
+      const envFile = (scan?.env_files || []).find(f => (f.key_names || []).includes(envName));
+      fixes.push({ order: 3, action: 'env', target: envName, command: envFile ? `# Found in ${envFile.path}\n$env:${envName}="your-key-here"` : `$env:${envName}="your-key-here"`, why: `${envName} not loaded into process environment`, detected_in_file: Boolean(envFile) });
+    }
+  }
+
+  // Fix 4: ollama model not loaded or context insufficient
+  if (backend === 'ollama' && model) {
+    const observed = getLoadedModelContext(scan, model);
+    if (observed === null) {
+      fixes.push({ order: 4, action: 'model_pull', target: model, command: `ollama pull ${model}`, why: `Model ${model} is not currently loaded`, docs: 'https://ollama.com/library/' + model.split(':')[0] });
+    } else if (observed < requiredContext) {
+      fixes.push({ order: 4, action: 'model_config', target: model, command: `$env:OLLAMA_CONTEXT_LENGTH="${requiredContext}"; $env:OLLAMA_FLASH_ATTENTION="1"; $env:OLLAMA_KV_CACHE_TYPE="q8_0"`, why: `Observed context ${observed} below required ${requiredContext}. Try q8_0 KV cache or a smaller model.`, docs: 'https://github.com/ollama/ollama/blob/main/docs/faq.md' });
+    }
+  }
+
+  // Fix 5: blocked by memory but user might want to unblock
+  if (evalResult.blockedEvidence) {
+    fixes.push({ order: 5, action: 'unblock', target: profile.id, command: null, why: 'Profile is blocked by memory. Review memory.md and remove the block if conditions changed.', docs: null });
+  }
+
+  fixes.sort((a, b) => a.order - b.order);
+  return fixes;
+}
+
+function generateProfileMatrix(scan = lastScan) {
+  const profiles = listProfiles();
+  const memory = readMemory();
+  const matrix = { ready: [], fixable: [], hardware_limited: [], blocked: [], unknown: [], stats: { total: profiles.length, ready: 0, fixable: 0, hardware_limited: 0, blocked: 0, unknown: 0 } };
+
+  for (const p of profiles) {
+    const ev = evaluateProfile(p, scan, memory);
+    const enriched = { ...p, evaluation: ev, taskMode: detectTaskMode(p) };
+
+    if (!scan) {
+      matrix.unknown.push(enriched);
+      matrix.stats.unknown++;
+      continue;
+    }
+
+    if (ev.state === 'BLOCKED') {
+      matrix.blocked.push({ ...enriched, fixes: generateFixes(p, ev, scan) });
+      matrix.stats.blocked++;
+      continue;
+    }
+
+    if (ev.state === 'READY' && ev.score >= 80) {
+      matrix.ready.push(enriched);
+      matrix.stats.ready++;
+      continue;
+    }
+
+    // Check if hardware limited (ollama context too low, or model too big)
+    const backend = String(p.meta.backend || '').toLowerCase();
+    const model = p.meta.model;
+    const requiredContext = Number(p.meta.required_context || 0);
+    let isHardware = false;
+    if (backend === 'ollama' && model) {
+      const observed = getLoadedModelContext(scan, model);
+      if (observed !== null && observed < requiredContext) {
+        isHardware = true;
+      }
+    }
+    const hw = scan?.hardware || {};
+    const vramGB = (hw.vram_mb || 0) / 1024;
+    if (backend === 'ollama' && requiredContext >= 64000 && vramGB > 0 && vramGB < 8) {
+      isHardware = true;
+    }
+
+    if (isHardware) {
+      matrix.hardware_limited.push({ ...enriched, fixes: generateFixes(p, ev, scan) });
+      matrix.stats.hardware_limited++;
+      continue;
+    }
+
+    // Anything else with identifiable fixes
+    const fixes = generateFixes(p, ev, scan);
+    if (fixes.length > 0 && ev.score >= 20) {
+      matrix.fixable.push({ ...enriched, fixes, fixCount: fixes.length, estimatedMinutes: fixes.length * 2 });
+      matrix.stats.fixable++;
+    } else if (ev.score < 20 && scan) {
+      matrix.unknown.push({ ...enriched, fixes });
+      matrix.stats.unknown++;
+    } else {
+      matrix.fixable.push({ ...enriched, fixes, fixCount: fixes.length || 1, estimatedMinutes: (fixes.length || 1) * 2 });
+      matrix.stats.fixable++;
+    }
+  }
+
+  matrix.fixable.sort((a, b) => (a.fixCount || 99) - (b.fixCount || 99));
+  return matrix;
+}
+
+function generateCookbook(profile, scan = lastScan) {
+  const memory = readMemory();
+  const ev = evaluateProfile(profile, scan, memory);
+  const fixes = generateFixes(profile, ev, scan);
+  const taskMode = detectTaskMode(profile);
+
+  let state = 'unknown';
+  if (ev.state === 'BLOCKED') state = 'blocked';
+  else if (ev.state === 'READY' && ev.score >= 80) state = 'ready';
+  else if (fixes.some(f => f.action === 'model_config' || f.action === 'model_pull')) state = 'hardware_limited';
+  else if (fixes.length > 0) state = 'fixable';
+
+  const steps = fixes.map((f, i) => ({
+    order: i + 1,
+    action: f.action,
+    label: f.action === 'install' ? `Install ${f.target}` : f.action === 'install_backend' ? `Install ${f.target}` : f.action === 'env' ? `Set ${f.target}` : f.action === 'model_pull' ? `Pull model ${f.target}` : f.action === 'model_config' ? `Configure Ollama` : f.action === 'unblock' ? `Unblock profile` : `Fix ${f.target}`,
+    command: f.command,
+    why: f.why,
+    docs: f.docs,
+    copyable: Boolean(f.command),
+  }));
+
+  if (state === 'ready') {
+    steps.push({ order: steps.length + 1, action: 'launch', label: 'Launch Profile', command: null, why: 'All prerequisites satisfied. Ready to run.', ready: true });
+  }
+
+  return {
+    profile: profile.id,
+    name: profile.name,
+    state,
+    score: ev.score,
+    taskMode,
+    mode: profile.meta.mode || 'unknown',
+    frontend: profile.meta.frontend || 'unknown',
+    backend: profile.meta.backend || 'unknown',
+    model: profile.meta.model || null,
+    steps,
+    estimatedMinutes: state === 'ready' ? 0 : (fixes.length * 2),
+    hasLaunch: profile.hasLaunch,
+    hasPreflight: profile.hasPreflight,
+  };
+}
+
+function generateMasterCookbook(scan = lastScan) {
+  const profiles = listProfiles();
+  const entries = [];
+  for (const p of profiles) {
+    const cb = generateCookbook(p, scan);
+    if (cb.state === 'fixable' || cb.state === 'hardware_limited') {
+      entries.push(cb);
+    }
+  }
+  entries.sort((a, b) => (a.estimatedMinutes || 99) - (b.estimatedMinutes || 99));
+  return entries;
+}
+
+function generateCombinations(scan = lastScan) {
+  const matrix = generateProfileMatrix(scan);
+  const ready = matrix.ready;
+
+  const conflicts = [];
+  const localReady = ready.filter(p => String(p.meta.mode || '').toLowerCase().includes('local'));
+  const hybridReady = ready.filter(p => String(p.meta.mode || '').toLowerCase().includes('hybrid'));
+  const cloudReady = ready.filter(p => String(p.meta.mode || '').toLowerCase().includes('cloud'));
+
+  // Ollama local profiles conflict with each other
+  for (let i = 0; i < localReady.length; i++) {
+    for (let j = i + 1; j < localReady.length; j++) {
+      const a = localReady[i], b = localReady[j];
+      if (String(a.meta.backend || '').toLowerCase() === 'ollama' && String(b.meta.backend || '').toLowerCase() === 'ollama') {
+        conflicts.push({ a: a.id, b: b.id, reason: 'Both use Ollama local backend — only one model fits in VRAM at a time' });
+      }
+    }
+  }
+
+  // Hybrid local parts also conflict with pure local
+  for (const h of hybridReady) {
+    if (String(h.meta.backend || '').toLowerCase() === 'ollama') {
+      for (const l of localReady) {
+        conflicts.push({ a: h.id, b: l.id, reason: 'Hybrid profile uses Ollama which conflicts with other local Ollama profiles' });
+      }
+    }
+  }
+
+  // Currently runnable set = all cloud + one local (pick highest score)
+  const bestLocal = localReady.sort((a, b) => b.evaluation.score - a.evaluation.score)[0];
+  const currentlyRunnable = [...cloudReady];
+  if (bestLocal) currentlyRunnable.push(bestLocal);
+  for (const h of hybridReady) {
+    const hasConflict = bestLocal && conflicts.some(c => (c.a === h.id && c.b === bestLocal.id) || (c.b === h.id && c.a === bestLocal.id));
+    if (!hasConflict) currentlyRunnable.push(h);
+  }
+
+  // Minimum viable set: smallest set covering all task types
+  const taskCoverage = new Map();
+  for (const p of ready) {
+    const tm = detectTaskMode(p);
+    if (!taskCoverage.has(tm) || p.evaluation.score > taskCoverage.get(tm).evaluation.score) {
+      taskCoverage.set(tm, p);
+    }
+  }
+  const minimumViableSet = [...taskCoverage.values()];
+  const uncoveredTasks = TASK_TYPES.filter(t => !taskCoverage.has(t));
+
+  // Recommended next setup: fixable profile that covers most uncovered tasks with fewest fixes
+  const fixableByTask = new Map();
+  for (const p of matrix.fixable) {
+    const tm = detectTaskMode(p);
+    if (!fixableByTask.has(tm)) fixableByTask.set(tm, []);
+    fixableByTask.get(tm).push(p);
+  }
+  const recommendedNext = [];
+  for (const task of uncoveredTasks.slice(0, 3)) {
+    const candidates = fixableByTask.get(task) || [];
+    candidates.sort((a, b) => (a.fixCount || 99) - (b.fixCount || 99));
+    if (candidates[0]) recommendedNext.push({ profile: candidates[0].id, name: candidates[0].name, task, fixesNeeded: candidates[0].fixCount, estimatedMinutes: candidates[0].estimatedMinutes });
+  }
+
+  return {
+    currentlyRunnableSet: currentlyRunnable.map(p => ({ id: p.id, name: p.name, mode: p.meta.mode, score: p.evaluation.score })),
+    currentlyRunnableCount: currentlyRunnable.length,
+    minimumViableSet: minimumViableSet.map(p => ({ id: p.id, name: p.name, taskMode: detectTaskMode(p), score: p.evaluation.score })),
+    minimumViableCount: minimumViableSet.length,
+    uncoveredTasks,
+    recommendedNextSetup: recommendedNext,
+    conflictMap: conflicts,
+    readyCounts: { local: localReady.length, hybrid: hybridReady.length, cloud: cloudReady.length, total: ready.length },
+  };
+}
+
+function generateProfileGroups(scan = lastScan) {
+  const profiles = listProfiles();
+  const matrix = generateProfileMatrix(scan);
+  const all = [...matrix.ready, ...matrix.fixable, ...matrix.hardware_limited, ...matrix.blocked, ...matrix.unknown];
+
+  const byTask = {};
+  const byMode = {};
+  const byFrontend = {};
+  const byBackend = {};
+
+  for (const p of all) {
+    const tm = detectTaskMode(p);
+    const mode = String(p.meta.mode || 'unknown').toLowerCase();
+    const frontend = String(p.meta.frontend || 'unknown').toLowerCase();
+    const backend = String(p.meta.backend || 'unknown').toLowerCase();
+
+    if (!byTask[tm]) byTask[tm] = [];
+    byTask[tm].push({ id: p.id, name: p.name, state: matrix.ready.includes(p) ? 'ready' : matrix.fixable.includes(p) ? 'fixable' : matrix.hardware_limited.includes(p) ? 'hardware_limited' : matrix.blocked.includes(p) ? 'blocked' : 'unknown', score: p.evaluation.score });
+
+    if (!byMode[mode]) byMode[mode] = [];
+    byMode[mode].push({ id: p.id, name: p.name, state: matrix.ready.includes(p) ? 'ready' : matrix.fixable.includes(p) ? 'fixable' : matrix.hardware_limited.includes(p) ? 'hardware_limited' : matrix.blocked.includes(p) ? 'blocked' : 'unknown', score: p.evaluation.score });
+
+    if (!byFrontend[frontend]) byFrontend[frontend] = [];
+    byFrontend[frontend].push({ id: p.id, name: p.name, state: matrix.ready.includes(p) ? 'ready' : matrix.fixable.includes(p) ? 'fixable' : matrix.hardware_limited.includes(p) ? 'hardware_limited' : matrix.blocked.includes(p) ? 'blocked' : 'unknown', score: p.evaluation.score });
+
+    if (!byBackend[backend]) byBackend[backend] = [];
+    byBackend[backend].push({ id: p.id, name: p.name, state: matrix.ready.includes(p) ? 'ready' : matrix.fixable.includes(p) ? 'fixable' : matrix.hardware_limited.includes(p) ? 'hardware_limited' : matrix.blocked.includes(p) ? 'blocked' : 'unknown', score: p.evaluation.score });
+  }
+
+  return { byTask, byMode, byFrontend, byBackend, stats: matrix.stats };
+}
+
 function scanMcpConfigs() {
   const home = os.homedir();
   const configs = [];
@@ -671,11 +976,30 @@ function serveStatic(req, res) {
   const url = new URL(req.url, `http://${HOST}:${PORT}`);
   let pathname = decodeURIComponent(url.pathname);
   if (pathname === '/') pathname = '/index.html';
+
+  // Prefer React build from ui/dist/ if it exists
+  const distFile = path.join(UI_DIST, pathname.slice(1));
+  if (fs.existsSync(distFile) && !fs.statSync(distFile).isDirectory()) {
+    const ext = path.extname(distFile).toLowerCase();
+    const type = ext === '.html' ? 'text/html; charset=utf-8' : ext === '.css' ? 'text/css' : ext === '.js' ? 'application/javascript' : ext === '.json' ? 'application/json' : 'text/plain; charset=utf-8';
+    return send(res, 200, fs.readFileSync(distFile), type);
+  }
+
+  // Fallback to root directory (for old index.html, profiles, etc.)
   const full = safeJoin(ROOT, pathname.slice(1));
-  if (!fs.existsSync(full) || fs.statSync(full).isDirectory()) return send(res, 404, { error: 'Not found' });
-  const ext = path.extname(full).toLowerCase();
-  const type = ext === '.html' ? 'text/html; charset=utf-8' : ext === '.css' ? 'text/css' : ext === '.js' ? 'application/javascript' : ext === '.json' ? 'application/json' : 'text/plain; charset=utf-8';
-  send(res, 200, fs.readFileSync(full), type);
+  if (fs.existsSync(full) && !fs.statSync(full).isDirectory()) {
+    const ext = path.extname(full).toLowerCase();
+    const type = ext === '.html' ? 'text/html; charset=utf-8' : ext === '.css' ? 'text/css' : ext === '.js' ? 'application/javascript' : ext === '.json' ? 'application/json' : 'text/plain; charset=utf-8';
+    return send(res, 200, fs.readFileSync(full), type);
+  }
+
+  // SPA fallback: serve ui/dist/index.html for unknown routes (so React Router works)
+  const spaIndex = path.join(UI_DIST, 'index.html');
+  if (fs.existsSync(spaIndex)) {
+    return send(res, 200, fs.readFileSync(spaIndex), 'text/html; charset=utf-8');
+  }
+
+  return send(res, 404, { error: 'Not found' });
 }
 
 async function route(req, res) {
@@ -696,6 +1020,24 @@ async function route(req, res) {
       const id = decodeURIComponent(pathName.split('/').pop());
       const p = getProfile(id); if (!p) return send(res, 404, { error: 'Profile not found' });
       return send(res, 200, p);
+    }
+    // ---- COOKBOOK & MATRIX APIs ----
+    if (pathName === '/api/profiles/matrix' && req.method === 'GET') {
+      return send(res, 200, generateProfileMatrix(lastScan));
+    }
+    if (pathName === '/api/profiles/groups' && req.method === 'GET') {
+      return send(res, 200, generateProfileGroups(lastScan));
+    }
+    if (pathName === '/api/profiles/cookbook' && req.method === 'GET') {
+      return send(res, 200, { entries: generateMasterCookbook(lastScan) });
+    }
+    if (pathName.startsWith('/api/profiles/cookbook/') && req.method === 'GET') {
+      const id = decodeURIComponent(pathName.split('/').pop());
+      const p = getProfile(id); if (!p) return send(res, 404, { error: 'Profile not found' });
+      return send(res, 200, generateCookbook(p, lastScan));
+    }
+    if (pathName === '/api/profiles/combinations' && req.method === 'GET') {
+      return send(res, 200, generateCombinations(lastScan));
     }
     if (pathName === '/api/memory' && req.method === 'GET') return send(res, 200, { text: readMemory() });
     if (pathName === '/api/memory' && req.method === 'POST') {
