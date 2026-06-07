@@ -1003,7 +1003,7 @@ function findSkill(id) {
 
 function readSkillContent(skill) {
   if (skill.cached && skill.local_path) {
-    const fullPath = path.join(ROOT, skill.local_path);
+    const fullPath = safeJoin(ROOT, skill.local_path);
     if (fs.existsSync(fullPath)) {
       try { return fs.readFileSync(fullPath, 'utf8'); } catch { return null; }
     }
@@ -1065,7 +1065,7 @@ async function route(req, res) {
       if (parts[1] === 'content') {
         const content = readSkillContent(skill);
         if (content !== null) return send(res, 200, { id, content });
-        return send(res, 200, { id, content: 'Skill content not cached. Download from: ' + skill.upstream_url });
+        return send(res, 200, { id, content: 'Skill content not cached. Download from: ' + (skill.upstream_url || 'upstream repository') });
       }
       return send(res, 200, skill);
     }
