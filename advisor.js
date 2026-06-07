@@ -1,7 +1,7 @@
 /**
  * AgentDock Operations Advisor
- * Proactive AI-assisted operations manager for agent orchestration.
- * Uses Gemini API when available, falls back to rule-based intelligence.
+ * Multi-provider AI assistant: Gemini, OpenAI, and custom OpenAI-compatible endpoints.
+ * Falls back to rule-based intelligence when no API key or on error.
  */
 
 const https = require('https');
@@ -24,33 +24,101 @@ function getApiKey() {
   return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || null;
 }
 
-async function geminiChat(contents, model = 'gemini-2.0-flash') {
-  const apiKey = getApiKey();
-  if (!apiKey) throw new Error('No GEMINI_API_KEY or GOOGLE_API_KEY in environment');
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-  const body = JSON.stringify({ contents, generationConfig: { temperature: 0.3, maxOutputTokens: 4096 } });
+/* ── Generic HTTPS JSON POST ── */
+function postJSON(endpointUrl, headers, body, timeoutMs = 30000) {
+  const url = new URL(endpointUrl);
   return new Promise((resolve, reject) => {
-    const req = https.request(endpoint, {
+    const req = https.request(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
-      timeout: 30000,
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), ...headers },
+      timeout: timeoutMs,
     }, res => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
-        try {
-          const json = JSON.parse(data);
-          if (json.error) return reject(new Error(json.error.message || JSON.stringify(json.error)));
-          const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          resolve(text);
-        } catch (e) { reject(new Error('Gemini parse error: ' + e.message)); }
+        try { resolve(JSON.parse(data)); }
+        catch (e) { reject(new Error('JSON parse error: ' + e.message)); }
       });
     });
     req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('Gemini timeout')); });
+    req.on('timeout', () => { req.destroy(); reject(new Error('Request timeout')); });
     req.write(body);
     req.end();
   });
+}
+
+/* ── Gemini ── */
+async function geminiChat(contents, model = 'gemini-2.0-flash', apiKey) {
+  const key = apiKey || getApiKey();
+  if (!key) throw new Error('No GEMINI_API_KEY or GOOGLE_API_KEY');
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+  const body = JSON.stringify({ contents, generationConfig: { temperature: 0.3, maxOutputTokens: 4096 } });
+  const json = await postJSON(endpoint, {}, body);
+  if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
+  return json.candidates?.[0]?.content?.parts?.[0]?.text || '';
+}
+
+/* ── OpenAI ── */
+async function openaiChat(messages, model = 'gpt-4o-mini', apiKey) {
+  const key = apiKey || process.env.OPENAI_API_KEY || null;
+  if (!key) throw new Error('No OPENAI_API_KEY');
+  const body = JSON.stringify({ model, messages, temperature: 0.3, max_tokens: 4096 });
+  const json = await postJSON('https://api.openai.com/v1/chat/completions', { 'Authorization': `Bearer ${key}` }, body);
+  if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
+  return json.choices?.[0]?.message?.content || '';
+}
+
+/* ── Custom OpenAI-compatible endpoint ── */
+async function customChat(endpoint, apiKey, model, messages) {
+  if (!endpoint) throw new Error('No custom endpoint URL');
+  const headers = apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {};
+  const body = JSON.stringify({ model, messages, temperature: 0.3, max_tokens: 4096 });
+  const json = await postJSON(endpoint, headers, body);
+  if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
+  return json.choices?.[0]?.message?.content || json.choices?.[0]?.text || '';
+}
+
+/* ── Provider dispatcher ── */
+async function providerChat({ provider, model, apiKey, customEndpoint, contents, messages }) {
+  switch (provider) {
+    case 'gemini':
+      return geminiChat(contents, model || 'gemini-2.0-flash', apiKey);
+    case 'openai':
+      return openaiChat(messages, model || 'gpt-4o-mini', apiKey);
+    case 'custom':
+      return customChat(customEndpoint, apiKey, model || 'default', messages);
+    default:
+      throw new Error(`Unknown provider: ${provider}`);
+  }
+}
+
+/* ── Content conversion helpers ── */
+function toGeminiContents(chatMessages) {
+  // chatMessages: [{role:'system'|'user'|'model'|'assistant', text}]
+  const contents = [];
+  let systemText = '';
+  const history = [];
+  for (const m of chatMessages) {
+    if (m.role === 'system') { systemText += m.text + '\n'; continue; }
+    const role = m.role === 'model' || m.role === 'assistant' ? 'model' : 'user';
+    history.push({ role, text: m.text });
+  }
+  if (systemText) {
+    contents.push({ role: 'user', parts: [{ text: systemText + '\n---\nConversation history:\n' + history.map(m => `${m.role}: ${m.text}`).join('\n') }] });
+  } else {
+    for (const m of history) contents.push({ role: m.role, parts: [{ text: m.text }] });
+  }
+  return contents;
+}
+
+function toOpenAIMessages(chatMessages) {
+  const out = [];
+  for (const m of chatMessages) {
+    if (m.role === 'system') out.push({ role: 'system', content: m.text });
+    else if (m.role === 'user') out.push({ role: 'user', content: m.text });
+    else out.push({ role: 'assistant', content: m.text });
+  }
+  return out;
 }
 
 function buildSystemContext(scan, project, profiles, sessions) {
@@ -76,17 +144,14 @@ function ruleBasedAdvice(ctx, question) {
   const lines = [];
   const { activeProject, installedAgents, missingAgents, envKeys, ollamaLoaded, ollamaPresent } = ctx;
 
-  // Header
   lines.push('=== AgentDock Operations Report ===');
   lines.push('');
 
-  // Hardware summary
   const hw = ctx.hardware || {};
   const gpu = (hw.gpu || [])[0] || {};
   lines.push(`💻 System: ${hw.cpu || 'unknown'} | ${hw.ram_gb || '?'} GB RAM | ${gpu.name || 'no GPU detected'}`);
   lines.push('');
 
-  // Project section
   if (activeProject) {
     lines.push(`📁 Active Project: ${activeProject.name} (${activeProject.type})`);
     if (!activeProject.hasGit) {
@@ -106,7 +171,6 @@ function ruleBasedAdvice(ctx, question) {
     lines.push('');
   }
 
-  // Local models section
   if (ollamaPresent) {
     if (ollamaLoaded.length) {
       lines.push(`🦙 Ollama running with ${ollamaLoaded.length} model(s):`);
@@ -135,7 +199,6 @@ function ruleBasedAdvice(ctx, question) {
   }
   lines.push('');
 
-  // Installed agents
   if (installedAgents.length) {
     lines.push(`✅ Installed Agents: ${installedAgents.join(', ')}`);
   } else {
@@ -143,7 +206,6 @@ function ruleBasedAdvice(ctx, question) {
   }
   lines.push('');
 
-  // Missing agents with specific install help
   if (missingAgents.length) {
     lines.push('📥 Missing Agents — Install Commands:');
     const catalog = readJSON(path.join(ROOT, 'coders-catalog.json'), { tools: [] });
@@ -160,7 +222,6 @@ function ruleBasedAdvice(ctx, question) {
     lines.push('');
   }
 
-  // Auth / API keys
   const keyMap = {
     'OPENAI_API_KEY': ['codex', 'OpenAI Codex CLI'],
     'ANTHROPIC_API_KEY': ['claude-code', 'Claude Code'],
@@ -187,7 +248,6 @@ function ruleBasedAdvice(ctx, question) {
   }
   lines.push('');
 
-  // Profile recommendations by project type
   if (activeProject) {
     lines.push('🎯 Recommended Stacks for this project:');
     if (activeProject.type === 'ue5') {
@@ -210,7 +270,6 @@ function ruleBasedAdvice(ctx, question) {
     lines.push('');
   }
 
-  // Troubleshooting section
   lines.push('🔧 Troubleshooting:');
   if (!ollamaPresent) {
     lines.push('   • Ollama missing → Install from https://ollama.com/download/windows');
@@ -226,7 +285,6 @@ function ruleBasedAdvice(ctx, question) {
   }
   lines.push('');
 
-  // Sessions
   if (ctx.activeSessions?.length) {
     lines.push(`📊 Active Sessions: ${ctx.activeSessions.length}`);
     for (const s of ctx.activeSessions) lines.push(`   • ${s.profile} — ${s.status}`);
@@ -237,35 +295,44 @@ function ruleBasedAdvice(ctx, question) {
   lines.push('');
   lines.push('💡 Tip: Click the 🤖 AI Assistant button bottom-right for interactive help.');
 
-  return {
-    source: 'rule-based',
-    advice: lines.join('\n'),
-    actions: [],
-  };
+  return { source: 'rule-based', advice: lines.join('\n'), actions: [] };
 }
 
-async function advisorAnalyze({ scan, project, profiles, sessions, question, useGemini = true }) {
-  logAdvisor(`Analyzing: project=${project?.name || 'none'}, question=${question || 'none'}, useGemini=${useGemini}`);
+async function advisorAnalyze({ scan, project, profiles, sessions, question, useGemini = true, provider = 'gemini', model, apiKey, customEndpoint }) {
+  logAdvisor(`Analyzing: project=${project?.name || 'none'}, question=${question || 'none'}, provider=${provider}`);
   const ctx = buildSystemContext(scan, project, profiles, sessions);
-
   const fallback = ruleBasedAdvice(ctx, question);
 
-  if (!useGemini || !getApiKey()) {
-    logAdvisor('No Gemini API key; returning rule-based advice.');
-    return { ...fallback, geminiAvailable: false };
+  const effectiveProvider = provider || 'gemini';
+  const hasKey = apiKey || (effectiveProvider === 'gemini' ? getApiKey() : (effectiveProvider === 'openai' ? process.env.OPENAI_API_KEY : !!customEndpoint));
+
+  if (!useGemini || !hasKey) {
+    logAdvisor('No API key for provider; returning rule-based advice.');
+    return { ...fallback, geminiAvailable: false, provider: effectiveProvider };
   }
 
   try {
     const systemPrompt = `You are AgentDock Operations Advisor, a proactive AI operations manager. You help users orchestrate AI coding agents. Be concise, actionable, and technically specific.`;
     const userPrompt = `System State:\n${JSON.stringify(ctx, null, 2)}\n\nUser Question: ${question || 'What should I do next? Give me proactive recommendations.'}`;
-    const contents = [{ role: 'user', parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }];
-    const text = await geminiChat(contents);
-    logAdvisor('Gemini response received.');
-    return { source: 'gemini', advice: text, fallback: fallback.advice, geminiAvailable: true };
+
+    let text = '';
+    if (effectiveProvider === 'gemini') {
+      const contents = [{ role: 'user', parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }];
+      text = await geminiChat(contents, model || 'gemini-2.0-flash', apiKey);
+    } else {
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ];
+      text = await providerChat({ provider: effectiveProvider, model, apiKey, customEndpoint, messages });
+    }
+
+    logAdvisor('AI response received.');
+    return { source: effectiveProvider, advice: text, fallback: fallback.advice, geminiAvailable: true, provider: effectiveProvider };
   } catch (e) {
-    logAdvisor(`Gemini error: ${e.message}`);
-    return { ...fallback, geminiAvailable: true, geminiError: e.message };
+    logAdvisor(`AI error: ${e.message}`);
+    return { ...fallback, geminiAvailable: true, geminiError: e.message, provider: effectiveProvider };
   }
 }
 
-module.exports = { advisorAnalyze, geminiChat, getApiKey, buildSystemContext };
+module.exports = { advisorAnalyze, geminiChat, openaiChat, customChat, providerChat, toGeminiContents, toOpenAIMessages, getApiKey, buildSystemContext };

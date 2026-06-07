@@ -153,6 +153,24 @@ function listProfiles() {
 }
 function getProfile(id) { return listProfiles().find(p => p.id === id) || null; }
 
+function createProfile(data) {
+  const id = data.id || `custom-${Date.now()}`;
+  const file = `${id}.md`;
+  const full = safeJoin(DIRS.profiles, file);
+  if (fs.existsSync(full)) throw new Error(`Profile ${id} already exists`);
+  const frontmatter = Object.entries(data.meta || data).map(([k, v]) => {
+    if (k === 'body' || k === 'launch' || k === 'preflight' || k === 'id') return null;
+    if (Array.isArray(v)) return `${k}: [${v.map(x => `"${x}"`).join(', ')}]`;
+    if (typeof v === 'boolean' || typeof v === 'number') return `${k}: ${v}`;
+    return `${k}: "${String(v).replace(/"/g, '\\"')}"`;
+  }).filter(Boolean).join('\n');
+  const launchBlock = data.launch ? `\n\n## Launch Script\n\`\`\`powershell\n${data.launch}\n\`\`\`` : '';
+  const preflightBlock = data.preflight ? `\n\n## Preflight Script\n\n\`\`\`powershell\n${data.preflight}\n\`\`\`` : '';
+  const md = `---\nid: "${id}"\n${frontmatter}\n---\n\n# ${data.name || id}\n\n${data.description || ''}${launchBlock}${preflightBlock}`;
+  fs.writeFileSync(full, md, 'utf8');
+  return { id, file, created: true };
+}
+
 function getProjectDir(dirPath) {
   try {
     const entries = fs.readdirSync(dirPath, { withFileTypes: true });
@@ -1016,6 +1034,11 @@ async function route(req, res) {
     if (pathName === '/api/catalog' && req.method === 'GET') return send(res, 200, loadCatalog());
     if (pathName === '/api/suggestions' && req.method === 'GET') return send(res, 200, { suggestions: buildSuggestions(lastScan) });
     if (pathName === '/api/profiles' && req.method === 'GET') return send(res, 200, listProfiles());
+    if (pathName === '/api/profiles/create' && req.method === 'POST') {
+      const body = await readBody(req);
+      try { return send(res, 200, createProfile(body)); }
+      catch (e) { return send(res, 400, { error: e.message }); }
+    }
     if (pathName.startsWith('/api/profile/') && req.method === 'GET') {
       const id = decodeURIComponent(pathName.split('/').pop());
       const p = getProfile(id); if (!p) return send(res, 404, { error: 'Profile not found' });
@@ -1198,6 +1221,10 @@ async function route(req, res) {
         text: body.text,
         event: body.event,
         context,
+        provider: body.provider,
+        model: body.model,
+        apiKey: body.apiKey,
+        customEndpoint: body.customEndpoint,
       });
       return send(res, 200, result);
     }

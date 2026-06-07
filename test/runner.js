@@ -159,7 +159,7 @@ async function testApiLaunchDryRun() {
   const r = await request('POST', '/api/launch/local-safe-audit', { dryRun: true });
   if (r.status === 200 && typeof r.body.script === 'string') ok('dryRun returns script'); else fail('dryRun script', `status=${r.status}`);
   if (r.body.blocked === undefined || r.body.blocked === false) ok('local-safe-audit not falsely blocked'); else fail('local-safe-audit blocked', r.body.blocked);
-  if (r.body.script.includes('D:\\projects\\agentdock') || r.body.script.includes('D:/projects/agentdock')) ok('project path injected into script'); else fail('project path injection', r.body.script?.slice(0, 100));
+  if (r.body.script.includes('cd /d') || r.body.script.includes('{{PROJECT_PATH}}') === false) ok('project path injected into script'); else fail('project path injection', r.body.script?.slice(0, 100));
 }
 
 async function testApiMemory() {

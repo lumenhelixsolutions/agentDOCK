@@ -1,10 +1,10 @@
 /**
- * AgentDock AI Chat / Mascot Controller
+ * AgentDock AI Chat / Mascot Controller (Multi-provider)
  * Maintains chat history, processes user messages + system events,
  * generates AI responses with structured app-control commands.
  */
 
-const { advisorAnalyze, geminiChat } = require('./advisor');
+const { advisorAnalyze, providerChat, toGeminiContents, toOpenAIMessages } = require('./advisor');
 
 const MAX_HISTORY = 50;
 const chats = new Map(); // sessionId -> { messages[], lastActive }
@@ -50,38 +50,42 @@ ${JSON.stringify(context, null, 2)}
 Respond naturally to the user. If you want to take action, include the command block.`;
 }
 
-async function processChatMessage({ sessionId, text, event, context }) {
+async function processChatMessage({ sessionId, text, event, context, provider, model, apiKey, customEndpoint }) {
   const chat = getChat(sessionId);
-  
+
   if (event) {
     chat.messages.push({ role: 'system', text: `[EVENT] ${event.type}: ${JSON.stringify(event.data || {})}` });
   }
-  
+
   if (text) {
     chat.messages.push({ role: 'user', text });
   }
-  
+
   trimHistory(chat);
-  
-  // Build Gemini contents
+
+  const effectiveProvider = provider || 'gemini';
   const systemMsg = chat.messages.find(m => m.role === 'system')?.text || '';
   const commandPrompt = buildCommandPrompt(context);
-  
-  const contents = [];
   const history = chat.messages.filter(m => m.role !== 'system');
-  
-  // Add context as first user message
-  contents.push({
-    role: 'user',
-    parts: [{ text: `${systemMsg}\n\n${commandPrompt}\n\n---\n\nConversation history:\n${history.map(m => `${m.role}: ${m.text}`).join('\n')}` }]
-  });
-  
+
   let aiText = '';
   let commands = [];
-  
+
   try {
-    aiText = await geminiChat(contents, 'gemini-2.0-flash');
-    
+    if (effectiveProvider === 'gemini') {
+      const contents = toGeminiContents([
+        { role: 'system', text: `${systemMsg}\n\n${commandPrompt}` },
+        ...history,
+      ]);
+      aiText = await providerChat({ provider: 'gemini', model: model || 'gemini-2.0-flash', apiKey, contents });
+    } else {
+      const messages = toOpenAIMessages([
+        { role: 'system', text: `${systemMsg}\n\n${commandPrompt}` },
+        ...history,
+      ]);
+      aiText = await providerChat({ provider: effectiveProvider, model, apiKey, customEndpoint, messages });
+    }
+
     // Extract commands
     const cmdMatch = /```json commands\s*\n([\s\S]*?)```/i.exec(aiText);
     if (cmdMatch) {
@@ -105,10 +109,10 @@ async function processChatMessage({ sessionId, text, event, context }) {
     });
     aiText = advisor.advice || 'I am having trouble connecting. Here is what I know: ' + advisor.fallback;
   }
-  
+
   chat.messages.push({ role: 'model', text: aiText });
   trimHistory(chat);
-  
+
   return { text: aiText, commands };
 }
 

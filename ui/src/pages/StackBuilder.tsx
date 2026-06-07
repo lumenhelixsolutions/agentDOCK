@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/Toast";
 import {
   Cpu, Brain, Wrench, Terminal, FileOutput, AlertTriangle, CheckCircle2,
   Plus, Trash2, Play, Save, ChevronRight, ChevronDown, BookOpen,
@@ -63,6 +64,8 @@ export default function StackBuilder() {
   const [tab, setTab] = useState<"builder" | "research" | "install">("builder");
   const [search, setSearch] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
+  const [launching, setLaunching] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     Promise.all([
@@ -151,6 +154,51 @@ export default function StackBuilder() {
 
   const copyText = (text: string, id: string) => {
     navigator.clipboard.writeText(text).then(() => { setCopied(id); setTimeout(() => setCopied(null), 1500); });
+  };
+
+  const launchStack = async () => {
+    if (score < 50 || nodes.length === 0) return;
+    setLaunching(true);
+    try {
+      const llmNode = nodes.find((n) => n.type === "llm");
+      const agentNode = nodes.find((n) => n.type === "agent");
+      const llm = llmNode ? LLM_OPTIONS.find((l) => l.id === llmNode.config.model) : null;
+      const agent = agentNode ? AGENT_OPTIONS.find((a) => a.id === agentNode.config.agent) : null;
+      const mode = llm?.mode || "hybrid";
+      const name = `stack-${mode}-${agent?.id || "custom"}-${Date.now()}`;
+      const profileId = name.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").slice(0, 60);
+      const launchCmd = agent
+        ? `${agent.id} ${mode === "local" ? "--local" : ""}`
+        : `echo "Custom stack: ${profileId}"`;
+      const meta: any = {
+        name: `Custom ${mode} stack`,
+        mode,
+        status: "experimental",
+        command: agent?.id || "",
+        backend: llm?.backend || "",
+        model: llm?.id || "",
+        required_context: llm?.context || 0,
+      };
+      if (llm?.mode === "cloud") {
+        const envKey = `${llm.backend.toUpperCase()}_API_KEY`;
+        meta.required_env = [envKey];
+      }
+      await api.createProfile({ id: profileId, meta, description: `Auto-generated stack profile. LLM: ${llm?.name || "none"}, Agent: ${agent?.name || "none"}`, launch: launchCmd });
+      toast.showToast(`Profile "${profileId}" created. Launching...`, "success");
+      const result = await api.launch(profileId);
+      if (result.launched) {
+        toast.showToast(`Stack launched! Session: ${result.session?.id?.slice(0, 8)}`, "success");
+        window.location.href = "/terminal";
+      } else if (result.blocked) {
+        toast.showToast(`Launch blocked: ${result.message}`, "warning");
+      } else {
+        toast.showToast("Launch completed.", "info");
+      }
+    } catch (e: any) {
+      toast.showToast(e.message || "Launch failed", "error");
+    } finally {
+      setLaunching(false);
+    }
   };
 
   return (
@@ -308,8 +356,8 @@ export default function StackBuilder() {
               </div>
             )}
 
-            <button onClick={() => alert("Launch from Stack Builder coming in Phase 3")} disabled={score < 50} style={{ padding: "12px 20px", borderRadius: 8, border: "1px solid rgba(74,222,128,0.3)", background: score >= 50 ? "rgba(74,222,128,0.1)" : "rgba(255,255,255,0.03)", color: score >= 50 ? "#4ade80" : "#6b7280", cursor: score >= 50 ? "pointer" : "not-allowed", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-              <Play size={14} /> Launch Stack
+            <button onClick={launchStack} disabled={score < 50 || launching} style={{ padding: "12px 20px", borderRadius: 8, border: "1px solid rgba(74,222,128,0.3)", background: score >= 50 && !launching ? "rgba(74,222,128,0.1)" : "rgba(255,255,255,0.03)", color: score >= 50 && !launching ? "#4ade80" : "#6b7280", cursor: score >= 50 && !launching ? "pointer" : "not-allowed", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              <Play size={14} /> {launching ? "Launching..." : "Launch Stack"}
             </button>
           </div>
         </div>

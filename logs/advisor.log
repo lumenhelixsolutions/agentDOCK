@@ -152,3 +152,31 @@ Please retry in 22.584717544s.
 [2026-06-07T10:08:53.457Z] No Gemini API key; returning rule-based advice.
 [2026-06-07T10:08:56.052Z] Analyzing: project=none, question=Hello, useGemini=false
 [2026-06-07T10:08:56.115Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T10:52:16.178Z] Analyzing: project=none, question=scanCompleted, useGemini=false
+[2026-06-07T10:52:16.315Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T10:52:16.450Z] Analyzing: project=none, question=scanCompleted, useGemini=false
+[2026-06-07T10:52:16.560Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T10:52:16.624Z] Analyzing: project=none, question=scanCompleted, useGemini=false
+[2026-06-07T10:52:16.738Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T10:52:16.817Z] Analyzing: project=none, question=scanCompleted, useGemini=false
+[2026-06-07T10:52:16.902Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T10:53:21.891Z] Analyzing: project=none, question=scanCompleted, useGemini=false
+[2026-06-07T10:53:21.972Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T10:53:22.049Z] Analyzing: project=none, question=projectSwitched, useGemini=false
+[2026-06-07T10:53:22.168Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T10:53:22.228Z] Analyzing: project=none, question=profileLaunched, useGemini=false
+[2026-06-07T10:53:22.317Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T10:53:41.091Z] Analyzing: project=none, question=scanCompleted, useGemini=false
+[2026-06-07T10:53:41.203Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T14:06:09.667Z] Analyzing: project=none, question=help, useGemini=false
+[2026-06-07T14:06:09.723Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T14:06:32.226Z] Analyzing: project=none, question=why is it so slsow?, useGemini=false
+[2026-06-07T14:06:32.258Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T15:49:13.326Z] Analyzing: project=lookBOOK, question=What should I install?, provider=gemini
+[2026-06-07T15:49:13.352Z] No API key for provider; returning rule-based advice.
+[2026-06-07T15:49:15.775Z] Analyzing: project=none, question=Hello, provider=gemini
+[2026-06-07T15:49:15.819Z] No API key for provider; returning rule-based advice.
+[2026-06-07T15:50:45.538Z] Analyzing: project=lookBOOK, question=What should I install?, provider=gemini
+[2026-06-07T15:50:45.564Z] No API key for provider; returning rule-based advice.
+[2026-06-07T15:50:48.304Z] Analyzing: project=none, question=Hello, provider=gemini
+[2026-06-07T15:50:48.343Z] No API key for provider; returning rule-based advice.

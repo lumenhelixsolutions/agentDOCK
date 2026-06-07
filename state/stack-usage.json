@@ -161,6 +161,33 @@
       "endedAt": "2026-06-07T09:55:54.941Z",
       "exitCode": 1,
       "pid": 83488
+    },
+    {
+      "id": "s-2026-06-07T10-52-52-937Z-ae66d1",
+      "profileId": "local-safe-audit",
+      "profileName": "Local Safe Audit",
+      "startedAt": "2026-06-07T10:52:53.006Z",
+      "endedAt": "2026-06-07T10:52:57.302Z",
+      "exitCode": 1,
+      "pid": 86784
+    },
+    {
+      "id": "s-2026-06-07T13-34-50-428Z-cec16c",
+      "profileId": "cloud-architecture-codex",
+      "profileName": "Cloud Architecture (codex)",
+      "startedAt": "2026-06-07T13:34:50.472Z",
+      "endedAt": "2026-06-07T13:34:50.988Z",
+      "exitCode": 0,
+      "pid": 61044
+    },
+    {
+      "id": "s-2026-06-07T14-19-08-250Z-a67106",
+      "profileId": "local-architecture",
+      "profileName": "Local Architecture",
+      "startedAt": "2026-06-07T14:19:08.350Z",
+      "endedAt": "2026-06-07T14:19:08.684Z",
+      "exitCode": 1,
+      "pid": 79756
     }
   ],
   "outcomes": [
@@ -181,6 +208,24 @@
       "outcome": "partial",
       "notes": "",
       "timestamp": "2026-06-07T04:21:53.468Z"
+    },
+    {
+      "sessionId": "s-2026-06-07T14-19-08-250Z-a67106",
+      "profileId": "local-architecture",
+      "profileName": "Local Architecture",
+      "project": "D:\\projects\\lookBOOK",
+      "outcome": "partial",
+      "notes": "",
+      "timestamp": "2026-06-07T14:21:32.460Z"
+    },
+    {
+      "sessionId": "s-2026-06-07T14-19-08-250Z-a67106",
+      "profileId": "local-architecture",
+      "profileName": "Local Architecture",
+      "project": "D:\\projects\\lookBOOK",
+      "outcome": "partial",
+      "notes": "",
+      "timestamp": "2026-06-07T14:21:33.276Z"
     }
   ]
 }

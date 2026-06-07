@@ -6,6 +6,7 @@ import {
   Zap, Shield, Wrench, ChevronRight, Clock, Package,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/Toast";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, CartesianGrid,
@@ -28,6 +29,7 @@ export default function Dashboard() {
   const [portfolio, setPortfolio] = useState<any>(null);
   const [research, setResearch] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const toast = useToast();
 
   useEffect(() => {
     Promise.all([
@@ -45,7 +47,15 @@ export default function Dashboard() {
       setPortfolio(ph);
       setResearch(r);
       setLoading(false);
-    }).catch(() => setLoading(false));
+      if (s) {
+        const installed = (s.coders || []).filter((c: any) => c.detection?.present).length;
+        const total = s.coders?.length || 0;
+        toast.showToast(`System scan complete. ${installed}/${total} agents detected.`, "success", 5000);
+      }
+    }).catch((e) => {
+      setLoading(false);
+      toast.showToast("Failed to load dashboard data", "error");
+    });
   }, []);
 
   const list = profiles || [];

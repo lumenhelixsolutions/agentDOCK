@@ -10,7 +10,7 @@ export default function TerminalPage() {
   const [input, setInput] = useState("");
   const [showOutcome, setShowOutcome] = useState(false);
   const terminalRef = useRef<HTMLDivElement>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval>>();
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadSessions = async () => {
     try {

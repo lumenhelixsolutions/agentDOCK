@@ -18,6 +18,14 @@ function getModelProvider(): string {
   return localStorage.getItem("agentdock_model_provider") || "gemini";
 }
 
+function getModelName(): string | null {
+  return localStorage.getItem("agentdock_model_name");
+}
+
+function getCustomEndpoint(): string | null {
+  return localStorage.getItem("agentdock_custom_endpoint");
+}
+
 export default function ChatMascot() {
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState<ChatMsg[]>([
@@ -38,9 +46,12 @@ export default function ChatMascot() {
     setMsgs((m) => [...m, { role: "user", text }]);
     setLoading(true);
     try {
-      // If user has their own API key, we could route through a different endpoint.
-      // For now we use the server's rule-based fallback + Gemini stub.
-      const res = await api.chat(SESSION_ID, text);
+      const res = await api.chat(SESSION_ID, text, {
+        provider: getModelProvider(),
+        model: getModelName() || undefined,
+        apiKey: getApiKey() || undefined,
+        customEndpoint: getCustomEndpoint() || undefined,
+      });
       setMsgs((m) => [...m, { role: "ai", text: res.text || "...", commands: res.commands }]);
     } catch (e: any) {
       setMsgs((m) => [...m, { role: "ai", text: "⚠️ " + e.message }]);

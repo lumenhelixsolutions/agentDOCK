@@ -12,6 +12,7 @@ import {
   Blocks,
 } from "lucide-react";
 import ChatMascot from "./ChatMascot";
+import { ToastProvider } from "./Toast";
 
 const navItems = [
   { label: "Dashboard", path: "/", icon: LayoutDashboard },
@@ -28,6 +29,7 @@ export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
+    <ToastProvider>
     <div
       style={{
         display: "flex",
@@ -198,6 +200,7 @@ export default function AppLayout() {
 
       <ChatMascot />
     </div>
+    </ToastProvider>
   );
 }
 

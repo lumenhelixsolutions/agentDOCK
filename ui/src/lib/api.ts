@@ -16,6 +16,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 export const api = {
   getProfiles: () => request<Array<any>>('GET', '/api/profiles'),
   getProfile: (id: string) => request<any>('GET', `/api/profile/${encodeURIComponent(id)}`),
+  createProfile: (data: any) => request<any>('POST', '/api/profiles/create', data),
   runScan: (repo?: string) => request<any>('GET', `/api/scan?repo=${encodeURIComponent(repo || '')}`),
   makePlan: (goal: string) => request<any>('POST', '/api/plan', { goal }),
   dryRun: (id: string) => request<any>('POST', `/api/launch/${encodeURIComponent(id)}`, { dryRun: true }),
@@ -31,7 +32,7 @@ export const api = {
   getProjects: () => request<any>('GET', '/api/projects'),
   setActiveProject: (path: string) => request<void>('POST', '/api/active-project', { path }),
   analyze: (question?: string) => request<any>('POST', '/api/advisor/analyze', { question, useGemini: false }),
-  chat: (sessionId: string, text: string) => request<any>('POST', '/api/chat', { sessionId, text }),
+  chat: (sessionId: string, text: string, opts?: { provider?: string; model?: string; apiKey?: string; customEndpoint?: string }) => request<any>('POST', '/api/chat', { sessionId, text, ...opts }),
   clearChat: (sessionId: string) => request<void>('POST', '/api/chat/clear', { sessionId }),
   getTemplates: () => request<any>('GET', '/api/templates'),
   getResearch: () => request<any>('GET', '/api/research/latest'),
