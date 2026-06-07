@@ -32,4 +32,5 @@ $env:OLLAMA_MAX_LOADED_MODELS="1"
 
 ollama run gemma:4b "Return exactly READY"
 ollama ps
+ollama run gemma:4b
 ```
