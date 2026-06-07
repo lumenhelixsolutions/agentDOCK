@@ -1,0 +1,397 @@
+{
+  "source": "https://github.com/EveryInc/compound-engineering-plugin",
+  "version": "3.11.2",
+  "last_synced": "2026-06-07T17:00:00Z",
+  "skills": [
+    {
+      "id": "ce-strategy",
+      "name": "CE Strategy",
+      "description": "Create or maintain STRATEGY.md — the product's target problem, approach, persona, key metrics, and active tracks.",
+      "category": "workflow",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-strategy/SKILL.md",
+      "cached": true,
+      "local_path": "skills/compound-engineering/cache/ce-strategy/SKILL.md",
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-ideate",
+      "name": "CE Ideate",
+      "description": "Optional big-picture ideation: generate and critically evaluate grounded ideas, then route the strongest one into brainstorming.",
+      "category": "workflow",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-ideate/SKILL.md",
+      "cached": true,
+      "local_path": "skills/compound-engineering/cache/ce-ideate/SKILL.md",
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-brainstorm",
+      "name": "CE Brainstorm",
+      "description": "Explore requirements and approaches through collaborative dialogue, then write a right-sized requirements document. Use when the user says 'let's brainstorm', 'what should we build', or 'help me think through X'.",
+      "category": "workflow",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-brainstorm/SKILL.md",
+      "cached": true,
+      "local_path": "skills/compound-engineering/cache/ce-brainstorm/SKILL.md",
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-plan",
+      "name": "CE Plan",
+      "description": "Create structured plans for multi-step tasks — software features, research workflows, events, study plans, or any goal that benefits from breakdown. Use when the user says 'plan this', 'create a plan', 'how should we build'.",
+      "category": "workflow",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-plan/SKILL.md",
+      "cached": true,
+      "local_path": "skills/compound-engineering/cache/ce-plan/SKILL.md",
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-work",
+      "name": "CE Work",
+      "description": "Execute plans with worktrees and task tracking. Use after ce-plan produces a plan document.",
+      "category": "workflow",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-work/SKILL.md",
+      "cached": true,
+      "local_path": "skills/compound-engineering/cache/ce-work/SKILL.md",
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-code-review",
+      "name": "CE Code Review",
+      "description": "Structured code review using tiered persona agents, confidence-gated findings, and a merge/dedup pipeline. Use when reviewing code changes before creating a PR.",
+      "category": "review",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-code-review/SKILL.md",
+      "cached": true,
+      "local_path": "skills/compound-engineering/cache/ce-code-review/SKILL.md",
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-compound",
+      "name": "CE Compound",
+      "description": "Document solved problems to make future work easier. Use after ce-work or ce-debug completes to capture learnings.",
+      "category": "workflow",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-compound/SKILL.md",
+      "cached": true,
+      "local_path": "skills/compound-engineering/cache/ce-compound/SKILL.md",
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-debug",
+      "name": "CE Debug",
+      "description": "Systematically reproduce failures, trace root cause, and implement fixes. Use for bug investigations.",
+      "category": "debug",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-debug/SKILL.md",
+      "cached": true,
+      "local_path": "skills/compound-engineering/cache/ce-debug/SKILL.md",
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-product-pulse",
+      "name": "CE Product Pulse",
+      "description": "Generate a single-page, time-windowed pulse report on usage, performance, errors, and followups. Saves to docs/pulse-reports/.",
+      "category": "workflow",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-product-pulse/SKILL.md",
+      "cached": true,
+      "local_path": "skills/compound-engineering/cache/ce-product-pulse/SKILL.md",
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-agent-native-architecture",
+      "name": "CE Agent Native Architecture",
+      "description": "Design and evaluate architecture for agent-native software systems.",
+      "category": "architecture",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-agent-native-architecture/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-agent-native-audit",
+      "name": "CE Agent Native Audit",
+      "description": "Audit existing systems for agent-native readiness and gaps.",
+      "category": "audit",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-agent-native-audit/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-clean-gone-branches",
+      "name": "CE Clean Gone Branches",
+      "description": "Clean up local branches whose remote tracking branches no longer exist.",
+      "category": "utility",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-clean-gone-branches/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-commit-push-pr",
+      "name": "CE Commit Push PR",
+      "description": "Commit changes, push to remote, and create or update a pull request.",
+      "category": "utility",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-commit-push-pr/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-commit",
+      "name": "CE Commit",
+      "description": "Create well-structured commits following conventional commit standards.",
+      "category": "utility",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-commit/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-compound-refresh",
+      "name": "CE Compound Refresh",
+      "description": "Refresh and update existing compound documentation with new learnings.",
+      "category": "workflow",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-compound-refresh/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-demo-reel",
+      "name": "CE Demo Reel",
+      "description": "Create demo reels and screen recordings for feature showcases.",
+      "category": "utility",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-demo-reel/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-dhh-rails-style",
+      "name": "CE DHH Rails Style",
+      "description": "Apply DHH-style Rails conventions and patterns to code.",
+      "category": "style",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-dhh-rails-style/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-doc-review",
+      "name": "CE Doc Review",
+      "description": "Review documentation for clarity, accuracy, and completeness.",
+      "category": "review",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-doc-review/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-dogfood-beta",
+      "name": "CE Dogfood Beta",
+      "description": "Run beta features through dogfooding workflows.",
+      "category": "utility",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-dogfood-beta/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-frontend-design",
+      "name": "CE Frontend Design",
+      "description": "Design frontend components and user interfaces with best practices.",
+      "category": "design",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-frontend-design/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-gemini-imagegen",
+      "name": "CE Gemini ImageGen",
+      "description": "Generate images using Gemini models.",
+      "category": "utility",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-gemini-imagegen/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-optimize",
+      "name": "CE Optimize",
+      "description": "Optimize code, queries, and system performance.",
+      "category": "utility",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-optimize/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-polish",
+      "name": "CE Polish",
+      "description": "Polish and refine code, docs, and artifacts before shipping.",
+      "category": "utility",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-polish/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-promote",
+      "name": "CE Promote",
+      "description": "Promote features and releases through documentation and communication.",
+      "category": "utility",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-promote/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-proof",
+      "name": "CE Proof",
+      "description": "Create and manage proof documents and verification workflows.",
+      "category": "utility",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-proof/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-release-notes",
+      "name": "CE Release Notes",
+      "description": "Draft release notes from commits, PRs, and changes.",
+      "category": "utility",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-release-notes/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-report-bug",
+      "name": "CE Report Bug",
+      "description": "File structured bug reports with reproduction steps and context.",
+      "category": "utility",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-report-bug/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-resolve-pr-feedback",
+      "name": "CE Resolve PR Feedback",
+      "description": "Systematically resolve pull request review feedback.",
+      "category": "workflow",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-resolve-pr-feedback/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-riffrec-feedback-analysis",
+      "name": "CE RiffRec Feedback Analysis",
+      "description": "Analyze user feedback from RiffRec recordings.",
+      "category": "utility",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-riffrec-feedback-analysis/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-sessions",
+      "name": "CE Sessions",
+      "description": "Manage and review agent sessions and their outputs.",
+      "category": "utility",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-sessions/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-setup",
+      "name": "CE Setup",
+      "description": "Check environment, install missing tools, and bootstrap project config.",
+      "category": "utility",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-setup/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-simplify-code",
+      "name": "CE Simplify Code",
+      "description": "Simplify complex code while preserving behavior.",
+      "category": "utility",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-simplify-code/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-slack-research",
+      "name": "CE Slack Research",
+      "description": "Search Slack for organizational context and prior decisions.",
+      "category": "research",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-slack-research/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-test-browser",
+      "name": "CE Test Browser",
+      "description": "Run and debug browser-based tests.",
+      "category": "testing",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-test-browser/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-test-xcode",
+      "name": "CE Test Xcode",
+      "description": "Run and debug Xcode tests for iOS/macOS projects.",
+      "category": "testing",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-test-xcode/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-update",
+      "name": "CE Update",
+      "description": "Update dependencies, frameworks, and tooling.",
+      "category": "utility",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-update/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-work-beta",
+      "name": "CE Work Beta",
+      "description": "Beta version of the CE Work execution skill.",
+      "category": "workflow",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-work-beta/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "ce-worktree",
+      "name": "CE Worktree",
+      "description": "Manage git worktrees for isolated development.",
+      "category": "utility",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/ce-worktree/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    },
+    {
+      "id": "lfg",
+      "name": "LFG",
+      "description": "Let's F***ing Go — rapid execution mode for known tasks.",
+      "category": "workflow",
+      "upstream_url": "https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/plugins/compound-engineering/skills/lfg/SKILL.md",
+      "cached": false,
+      "local_path": null,
+      "compatible_frontends": ["claude", "codex"]
+    }
+  ]
+}

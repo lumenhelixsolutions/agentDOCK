@@ -1,0 +1,28 @@
+{
+  "source": "https://github.com/EveryInc/compound-engineering-plugin",
+  "version": "3.11.2",
+  "last_synced": "2026-06-07T17:00:00Z",
+  "agents": [
+    { "id": "ce-adversarial-reviewer", "name": "CE Adversarial Reviewer", "description": "Stress-tests code and design from an adversarial perspective." },
+    { "id": "ce-agent-native-reviewer", "name": "CE Agent Native Reviewer", "description": "Reviews code for agent-native architecture patterns." },
+    { "id": "ce-api-contract-reviewer", "name": "CE API Contract Reviewer", "description": "Validates API contracts, routes, serializers, and versioning." },
+    { "id": "ce-correctness-reviewer", "name": "CE Correctness Reviewer", "description": "Finds logic bugs and correctness issues." },
+    { "id": "ce-data-migration-reviewer", "name": "CE Data Migration Reviewer", "description": "Validates database migrations and schema changes." },
+    { "id": "ce-deployment-verification-agent", "name": "CE Deployment Verification Agent", "description": "Checks deployment readiness and rollback plans." },
+    { "id": "ce-framework-docs-researcher", "name": "CE Framework Docs Researcher", "description": "Researches framework-specific documentation and best practices." },
+    { "id": "ce-julik-frontend-races-reviewer", "name": "CE Julik Frontend Races Reviewer", "description": "Catches frontend race conditions in Stimulus/Turbo apps." },
+    { "id": "ce-learnings-researcher", "name": "CE Learnings Researcher", "description": "Searches docs/solutions/ for institutional knowledge." },
+    { "id": "ce-maintainability-reviewer", "name": "CE Maintainability Reviewer", "description": "Flags technical debt and maintainability traps." },
+    { "id": "ce-performance-reviewer", "name": "CE Performance Reviewer", "description": "Identifies performance regressions and optimization opportunities." },
+    { "id": "ce-previous-comments-reviewer", "name": "CE Previous Comments Reviewer", "description": "Verifies that prior review feedback has been addressed." },
+    { "id": "ce-project-standards-reviewer", "name": "CE Project Standards Reviewer", "description": "Enforces project-specific conventions and standards." },
+    { "id": "ce-reliability-reviewer", "name": "CE Reliability Reviewer", "description": "Reviews error handling, retries, timeouts, and background jobs." },
+    { "id": "ce-repo-research-analyst", "name": "CE Repo Research Analyst", "description": "Explores codebase structure, patterns, and relevant files." },
+    { "id": "ce-security-reviewer", "name": "CE Security Reviewer", "description": "Finds security vulnerabilities and auth issues." },
+    { "id": "ce-slack-researcher", "name": "CE Slack Researcher", "description": "Searches Slack for organizational context." },
+    { "id": "ce-spec-flow-analyzer", "name": "CE Spec Flow Analyzer", "description": "Analyzes user flows and edge cases in specs." },
+    { "id": "ce-swift-ios-reviewer", "name": "CE Swift iOS Reviewer", "description": "Reviews Swift, SwiftUI, UIKit, and iOS-specific code." },
+    { "id": "ce-testing-reviewer", "name": "CE Testing Reviewer", "description": "Identifies testing gaps and weak test coverage." },
+    { "id": "ce-web-researcher", "name": "CE Web Researcher", "description": "Researches external documentation, libraries, and best practices." }
+  ]
+}
