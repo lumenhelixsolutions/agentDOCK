@@ -299,12 +299,20 @@ function memoryBlocks(memory) {
 }
 function isBlockedByMemory(profile, memory) {
   const blocks = memoryBlocks(memory);
-  const keys = [profile.id, profile.meta.model, profile.meta.frontend, profile.meta.backend]
-    .filter(Boolean).map(String).map(s => s.toLowerCase());
+  const profileId = String(profile.id || '').toLowerCase();
+  const profileModel = String(profile.meta.model || '').toLowerCase();
   return blocks.find(b => {
     if (b.status !== 'blocked') return false;
-    const hay = `${b.title} ${b.profile} ${b.observed} ${b.raw}`.toLowerCase();
-    return keys.some(k => k && hay.includes(k));
+    const blockProfile = String(b.profile || '').toLowerCase();
+    const blockTitle = String(b.title || '').toLowerCase();
+    // Exact profile ID match
+    if (blockProfile === profileId) return true;
+    if (blockTitle === profileId) return true;
+    // Exact model match (e.g. qwen blocking should not block llama)
+    if (profileModel && (blockProfile === profileModel || blockTitle === profileModel)) return true;
+    // Title contains profile id as a whole word (e.g. "codex-patch-test run" should not block "codex" generally)
+    if (profileId && (blockTitle === profileId || blockProfile === profileId)) return true;
+    return false;
   });
 }
 
@@ -320,10 +328,16 @@ function parseOllamaPsRaw(raw) {
   }
   return models;
 }
+function normalizeLoadedModels(scan) {
+  const raw = scan?.ollama?.loaded_models;
+  if (Array.isArray(raw)) return raw;
+  if (raw && typeof raw === 'object' && raw.name) return [raw];
+  return parseOllamaPsRaw(scan?.ollama?.ps_raw);
+}
 function getLoadedModelContext(scan, modelName) {
   if (!scan || !modelName) return null;
   const variants = [modelName, `${modelName}:latest`].map(x => String(x).toLowerCase());
-  const loaded = scan?.ollama?.loaded_models || parseOllamaPsRaw(scan?.ollama?.ps_raw);
+  const loaded = normalizeLoadedModels(scan);
   const found = loaded.find(m => variants.includes(String(m.name).toLowerCase()) || variants.some(v => String(m.name).toLowerCase().startsWith(v.replace(':latest', ''))));
   return found?.context ?? null;
 }

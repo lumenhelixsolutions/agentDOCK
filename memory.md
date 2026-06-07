@@ -96,3 +96,83 @@ Profile: cloud-heavy-refactor-claude
 Status: observed-run
 Observed: exitCode=0
 Reason: Terminal-monitored AgentDock session s-2026-06-07T02-56-48-904Z-2ef1fd
+
+
+## Evidence: local-architecture run
+Date: 2026-06-07T03:53:44.241Z
+Profile: local-architecture
+Status: observed-failure
+Observed: exitCode=1
+Reason: Terminal-monitored AgentDock session s-2026-06-07T03-53-42-126Z-00f9c5
+
+
+## Evidence: local-code-review run
+Date: 2026-06-07T03:54:53.443Z
+Profile: local-code-review
+Status: observed-failure
+Observed: exitCode=1
+Reason: Terminal-monitored AgentDock session s-2026-06-07T03-54-51-455Z-caa299
+
+
+## Evidence: cloud-architecture-codex run
+Date: 2026-06-07T04:20:05.078Z
+Profile: cloud-architecture-codex
+Status: observed-run
+Observed: exitCode=0
+Reason: Terminal-monitored AgentDock session s-2026-06-07T04-20-01-742Z-d40fd8
+
+
+## Evidence: claude-code-heavy run
+Date: 2026-06-07T04:21:41.635Z
+Profile: claude-code-heavy
+Status: observed-run
+Observed: exitCode=0
+Reason: Terminal-monitored AgentDock session s-2026-06-07T04-21-36-027Z-abd407
+
+
+## Evidence: claude-code-heavy run
+Date: 2026-06-07T04:22:17.940Z
+Profile: claude-code-heavy
+Status: observed-run
+Observed: exitCode=0
+Reason: Terminal-monitored AgentDock session s-2026-06-07T04-22-13-008Z-0236ac
+
+
+## Evidence: local-safe-audit run
+Date: 2026-06-07T04:45:12.072Z
+Profile: local-safe-audit
+Status: observed-failure
+Observed: exitCode=1
+Reason: Terminal-monitored AgentDock session s-2026-06-07T04-45-09-700Z-066777
+
+
+## Evidence: local-architecture run
+Date: 2026-06-07T04:48:25.252Z
+Profile: local-architecture
+Status: observed-failure
+Observed: exitCode=1
+Reason: Terminal-monitored AgentDock session s-2026-06-07T04-48-22-743Z-8644f4
+
+
+## Evidence: local-code-review run
+Date: 2026-06-07T04:48:35.768Z
+Profile: local-code-review
+Status: observed-failure
+Observed: exitCode=1
+Reason: Terminal-monitored AgentDock session s-2026-06-07T04-48-33-495Z-43a3a3
+
+
+## Evidence: cloud-security-audit-claude run
+Date: 2026-06-07T04:48:56.684Z
+Profile: cloud-security-audit-claude
+Status: observed-run
+Observed: exitCode=0
+Reason: Terminal-monitored AgentDock session s-2026-06-07T04-48-50-943Z-f98a44
+
+
+## Evidence: local-safe-audit run
+Date: 2026-06-07T09:55:55.028Z
+Profile: local-safe-audit
+Status: observed-failure
+Observed: exitCode=1
+Reason: Terminal-monitored AgentDock session s-2026-06-07T09-55-52-162Z-fe7804

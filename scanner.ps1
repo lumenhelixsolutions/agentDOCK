@@ -266,6 +266,124 @@ try {
 $envFiles = Find-EnvFiles -repoPath $RepoPath -maxFiles $MaxEnvFiles
 $npmGlobals = Detect-NpmGlobals
 
+function Detect-LocalModelBackends() {
+  $backends = @()
+  $home = [Environment]::GetFolderPath('UserProfile')
+  
+  # LM Studio
+  $lmStudioDir = Join-Path $home '.cache\lm-studio'
+  $lmStudioExe = Join-Path $home 'AppData\Local\LM-Studio\LM Studio.exe'
+  $lmStudioModels = @()
+  if (Test-Path $lmStudioDir) {
+    try {
+      $modelsDir = Join-Path $lmStudioDir 'models'
+      if (Test-Path $modelsDir) {
+        $lmStudioModels = Get-ChildItem -Path $modelsDir -Recurse -File -ErrorAction SilentlyContinue | 
+          Where-Object { $_.Extension -in @('.gguf','.bin','.safetensors') } |
+          Select-Object -First 20 |
+          ForEach-Object { @{ name = $_.Name; size_mb = [math]::Round($_.Length/1MB,1); path = $_.FullName } }
+      }
+    } catch {}
+  }
+  $backends += @{
+    id = 'lm-studio'
+    name = 'LM Studio'
+    present = (Test-Path $lmStudioExe) -or (Test-Path $lmStudioDir)
+    exe_path = $(if (Test-Path $lmStudioExe) { $lmStudioExe } else { $null })
+    models = $lmStudioModels
+    model_count = $lmStudioModels.Count
+  }
+  
+  # text-generation-webui (Oobabooga)
+  $tgWebuiDirs = @(
+    'D:\text-generation-webui',
+    'C:\text-generation-webui',
+    (Join-Path $home 'text-generation-webui')
+  )
+  $tgPresent = $false
+  $tgPath = $null
+  foreach ($d in $tgWebuiDirs) { if (Test-Path (Join-Path $d 'server.py')) { $tgPresent = $true; $tgPath = $d; break } }
+  $backends += @{
+    id = 'text-generation-webui'
+    name = 'Text Generation WebUI (Oobabooga)'
+    present = $tgPresent
+    path = $tgPath
+  }
+  
+  # LocalAI
+  $localaiPaths = @('localai','local-ai','local_ai')
+  $localaiPresent = $false
+  foreach ($p in $localaiPaths) { if (Get-Command $p -ErrorAction SilentlyContinue) { $localaiPresent = $true; break } }
+  $backends += @{
+    id = 'localai'
+    name = 'LocalAI'
+    present = $localaiPresent
+  }
+  
+  # KoboldCPP
+  $koboldPresent = $false
+  try {
+    $koboldProcs = Get-Process | Where-Object { $_.ProcessName -like '*kobold*' }
+    if ($koboldProcs) { $koboldPresent = $true }
+  } catch {}
+  if (Get-Command koboldcpp -ErrorAction SilentlyContinue) { $koboldPresent = $true }
+  $backends += @{
+    id = 'koboldcpp'
+    name = 'KoboldCPP'
+    present = $koboldPresent
+  }
+  
+  # llama.cpp (server.exe or main.exe)
+  $llamaPaths = @('llama-server','llama-cli','main','server')
+  $llamaPresent = $false
+  foreach ($p in $llamaPaths) { if (Get-Command $p -ErrorAction SilentlyContinue) { $llamaPresent = $true; break } }
+  $backends += @{
+    id = 'llamacpp'
+    name = 'llama.cpp'
+    present = $llamaPresent
+  }
+  
+  # vLLM
+  $vllmPresent = $false
+  try {
+    $vllm = python -c "import vllm; print(vllm.__version__)" 2>$null
+    if ($vllm) { $vllmPresent = $true }
+  } catch {}
+  $backends += @{
+    id = 'vllm'
+    name = 'vLLM'
+    present = $vllmPresent
+  }
+  
+  # Scan for .gguf files in common model directories (fast, limited depth)
+  $ggufModels = @()
+  $commonModelDirs = @(
+    (Join-Path $home '.cache\lm-studio\models'),
+    (Join-Path $home '.ollama\models'),
+    (Join-Path $home 'models'),
+    (Join-Path $home 'Documents\models'),
+    'D:\models',
+    'D:\LLMs',
+    'D:\AI',
+    'C:\models'
+  )
+  foreach ($dir in $commonModelDirs) {
+    if (Test-Path $dir) {
+      try {
+        $found = Get-ChildItem -Path $dir -Filter '*.gguf' -Recurse -ErrorAction SilentlyContinue -Depth 2 |
+          Select-Object -First 5 |
+          ForEach-Object { @{ name = $_.Name; size_mb = [math]::Round($_.Length/1MB,1); path = $_.FullName } }
+        $ggufModels += $found
+        if ($ggufModels.Count -ge 10) { break }
+      } catch {}
+    }
+  }
+  
+  return @{ backends = $backends; discovered_ggufs = $ggufModels }
+}
+
+$localModels = Detect-LocalModelBackends
+
 $result = @{
   system = $system
   hardware = @{ cpu = $cpu; ram_gb = $ramGb; gpu = $gpus; disk = $disk }
@@ -276,6 +394,7 @@ $result = @{
   env = $env
   env_files = $envFiles
   ollama = @{ list_raw = $ollamaListRaw; ps_raw = $ollamaPsRaw; loaded_models = (Parse-OllamaPs $ollamaPsRaw) }
+  local_models = $localModels
   repo = $repo
 }
 
