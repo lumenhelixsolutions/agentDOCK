@@ -588,6 +588,7 @@ const TASK_TYPES = ['architecture', 'bug-hunt', 'code-review', 'documentation', 
 function detectTaskMode(profile) {
   const id = String(profile.id || '').toLowerCase();
   const tm = String(profile.meta.task_mode || '').toLowerCase();
+  const TASK_TYPES = ['architecture', 'bug-hunt', 'code-review', 'documentation', 'performance', 'security-audit', 'safe-audit', 'heavy-refactor', 'patch-test'];
   for (const t of TASK_TYPES) {
     if (tm.includes(t.replace('-', '')) || id.includes(t)) return t;
   }
@@ -595,6 +596,61 @@ function detectTaskMode(profile) {
   if (id.includes('refactor')) return 'heavy-refactor';
   if (id.includes('patch')) return 'patch-test';
   return 'general';
+}
+
+function auditProfile(profile, scan) {
+  const rules = loadCompatibilityRules();
+  const warnings = [];
+  const errors = [];
+  const suggestions = [];
+
+  const model = profile.meta.model;
+  const frontend = String(profile.meta.frontend || '').toLowerCase();
+  const taskMode = detectTaskMode(profile);
+
+  // Model capability check
+  if (model && rules.modelCapabilities[model]) {
+    const cap = rules.modelCapabilities[model];
+    const taskTier = rules.taskTiers[taskMode];
+    if (taskTier) {
+      const tierOrder = { light: 1, standard: 2, advanced: 3, unlimited: 4 };
+      if (tierOrder[cap.max_tier] < tierOrder[taskTier]) {
+        warnings.push(`Model ${model} is rated '${cap.max_tier}' tier. Task '${taskMode}' requires '${taskTier}' tier.`);
+        // Find alternative profiles
+        const allProfiles = listProfiles();
+        const alts = allProfiles.filter(p => {
+          if (p.id === profile.id) return false;
+          const pModel = p.meta.model;
+          const pTask = detectTaskMode(p);
+          if (pTask !== taskMode) return false;
+          if (!pModel || !rules.modelCapabilities[pModel]) return false;
+          return tierOrder[rules.modelCapabilities[pModel].max_tier] >= tierOrder[taskTier];
+        }).slice(0, 2);
+        for (const alt of alts) {
+          suggestions.push({ profile: alt.id, name: alt.name, reason: `Handles ${taskMode} at required tier` });
+        }
+      }
+    }
+  }
+
+  // CE compatibility check
+  if (profile.meta.ce_version) {
+    const ceSkill = String(profile.meta.task_mode || '').toLowerCase();
+    if (rules.ceCompatibility[ceSkill]) {
+      const ce = rules.ceCompatibility[ceSkill];
+      if (!ce.frontends.includes(frontend)) {
+        errors.push(`CE skill '${ceSkill}' requires frontend ${ce.frontends.join(' or ')}, but this profile uses '${frontend}'.`);
+      }
+      if (model && rules.modelCapabilities[model]) {
+        const context = rules.modelCapabilities[model].context;
+        if (context < ce.min_context) {
+          warnings.push(`CE skill '${ceSkill}' requires ${ce.min_context} context, but ${model} provides ${context}.`);
+        }
+      }
+    }
+  }
+
+  return { warnings, errors, suggestions, taskMode };
 }
 
 function generateFixes(profile, evalResult, scan) {
@@ -1011,6 +1067,10 @@ function readSkillContent(skill) {
   return null;
 }
 
+function loadCompatibilityRules() {
+  return readJSON(FILES.rules, { modelCapabilities: {}, ceCompatibility: {}, taskTiers: {} });
+}
+
 function serveStatic(req, res) {
   const url = new URL(req.url, `http://${HOST}:${PORT}`);
   let pathname = decodeURIComponent(url.pathname);
@@ -1118,9 +1178,22 @@ async function route(req, res) {
       script = injectProjectPath(script, activeProject);
       const blocked = isBlockedByMemory(p, readMemory());
       if (blocked && !body.overrideReason && !body.dryRun) return send(res, 200, { blocked: true, message: `Profile is blocked by memory: ${blocked.title}`, evidence: blocked.raw.slice(0, 1200) });
-      if (body.dryRun) return send(res, 200, { profile: p.id, script, dangerous: shouldWarnDanger(script), project: activeProject });
+
+      // Run audit
+      const audit = auditProfile(p, lastScan);
+      if (audit.errors.length > 0 && !body.overrideReason && !body.dryRun) {
+        return send(res, 200, { auditBlocked: true, errors: audit.errors, profile: p.id });
+      }
+
+      if (body.dryRun) return send(res, 200, { profile: p.id, script, dangerous: shouldWarnDanger(script), project: activeProject, audit: { warnings: audit.warnings, suggestions: audit.suggestions } });
+
+      // Return audit warnings alongside launch confirmation
+      if (audit.warnings.length > 0 && !body.overrideReason) {
+        return send(res, 200, { launched: false, needsConfirmation: true, warnings: audit.warnings, suggestions: audit.suggestions, profile: p.id });
+      }
+
       const sess = createSession(p, script, body);
-      return send(res, 200, { launched: true, terminal: true, session: publicSession(sess), project: activeProject });
+      return send(res, 200, { launched: true, terminal: true, session: publicSession(sess), project: activeProject, auditWarnings: audit.warnings });
     }
     if (pathName.startsWith('/api/block/') && req.method === 'POST') {
       const id = decodeURIComponent(pathName.split('/').pop());
@@ -1293,5 +1366,6 @@ module.exports = {
   parseOllamaPsRaw,
   normalizeLoadedModels,
   memoryBlocks,
+  auditProfile,
   __server,
 };

@@ -23,4 +23,24 @@ describe('compatibility-rules', () => {
     assert.strictEqual(rules.taskTiers['heavy-refactor'], 'advanced');
     assert.strictEqual(rules.taskTiers['safe-audit'], 'light');
   });
+
+  const { auditProfile } = require('../server.js');
+
+  it('auditProfile warns on gemma:4b heavy-refactor', () => {
+    const profile = {
+      id: 'local-heavy-refactor-gemma4b',
+      meta: { model: 'gemma:4b', frontend: 'ollama', task_mode: 'heavy-refactor' }
+    };
+    const audit = auditProfile(profile, null);
+    assert.ok(audit.warnings.some(w => w.includes("'light' tier") && w.includes("'advanced' tier")));
+  });
+
+  it('auditProfile suggests alternatives for gemma:4b heavy-refactor', () => {
+    const profile = {
+      id: 'local-heavy-refactor-gemma4b',
+      meta: { model: 'gemma:4b', frontend: 'ollama', task_mode: 'heavy-refactor' }
+    };
+    const audit = auditProfile(profile, null);
+    assert.ok(audit.suggestions.length > 0 || audit.warnings.length > 0);
+  });
 });

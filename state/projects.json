@@ -14,9 +14,9 @@
         "clean": false,
         "ahead": 0,
         "behind": 0,
-        "uncommitted": 18,
-        "untracked": 2,
-        "modified": 15,
+        "uncommitted": 2,
+        "untracked": 1,
+        "modified": 1,
         "hasRemote": false
       }
     },
@@ -32,12 +32,12 @@
         "present": true,
         "branch": "master",
         "clean": true,
-        "ahead": 0,
+        "ahead": 1,
         "behind": 0,
         "uncommitted": 0,
         "untracked": 0,
         "modified": 0,
-        "hasRemote": false
+        "hasRemote": true
       }
     },
     {
@@ -64,7 +64,7 @@
       "id": "lookBOOK",
       "path": "D:\\projects\\lookBOOK",
       "name": "lookBOOK",
-      "type": "generic",
+      "type": "node",
       "hasGit": true,
       "hasAgentsMd": false,
       "lastOpened": "2026-06-07T10:52:48.720Z",
@@ -74,9 +74,9 @@
         "clean": false,
         "ahead": 0,
         "behind": 0,
-        "uncommitted": 4,
-        "untracked": 4,
-        "modified": 0,
+        "uncommitted": 20,
+        "untracked": 10,
+        "modified": 8,
         "hasRemote": false
       }
     },
@@ -92,7 +92,7 @@
         "present": true,
         "branch": "master",
         "clean": true,
-        "ahead": 0,
+        "ahead": 4,
         "behind": 0,
         "uncommitted": 0,
         "untracked": 0,
@@ -151,12 +151,12 @@
       "git": {
         "present": true,
         "branch": "master",
-        "clean": true,
+        "clean": false,
         "ahead": 0,
         "behind": 0,
-        "uncommitted": 0,
-        "untracked": 0,
-        "modified": 0,
+        "uncommitted": 3,
+        "untracked": 1,
+        "modified": 2,
         "hasRemote": true
       }
     },
@@ -174,8 +174,8 @@
         "clean": false,
         "ahead": 0,
         "behind": 0,
-        "uncommitted": 3,
-        "untracked": 3,
+        "uncommitted": 1,
+        "untracked": 1,
         "modified": 0,
         "hasRemote": true
       }
