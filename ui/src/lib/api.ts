@@ -62,6 +62,10 @@ export const api = {
   // Advisor
   analyze: (question?: string) => request<{ advice: string; source: string }>('POST', '/api/advisor/analyze', { question, useGemini: false }),
 
+  // Chat
+  chat: (sessionId: string, text: string) => request<{ text: string; commands?: Array<any> }>('POST', '/api/chat', { sessionId, text }),
+  clearChat: (sessionId: string) => request<void>('POST', '/api/chat/clear', { sessionId }),
+
   // Templates
   getTemplates: () => request<{ templates: Array<{ id: string; label: string }> }>('GET', '/api/templates'),
 } as const

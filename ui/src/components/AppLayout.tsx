@@ -6,16 +6,21 @@ import {
   Layers,
   Brain,
   Terminal,
+  Settings as SettingsIcon,
   ChevronLeft,
   ChevronRight,
+  Blocks,
 } from "lucide-react";
+import ChatMascot from "./ChatMascot";
 
 const navItems = [
   { label: "Dashboard", path: "/", icon: LayoutDashboard },
   { label: "System Scan", path: "/scan", icon: Scan },
   { label: "Profiles", path: "/profiles", icon: Layers },
+  { label: "Stack Builder", path: "/builder", icon: Blocks },
   { label: "Memory", path: "/memory", icon: Brain },
   { label: "Terminal", path: "/terminal", icon: Terminal },
+  { label: "Settings", path: "/settings", icon: SettingsIcon },
 ];
 
 export default function AppLayout() {
@@ -190,6 +195,8 @@ export default function AppLayout() {
           <Outlet />
         </div>
       </main>
+
+      <ChatMascot />
     </div>
   );
 }
