@@ -71,6 +71,116 @@
       "endedAt": "2026-06-07T02:56:54.366Z",
       "exitCode": 0,
       "pid": 83948
+    },
+    {
+      "id": "s-2026-06-07T03-53-42-126Z-00f9c5",
+      "profileId": "local-architecture",
+      "profileName": "Local Architecture",
+      "startedAt": "2026-06-07T03:53:42.162Z",
+      "endedAt": "2026-06-07T03:53:44.139Z",
+      "exitCode": 1,
+      "pid": 83800
+    },
+    {
+      "id": "s-2026-06-07T03-54-51-455Z-caa299",
+      "profileId": "local-code-review",
+      "profileName": "Local Code Review",
+      "startedAt": "2026-06-07T03:54:51.487Z",
+      "endedAt": "2026-06-07T03:54:53.374Z",
+      "exitCode": 1,
+      "pid": 84628
+    },
+    {
+      "id": "s-2026-06-07T04-20-01-742Z-d40fd8",
+      "profileId": "cloud-architecture-codex",
+      "profileName": "Cloud Architecture (codex)",
+      "startedAt": "2026-06-07T04:20:01.896Z",
+      "endedAt": "2026-06-07T04:20:04.770Z",
+      "exitCode": 0,
+      "pid": 68700
+    },
+    {
+      "id": "s-2026-06-07T04-21-36-027Z-abd407",
+      "profileId": "claude-code-heavy",
+      "profileName": "Claude Code Heavy Refactor",
+      "startedAt": "2026-06-07T04:21:36.103Z",
+      "endedAt": "2026-06-07T04:21:41.447Z",
+      "exitCode": 0,
+      "pid": 74660
+    },
+    {
+      "id": "s-2026-06-07T04-22-13-008Z-0236ac",
+      "profileId": "claude-code-heavy",
+      "profileName": "Claude Code Heavy Refactor",
+      "startedAt": "2026-06-07T04:22:13.050Z",
+      "endedAt": "2026-06-07T04:22:17.881Z",
+      "exitCode": 0,
+      "pid": 84348
+    },
+    {
+      "id": "s-2026-06-07T04-45-09-700Z-066777",
+      "profileId": "local-safe-audit",
+      "profileName": "Local Safe Audit",
+      "startedAt": "2026-06-07T04:45:09.724Z",
+      "endedAt": "2026-06-07T04:45:11.927Z",
+      "exitCode": 1,
+      "pid": 58988
+    },
+    {
+      "id": "s-2026-06-07T04-48-22-743Z-8644f4",
+      "profileId": "local-architecture",
+      "profileName": "Local Architecture",
+      "startedAt": "2026-06-07T04:48:22.784Z",
+      "endedAt": "2026-06-07T04:48:25.185Z",
+      "exitCode": 1,
+      "pid": 84684
+    },
+    {
+      "id": "s-2026-06-07T04-48-33-495Z-43a3a3",
+      "profileId": "local-code-review",
+      "profileName": "Local Code Review",
+      "startedAt": "2026-06-07T04:48:33.534Z",
+      "endedAt": "2026-06-07T04:48:35.703Z",
+      "exitCode": 1,
+      "pid": 76912
+    },
+    {
+      "id": "s-2026-06-07T04-48-50-943Z-f98a44",
+      "profileId": "cloud-security-audit-claude",
+      "profileName": "Cloud Security Audit (claude)",
+      "startedAt": "2026-06-07T04:48:50.971Z",
+      "endedAt": "2026-06-07T04:48:56.588Z",
+      "exitCode": 0,
+      "pid": 78616
+    },
+    {
+      "id": "s-2026-06-07T09-55-52-162Z-fe7804",
+      "profileId": "local-safe-audit",
+      "profileName": "Local Safe Audit",
+      "startedAt": "2026-06-07T09:55:52.217Z",
+      "endedAt": "2026-06-07T09:55:54.941Z",
+      "exitCode": 1,
+      "pid": 83488
+    }
+  ],
+  "outcomes": [
+    {
+      "sessionId": "s-2026-06-07T04-21-36-027Z-abd407",
+      "profileId": "claude-code-heavy",
+      "profileName": "Claude Code Heavy Refactor",
+      "project": "D:\\projects\\NOTEtoolsLM-v2",
+      "outcome": "failure",
+      "notes": "",
+      "timestamp": "2026-06-07T04:21:48.053Z"
+    },
+    {
+      "sessionId": "s-2026-06-07T04-21-36-027Z-abd407",
+      "profileId": "claude-code-heavy",
+      "profileName": "Claude Code Heavy Refactor",
+      "project": "D:\\projects\\NOTEtoolsLM-v2",
+      "outcome": "partial",
+      "notes": "",
+      "timestamp": "2026-06-07T04:21:53.468Z"
     }
   ]
 }

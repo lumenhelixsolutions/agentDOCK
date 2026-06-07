@@ -4,13 +4,33 @@
       "id": "agentdock",
       "path": "D:\\projects\\agentdock",
       "name": "agentdock",
-      "type": "generic",
-      "hasGit": false,
-      "hasAgentsMd": false,
-      "lastOpened": "2026-06-07T03:36:11.868Z",
+      "type": "node",
+      "hasGit": true,
+      "hasAgentsMd": true,
+      "lastOpened": "2026-06-07T09:55:34.855Z",
       "git": {
-        "present": false,
-        "branch": null,
+        "present": true,
+        "branch": "master",
+        "clean": false,
+        "ahead": 0,
+        "behind": 0,
+        "uncommitted": 9,
+        "untracked": 5,
+        "modified": 4,
+        "hasRemote": false
+      }
+    },
+    {
+      "id": "cineforge",
+      "path": "D:\\projects\\cineforge",
+      "name": "cineforge",
+      "type": "python",
+      "hasGit": true,
+      "hasAgentsMd": false,
+      "lastOpened": "2026-06-07T04:50:38.731Z",
+      "git": {
+        "present": true,
+        "branch": "master",
         "clean": true,
         "ahead": 0,
         "behind": 0,
@@ -31,12 +51,12 @@
       "git": {
         "present": true,
         "branch": "main",
-        "clean": true,
+        "clean": false,
         "ahead": 0,
         "behind": 0,
-        "uncommitted": 0,
+        "uncommitted": 1,
         "untracked": 0,
-        "modified": 0,
+        "modified": 1,
         "hasRemote": true
       }
     },
@@ -67,17 +87,17 @@
       "type": "node",
       "hasGit": true,
       "hasAgentsMd": true,
-      "lastOpened": "2026-06-07T02:57:50.586Z",
+      "lastOpened": "2026-06-07T04:19:33.177Z",
       "git": {
         "present": true,
         "branch": "master",
-        "clean": true,
+        "clean": false,
         "ahead": 0,
         "behind": 0,
-        "uncommitted": 0,
+        "uncommitted": 1,
         "untracked": 0,
-        "modified": 0,
-        "hasRemote": false
+        "modified": 1,
+        "hasRemote": true
       }
     },
     {
@@ -87,7 +107,7 @@
       "type": "node",
       "hasGit": false,
       "hasAgentsMd": false,
-      "lastOpened": null,
+      "lastOpened": "2026-06-07T04:50:55.814Z",
       "git": {
         "present": false,
         "branch": null,
@@ -151,11 +171,11 @@
       "git": {
         "present": true,
         "branch": "master",
-        "clean": true,
+        "clean": false,
         "ahead": 0,
         "behind": 0,
-        "uncommitted": 0,
-        "untracked": 0,
+        "uncommitted": 1,
+        "untracked": 1,
         "modified": 0,
         "hasRemote": true
       }

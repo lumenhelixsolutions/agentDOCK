@@ -682,6 +682,9 @@ async function route(req, res) {
   const url = new URL(req.url, `http://${HOST}:${PORT}`);
   const pathName = url.pathname;
   try {
+    if (pathName === '/api/status' && req.method === 'GET') {
+      return send(res, 200, { ok: true, version: '2.0.0' });
+    }
     if (pathName === '/api/scan' && req.method === 'GET') {
       const repo = url.searchParams.get('repo') || process.cwd();
       return send(res, 200, await runScanner(repo));
@@ -871,6 +874,18 @@ async function route(req, res) {
   }
 }
 
-http.createServer(route).listen(PORT, HOST, () => {
+const __server = http.createServer(route);
+__server.listen(PORT, HOST, () => {
   console.log(`AgentDock running at http://${HOST}:${PORT}`);
 });
+__server.on('error', (err) => {
+  console.error(`AgentDock server error: ${err.message}`);
+});
+
+module.exports = {
+  parseFrontmatter,
+  parseOllamaPsRaw,
+  normalizeLoadedModels,
+  memoryBlocks,
+  __server,
+};

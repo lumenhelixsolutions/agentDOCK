@@ -1,49 +1,87 @@
-# AgentDock MVP 1.1
+# AgentDock v2.0
 
-Private local AI agent stack scanner, planner, Markdown memory core, research watch, monitored terminal, and launcher.
+Project-aware agent command center. Private local AI agent stack scanner, planner, Markdown memory core, research watch, monitored terminal, and launcher.
 
-## Run
+## Install
 
-```powershell
-cd path\to\agentdock
+No npm dependencies required. Just clone and run:
+
+```bash
+cd agentdock
 node server.js
 ```
 
-Open:
+Or on Windows, double-click `start-agentdock.bat`.
 
-```text
-http://127.0.0.1:7777
+Open `http://127.0.0.1:7777` in your browser.
+
+## Usage
+
+- **Scan** — Click "System Scan" to detect installed agents, models, env keys, and hardware.
+- **Plan** — Choose a goal (privacy, fastest, cheapest, heavy, audit) to get ranked profile recommendations.
+- **Launch** — Select a profile and launch a monitored terminal session.
+- **Chat** — Ask AgentDock AI for help choosing stacks or fixing setup issues.
+- **Research** — Run the research watch to pull latest briefs from configured sources.
+
+## Tests
+
+```bash
+node --test tests/*.test.js
 ```
 
-Or double-click:
+Tests cover:
+- Scanner JSON schema validation
+- Profile frontmatter and PowerShell block validation
+- Server health endpoint and API smoke tests
+- Memory.md structure and evidence parsing
 
-```text
-start-agentdock.bat
+## Architecture
+
+```
+┌─────────────┐
+│  index.html │  ← Dashboard UI
+└──────┬──────┘
+       │ HTTP (localhost only)
+┌──────▼──────┐
+│  server.js  │  ← Router, session manager, evaluator
+└──────┬──────┘
+       │
+  ┌────┼────┬────────┬─────────┐
+  ▼    ▼    ▼        ▼         ▼
+scanner.ps1 advisor.js chat.js profiles/*.md
+   │                    │           │
+   ▼                    ▼           ▼
+  JSON              Gemini API   launch blocks
+   │                    │           │
+   └────────────────────┴───────────┘
+              │
+         memory.md
+         state/*.json
+         logs/*.md
 ```
 
-## New in 1.1
+| Component | Responsibility |
+|-----------|--------------|
+| `server.js` | HTTP server, route handler, session manager, project registry, stack evaluation |
+| `scanner.ps1` | PowerShell probe — tools, env vars, Ollama models, hardware |
+| `advisor.js` | Rule-based + optional Gemini-powered operations advisor |
+| `chat.js` | Session-based chat controller with structured command responses |
+| `profiles/*.md` | Launch profiles with frontmatter metadata and PowerShell blocks |
+| `memory.md` | Local learning layer — successes, failures, ethos, avoided loops |
 
-- Scans `.env`, `.env.local`, `.env.*`, and `.envrc` files in safe bounded locations.
-- Redacts secret values and only displays key names/provider hints.
-- Detects installed coder tools: Hermes, OpenCode, Codex, Kimi, Claude Code, Aider, Gemini CLI, Goose, VS Code extensions such as Cline/Roo/Continue where discoverable.
-- Includes a coder catalog with official links directly in the dashboard.
-- Adds a managed terminal monitor so launches are tracked, output is captured, and stack use is written to local logs and memory.
-- Adds additional profiles for Claude Code, Aider, and Gemini CLI.
+## Safety Model
 
-## Safety model
-
-- Binds to localhost only.
+- Binds to `127.0.0.1` only.
 - No cloud telemetry.
 - No arbitrary shell command box.
-- No secret values printed.
+- No secret values printed — key names and provider hints only.
 - Launches only profile-defined command blocks.
 - Dangerous patterns are preview-warned.
 - Terminal sessions are logged locally.
 
-## Important note about the terminal
+## New in 2.0
 
-The built-in terminal is a monitored child-process terminal using stdout/stderr pipes. It captures normal CLI output and accepts line input. Full-screen TUIs may still work better in their own console, but AgentDock will still track the launch, profile, timestamps, exit code, and logs.
-
-## First good profile for your setup
-
-Use `Hermes Local Llama 3.1 64K`, because your machine already proved `llama31-hermes-64k` loads at 64,000 context.
+- Project-aware registry with Git status, AGENTS.md detection, and portfolio health.
+- Automated smoke tests using Node.js built-ins (`node:test`, `node:assert`).
+- AGENTS.md for agent onboarding and architecture context.
+- `/api/status` health endpoint.

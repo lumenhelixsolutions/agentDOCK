@@ -76,3 +76,79 @@ Please retry in 59.341723457s.
 [2026-06-07T03:36:16.981Z] No Gemini API key; returning rule-based advice.
 [2026-06-07T03:36:58.763Z] Analyzing: project=none, question=scanCompleted, useGemini=false
 [2026-06-07T03:36:58.796Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T03:52:12.211Z] Analyzing: project=agentdock, question=none, useGemini=true
+[2026-06-07T03:52:12.446Z] Analyzing: project=none, question=projectSwitched, useGemini=false
+[2026-06-07T03:52:12.491Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T03:52:12.536Z] Gemini error: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: gemini-2.0-flash
+Please retry in 47.489012498s.
+[2026-06-07T03:52:27.271Z] Analyzing: project=none, question=scanCompleted, useGemini=false
+[2026-06-07T03:52:27.316Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T03:53:44.491Z] Analyzing: project=none, question=profileLaunched, useGemini=false
+[2026-06-07T03:53:44.530Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T03:54:53.722Z] Analyzing: project=none, question=profileLaunched, useGemini=false
+[2026-06-07T03:54:53.788Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T04:19:43.567Z] Analyzing: project=none, question=projectSwitched, useGemini=false
+[2026-06-07T04:19:43.662Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T04:20:05.550Z] Analyzing: project=none, question=profileLaunched, useGemini=false
+[2026-06-07T04:20:05.650Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T04:20:14.247Z] Analyzing: project=none, question=scanCompleted, useGemini=false
+[2026-06-07T04:20:14.279Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T04:20:29.144Z] Analyzing: project=none, question=help its not working, useGemini=false
+[2026-06-07T04:20:29.176Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T04:21:38.503Z] Analyzing: project=none, question=profileLaunched, useGemini=false
+[2026-06-07T04:21:38.574Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T04:21:50.418Z] Analyzing: project=none, question=sessionOutcome, useGemini=false
+[2026-06-07T04:21:50.487Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T04:21:55.825Z] Analyzing: project=none, question=sessionOutcome, useGemini=false
+[2026-06-07T04:21:55.942Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T04:22:15.284Z] Analyzing: project=none, question=profileLaunched, useGemini=false
+[2026-06-07T04:22:15.328Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T04:28:55.062Z] Analyzing: project=NOTEtoolsLM-v2, question=What should I install?, useGemini=true
+[2026-06-07T04:28:55.374Z] Gemini error: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: gemini-2.0-flash
+Please retry in 4.648489064s.
+[2026-06-07T04:45:12.363Z] Analyzing: project=none, question=profileLaunched, useGemini=false
+[2026-06-07T04:45:12.439Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T04:45:41.328Z] Analyzing: project=none, question=projectSwitched, useGemini=false
+[2026-06-07T04:45:41.366Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T04:46:13.980Z] Analyzing: project=none, question=scanCompleted, useGemini=false
+[2026-06-07T04:46:14.005Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T04:48:25.490Z] Analyzing: project=none, question=profileLaunched, useGemini=false
+[2026-06-07T04:48:25.542Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T04:48:36.109Z] Analyzing: project=none, question=profileLaunched, useGemini=false
+[2026-06-07T04:48:36.157Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T04:48:50.002Z] Analyzing: project=none, question=profileLaunched, useGemini=false
+[2026-06-07T04:48:50.038Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T04:48:53.339Z] Analyzing: project=none, question=profileLaunched, useGemini=false
+[2026-06-07T04:48:53.394Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T04:49:37.102Z] Analyzing: project=agentdock, question=none, useGemini=true
+[2026-06-07T04:49:37.402Z] Gemini error: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash
+Please retry in 22.584717544s.
+[2026-06-07T04:50:43.068Z] Analyzing: project=none, question=projectSwitched, useGemini=false
+[2026-06-07T04:50:43.188Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T04:51:05.334Z] Analyzing: project=none, question=projectSwitched, useGemini=false
+[2026-06-07T04:51:05.428Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T09:55:41.621Z] Analyzing: project=none, question=projectSwitched, useGemini=false
+[2026-06-07T09:55:41.877Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T09:55:55.805Z] Analyzing: project=none, question=profileLaunched, useGemini=false
+[2026-06-07T09:55:55.933Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T09:56:40.435Z] Analyzing: project=none, question=What is the best stack for privacy?, useGemini=false
+[2026-06-07T09:56:40.573Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T10:00:01.796Z] Analyzing: project=none, question=scanCompleted, useGemini=false
+[2026-06-07T10:00:01.984Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T10:00:02.177Z] Analyzing: project=none, question=scanCompleted, useGemini=false
+[2026-06-07T10:00:02.444Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T10:00:02.657Z] Analyzing: project=none, question=scanCompleted, useGemini=false
+[2026-06-07T10:00:02.947Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T10:08:53.386Z] Analyzing: project=agentdock, question=What should I install?, useGemini=false
+[2026-06-07T10:08:53.457Z] No Gemini API key; returning rule-based advice.
+[2026-06-07T10:08:56.052Z] Analyzing: project=none, question=Hello, useGemini=false
+[2026-06-07T10:08:56.115Z] No Gemini API key; returning rule-based advice.
