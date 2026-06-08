@@ -1,478 +1,357 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, CheckCircle2, Eye, Filter, Layers3, PlayCircle, Search, ShieldAlert, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
-import {
-  CheckCircle2,
-  AlertTriangle,
-  HelpCircle,
-  Play,
-  Eye,
-  Ban,
-  Search,
-  Filter,
-  Layers,
-  Cloud,
-  Monitor,
-  Cpu,
-  Zap,
-  Shield,
-  Bug,
-  BookOpen,
-  Code2,
-  Wrench,
-} from "lucide-react";
+import { useToast } from "@/components/Toast";
 
-const statusConfig: Record<string, { color: string; bg: string; icon: typeof CheckCircle2; label: string }> = {
-  READY: { color: "#4ade80", bg: "rgba(74, 222, 128, 0.08)", icon: CheckCircle2, label: "Ready" },
-  DEGRADED: { color: "#f59e0b", bg: "rgba(245, 158, 11, 0.08)", icon: AlertTriangle, label: "Fixable" },
-  BLOCKED: { color: "#ef4444", bg: "rgba(239, 68, 68, 0.08)", icon: AlertTriangle, label: "Blocked" },
-  UNKNOWN: { color: "#6b7280", bg: "rgba(107, 114, 128, 0.08)", icon: HelpCircle, label: "Unknown" },
-};
-
-const modeIcons: Record<string, typeof Cloud> = {
-  "full-local": Monitor,
-  hybrid: Zap,
-  "hybrid-cloud": Zap,
-  "cloud-only": Cloud,
-};
-
-const taskModeIcons: Record<string, typeof Shield> = {
-  "read-only": Shield,
-  "patch-test": Wrench,
-  refactor: Code2,
-  "bug-hunt": Bug,
-  audit: BookOpen,
-  architecture: Cpu,
-  "code-review": BookOpen,
-  documentation: BookOpen,
-  performance: Zap,
-  security: Shield,
+const statusTone: Record<string, { color: string; bg: string; border: string; label: string }> = {
+  READY: { color: "#86efac", bg: "rgba(74,222,128,0.08)", border: "rgba(74,222,128,0.18)", label: "Ready" },
+  DEGRADED: { color: "#ffcb89", bg: "rgba(255,176,66,0.08)", border: "rgba(255,176,66,0.18)", label: "Needs fixes" },
+  BLOCKED: { color: "#fca5a5", bg: "rgba(239,68,68,0.08)", border: "rgba(239,68,68,0.18)", label: "Blocked" },
+  UNKNOWN: { color: "#d6d3d1", bg: "rgba(255,255,255,0.05)", border: "rgba(255,255,255,0.08)", label: "Unknown" },
 };
 
 export default function ProfilesPage() {
-  const [profiles, setProfiles] = useState<Array<any>>([]);
+  const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [preview, setPreview] = useState<{ id: string; script: string } | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [modeFilter, setModeFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [plan, setPlan] = useState<any>(null);
-  const [planLoading, setPlanLoading] = useState(false);
+  const [modeFilter, setModeFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [selected, setSelected] = useState<any>(null);
+  const [preview, setPreview] = useState<any>(null);
+  const [launchingId, setLaunchingId] = useState<string | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     api.getProfiles()
-      .then((p) => { setProfiles(p); setLoading(false); })
-      .catch((e) => { setError(String(e)); setLoading(false); });
-  }, []);
-
-  const runPlan = async () => {
-    setPlanLoading(true);
-    try {
-      const p = await api.makePlan("privacy");
-      setPlan(p);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setPlanLoading(false);
-    }
-  };
-
-  const handleLaunch = async (id: string) => {
-    try {
-      const res = await api.launch(id);
-      if (res.blocked) {
-        const reason = prompt(res.message + "\n\nOverride reason:");
-        if (!reason) return;
-        await api.launch(id, reason);
-        alert("Launched with override.");
-      } else if (res.session) {
-        alert(`Launched: ${res.session.profileName}\nSession: ${res.session.id}`);
-      }
-    } catch (e) {
-      alert("Launch failed: " + e);
-    }
-  };
-
-  const handlePreview = async (id: string) => {
-    try {
-      const res = await api.dryRun(id);
-      setPreview({ id, script: res.script });
-    } catch (e) {
-      alert("Preview failed: " + e);
-    }
-  };
+      .then((data) => {
+        setProfiles(data || []);
+        setLoading(false);
+      })
+      .catch((error: any) => {
+        setLoading(false);
+        toast.showToast(error.message || "Failed to load profiles", "error");
+      });
+  }, [toast]);
 
   const filtered = useMemo(() => {
-    let list = profiles;
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter((p: any) =>
-        p.name.toLowerCase().includes(q) ||
-        p.id.toLowerCase().includes(q) ||
-        (p.meta?.model || "").toLowerCase().includes(q) ||
-        (p.meta?.frontend || "").toLowerCase().includes(q)
-      );
-    }
-    if (modeFilter !== "all") {
-      list = list.filter((p: any) => (p.meta?.mode || "").toLowerCase().includes(modeFilter));
-    }
-    if (statusFilter !== "all") {
-      list = list.filter((p: any) => {
-        const state = p.state || p.meta?.status || "UNKNOWN";
-        return state === statusFilter;
-      });
-    }
-    return list;
+    return profiles.filter((profile) => {
+      const haystack = [profile.name, profile.id, profile.meta?.frontend, profile.meta?.backend, profile.meta?.model, profile.meta?.task_mode]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      const matchesSearch = !search.trim() || haystack.includes(search.toLowerCase());
+      const matchesMode = modeFilter === "all" || (profile.meta?.mode || "").toLowerCase().includes(modeFilter);
+      const state = profile.state || "UNKNOWN";
+      const matchesStatus = statusFilter === "all" || state === statusFilter;
+      return matchesSearch && matchesMode && matchesStatus;
+    });
   }, [profiles, search, modeFilter, statusFilter]);
 
-  const byMode = useMemo(() => {
-    const groups: Record<string, any[]> = {};
-    for (const p of filtered) {
-      const mode = p.meta?.mode || "unknown";
-      if (!groups[mode]) groups[mode] = [];
-      groups[mode].push(p);
-    }
-    return groups;
+  const grouped = useMemo(() => {
+    return {
+      ready: filtered.filter((profile) => profile.state === "READY"),
+      fixable: filtered.filter((profile) => profile.state === "DEGRADED"),
+      blocked: filtered.filter((profile) => profile.state === "BLOCKED"),
+      unknown: filtered.filter((profile) => !profile.state || profile.state === "UNKNOWN"),
+    };
   }, [filtered]);
 
-  if (loading) return <div style={{ padding: 40, textAlign: "center", opacity: 0.5 }}>Loading profiles...</div>;
-  if (error) return <div style={{ padding: 40, textAlign: "center", color: "#ef4444" }}>{error}</div>;
+  const inspect = async (profile: any) => {
+    setSelected(profile);
+    try {
+      const result = await api.dryRun(profile.id);
+      setPreview(result);
+    } catch (error: any) {
+      setPreview({ error: error.message || "Preview failed" });
+      toast.showToast(error.message || "Preview failed", "error");
+    }
+  };
+
+  const launchProfile = async (profile: any, overrideReason?: string) => {
+    setLaunchingId(profile.id);
+    try {
+      const result = await api.launch(profile.id, overrideReason);
+      if (result.blocked) {
+        toast.showToast(result.message || "Launch blocked", "warning", 6000);
+      } else if (result.session) {
+        toast.showToast(`Launched ${result.session.profileName}`, "success");
+      }
+    } catch (error: any) {
+      toast.showToast(error.message || "Launch failed", "error");
+    } finally {
+      setLaunchingId(null);
+    }
+  };
+
+  if (loading) {
+    return <div style={{ minHeight: "50vh", display: "grid", placeItems: "center", opacity: 0.56 }}>Loading profiles…</div>;
+  }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-        <div>
-          <h2 style={{ fontSize: 20, margin: 0 }}>Agent Profiles</h2>
-          <p style={{ fontSize: 12, opacity: 0.5, margin: "4px 0 0" }}>{filtered.length} of {profiles.length} profiles</p>
-        </div>
-        <button
-          onClick={runPlan}
-          disabled={planLoading}
-          style={{
-            padding: "10px 18px",
-            borderRadius: 8,
-            border: "1px solid rgba(255,176,66,0.3)",
-            background: "rgba(255,176,66,0.1)",
-            color: "#ffb042",
-            cursor: planLoading ? "not-allowed" : "pointer",
-            fontSize: 13,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            opacity: planLoading ? 0.6 : 1,
-          }}
-        >
-          <Layers size={14} />
-          {planLoading ? "Planning..." : "Smart Recommend"}
-        </button>
+    <div style={{ display: "grid", gridTemplateColumns: "1.15fr 0.85fr", gap: 20, alignItems: "start" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        <section style={{ padding: 22, borderRadius: 22, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 14 }}>
+            <div>
+              <div style={{ fontSize: 11, opacity: 0.42, letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: 6 }}>Milestone 4</div>
+              <div style={{ fontSize: 28, color: "#ffffff", fontWeight: 600, letterSpacing: "-0.05em" }}>Profile catalog rebuilt for decision-making.</div>
+              <div style={{ fontSize: 14, opacity: 0.68, lineHeight: 1.7, marginTop: 10 }}>
+                Browse by operational posture first: ready, fixable, blocked. The point is not to show every profile equally — it is to help the user choose confidently.
+              </div>
+            </div>
+            <div style={{ display: "grid", gap: 10, minWidth: 260 }}>
+              <SummaryPill tone="green" label={`${grouped.ready.length} ready`} />
+              <SummaryPill tone="gold" label={`${grouped.fixable.length} fixable`} />
+              <SummaryPill tone="red" label={`${grouped.blocked.length} blocked`} />
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1.3fr 0.7fr 0.7fr", gap: 10 }}>
+            <InputShell icon={Search}>
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search profiles, models, frontends, task modes…"
+                style={inputStyle}
+              />
+            </InputShell>
+            <InputShell icon={Filter}>
+              <select value={modeFilter} onChange={(event) => setModeFilter(event.target.value)} style={inputStyle}>
+                <option value="all">All modes</option>
+                <option value="local">Local</option>
+                <option value="hybrid">Hybrid</option>
+                <option value="cloud">Cloud</option>
+              </select>
+            </InputShell>
+            <InputShell icon={Layers3}>
+              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={inputStyle}>
+                <option value="all">All states</option>
+                <option value="READY">Ready</option>
+                <option value="DEGRADED">Fixable</option>
+                <option value="BLOCKED">Blocked</option>
+                <option value="UNKNOWN">Unknown</option>
+              </select>
+            </InputShell>
+          </div>
+        </section>
+
+        <CatalogSection title="Ready now" subtitle="Safe starting points" profiles={grouped.ready} onInspect={inspect} onLaunch={launchProfile} launchingId={launchingId} />
+        <CatalogSection title="Fixable with review" subtitle="Warnings deserve explanation" profiles={grouped.fixable} onInspect={inspect} onLaunch={launchProfile} launchingId={launchingId} />
+        <CatalogSection title="Blocked" subtitle="Not launchable without intervention" profiles={grouped.blocked} onInspect={inspect} onLaunch={launchProfile} launchingId={launchingId} />
+        {grouped.unknown.length > 0 && <CatalogSection title="Unknown" subtitle="Needs more evidence" profiles={grouped.unknown} onInspect={inspect} onLaunch={launchProfile} launchingId={launchingId} />}
       </div>
 
-      {/* Plan results */}
-      {plan && (
-        <div style={{ padding: 16, borderRadius: 12, background: "rgba(255,176,66,0.04)", border: "1px solid rgba(255,176,66,0.15)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <span style={{ fontSize: 12, color: "#ffb042", fontWeight: 500 }}>Recommended for {plan.goal}</span>
-            <button onClick={() => setPlan(null)} style={{ background: "none", border: "none", color: "#dadada", cursor: "pointer", fontSize: 12 }}>Dismiss</button>
-          </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {plan.recommended.slice(0, 5).map((p: any) => (
-              <button
-                key={p.id}
-                onClick={() => handleLaunch(p.id)}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 6,
-                  border: "1px solid rgba(74,222,128,0.3)",
-                  background: "rgba(74,222,128,0.1)",
-                  color: "#4ade80",
-                  cursor: "pointer",
-                  fontSize: 12,
-                }}
-              >
-                {p.name} ({p.score}%)
+      <section style={{ position: "sticky", top: 94, padding: 22, borderRadius: 22, background: "rgba(255,255,255,0.028)", border: "1px solid rgba(255,255,255,0.07)" }}>
+        <div style={{ fontSize: 11, opacity: 0.42, letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: 6 }}>Milestone 5</div>
+        <div style={{ fontSize: 24, color: "#ffffff", fontWeight: 600, letterSpacing: "-0.04em", marginBottom: 10 }}>Audit explainability panel</div>
+        <div style={{ fontSize: 13, opacity: 0.68, lineHeight: 1.7, marginBottom: 16 }}>
+          Clicking a profile should explain what will happen, why it is safe or risky, and what alternatives exist. That’s what this side panel is for.
+        </div>
+
+        {selected ? (
+          <>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 18, color: "#ffffff", fontWeight: 600 }}>{selected.name}</div>
+              <div style={{ fontSize: 11, opacity: 0.42, marginTop: 4, fontFamily: "'GeistMono', monospace" }}>{selected.id}</div>
+            </div>
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+              <Chip text={selected.meta?.mode || "unknown mode"} />
+              <Chip text={selected.meta?.task_mode || "task mode"} />
+              {selected.meta?.model && <Chip text={selected.meta.model} highlight />}
+            </div>
+
+            {preview?.error ? (
+              <AuditBlock title="Preview error" tone="red" items={[preview.error]} />
+            ) : (
+              <div style={{ display: "grid", gap: 12 }}>
+                <AuditBlock title="Errors" tone="red" items={preview?.audit?.errors || []} emptyLabel="No blocking errors." />
+                <AuditBlock title="Warnings" tone="gold" items={preview?.audit?.warnings || []} emptyLabel="No warnings." />
+                <SuggestionBlock suggestions={preview?.audit?.suggestions || []} />
+                <div style={{ padding: 14, borderRadius: 16, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 11, opacity: 0.42, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 8 }}>Launch script preview</div>
+                  <pre style={{ margin: 0, maxHeight: 220, overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: 12, lineHeight: 1.6, fontFamily: "'GeistMono', monospace", color: "#ece8e1" }}>
+                    {preview?.script || "No script available."}
+                  </pre>
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: "grid", gap: 10, marginTop: 16 }}>
+              <button onClick={() => launchProfile(selected)} disabled={launchingId === selected.id || selected.state === "BLOCKED"} style={{ ...primaryButtonStyle, opacity: launchingId === selected.id || selected.state === "BLOCKED" ? 0.56 : 1, cursor: launchingId === selected.id || selected.state === "BLOCKED" ? "not-allowed" : "pointer" }}>
+                <PlayCircle size={14} /> {launchingId === selected.id ? "Launching…" : "Launch profile"}
               </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Filters */}
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 200 }}>
-          <Search size={14} opacity={0.5} />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search profiles, models, frontends..."
-            style={{
-              flex: 1,
-              padding: "10px 14px",
-              borderRadius: 8,
-              border: "1px solid rgba(255,255,255,0.08)",
-              background: "rgba(255,255,255,0.03)",
-              color: "#f5f5f5",
-              fontSize: 13,
-              outline: "none",
-            }}
-          />
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Filter size={14} opacity={0.5} />
-          <select
-            value={modeFilter}
-            onChange={(e) => setModeFilter(e.target.value)}
-            style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", color: "#f5f5f5", fontSize: 13 }}
-          >
-            <option value="all">All Modes</option>
-            <option value="local">Local</option>
-            <option value="hybrid">Hybrid</option>
-            <option value="cloud">Cloud</option>
-          </select>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", color: "#f5f5f5", fontSize: 13 }}
-          >
-            <option value="all">All Status</option>
-            <option value="READY">Ready</option>
-            <option value="DEGRADED">Fixable</option>
-            <option value="BLOCKED">Blocked</option>
-            <option value="UNKNOWN">Unknown</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Profiles Grid */}
-      {Object.entries(byMode).length === 0 ? (
-        <div style={{ padding: 60, textAlign: "center", opacity: 0.5 }}>
-          <Layers size={32} style={{ marginBottom: 12 }} />
-          <p>No profiles match your filters.</p>
-        </div>
-      ) : (
-        Object.entries(byMode).map(([mode, list]) => (
-          <div key={mode}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-              <span style={{ fontSize: 11, letterSpacing: "3px", textTransform: "uppercase", opacity: 0.5 }}>
-                {mode.replace(/-/g, " ")}
-              </span>
-              <span style={{ fontSize: 11, opacity: 0.3 }}>({list.length})</span>
+              {(preview?.audit?.warnings?.length || 0) > 0 && (
+                <button onClick={() => launchProfile(selected, "User approved after reviewing warnings in Profiles panel")} style={secondaryButtonStyle}>
+                  <ShieldAlert size={14} /> Launch with reviewed warning override
+                </button>
+              )}
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 14 }}>
-              {list.map((p) => {
-                const state = p.state || p.meta?.status || "UNKNOWN";
-                const cfg = statusConfig[state] || statusConfig.UNKNOWN;
-                const StatusIcon = cfg.icon;
-                const ModeIcon = modeIcons[p.meta?.mode] || Layers;
-                const TaskIcon = taskModeIcons[p.meta?.task_mode] || Wrench;
-
-                return (
-                  <div
-                    key={p.id}
-                    style={{
-                      padding: 18,
-                      borderRadius: 12,
-                      background: "rgba(255,255,255,0.02)",
-                      border: `1px solid ${state === "BLOCKED" ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.04)"}`,
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 10,
-                      transition: "all 0.2s",
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{ width: 36, height: 36, borderRadius: 8, background: cfg.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <StatusIcon size={16} color={cfg.color} />
-                        </div>
-                        <div>
-                          <h3 style={{ fontSize: 14, margin: 0, color: "#f5f5f5", fontWeight: 500 }}>{p.name}</h3>
-                          <div style={{ fontSize: 11, opacity: 0.4, marginTop: 2, fontFamily: "'GeistMono', monospace" }}>{p.id}</div>
-                        </div>
-                      </div>
-                      <span
-                        style={{
-                          fontSize: 10,
-                          letterSpacing: "0.1em",
-                          textTransform: "uppercase",
-                          fontWeight: 500,
-                          color: cfg.color,
-                          padding: "3px 8px",
-                          borderRadius: 4,
-                          background: cfg.bg,
-                        }}
-                      >
-                        {cfg.label}
-                      </span>
-                    </div>
-
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      <Tag icon={ModeIcon} text={p.meta?.mode} color="#60a5fa" />
-                      <Tag icon={TaskIcon} text={p.meta?.task_mode} color="#a78bfa" />
-                      {p.meta?.model && <Tag text={p.meta.model} color="#f59e0b" />}
-                      {p.meta?.frontend && <Tag text={p.meta.frontend} color="#4ade80" />}
-                      {p.meta?.backend && <Tag text={p.meta.backend} color="#f472b6" />}
-                      {p.score !== undefined && <Tag text={`${p.score}% match`} color={p.score >= 80 ? "#4ade80" : "#f59e0b"} />}
-                    </div>
-
-                    <p style={{ fontSize: 12, opacity: 0.6, margin: 0, lineHeight: 1.5, flex: 1 }}>
-                      {p.meta?.description || ""}
-                    </p>
-
-                    {p.reasons && p.reasons.length > 0 && (
-                      <div style={{ padding: 8, borderRadius: 6, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.03)" }}>
-                        {p.reasons.slice(0, 2).map((r: string, i: number) => (
-                          <div key={i} style={{ fontSize: 11, opacity: 0.5, lineHeight: 1.4 }}>• {r}</div>
-                        ))}
-                      </div>
-                    )}
-
-                    <div style={{ display: "flex", gap: 8, marginTop: "auto" }}>
-                      <button
-                        onClick={() => handlePreview(p.id)}
-                        style={{
-                          flex: 1,
-                          padding: "8px 12px",
-                          borderRadius: 8,
-                          border: "1px solid rgba(255,255,255,0.1)",
-                          background: "rgba(255,255,255,0.05)",
-                          color: "#dadada",
-                          cursor: "pointer",
-                          fontSize: 12,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 6,
-                        }}
-                      >
-                        <Eye size={14} /> Preview
-                      </button>
-                      <button
-                        onClick={() => handleLaunch(p.id)}
-                        disabled={state === "BLOCKED"}
-                        style={{
-                          flex: 1,
-                          padding: "8px 12px",
-                          borderRadius: 8,
-                          border: "1px solid rgba(74,222,128,0.3)",
-                          background: state === "BLOCKED" ? "rgba(255,255,255,0.03)" : "rgba(74,222,128,0.1)",
-                          color: state === "BLOCKED" ? "#6b7280" : "#4ade80",
-                          cursor: state === "BLOCKED" ? "not-allowed" : "pointer",
-                          fontSize: 12,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 6,
-                        }}
-                      >
-                        <Play size={14} /> Launch
-                      </button>
-                      <button
-                        onClick={async () => {
-                          const r = prompt("Reason for blocking?");
-                          if (r) {
-                            await fetch(`/api/block/${encodeURIComponent(p.id)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason: r }) });
-                            alert("Blocked.");
-                          }
-                        }}
-                        style={{
-                          padding: "8px 12px",
-                          borderRadius: 8,
-                          border: "1px solid rgba(239,68,68,0.3)",
-                          background: "rgba(239,68,68,0.1)",
-                          color: "#ef4444",
-                          cursor: "pointer",
-                          fontSize: 12,
-                        }}
-                      >
-                        <Ban size={14} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+          </>
+        ) : (
+          <div style={{ padding: 16, borderRadius: 18, background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.12)" }}>
+            <div style={{ fontSize: 16, color: "#ffffff", fontWeight: 600, marginBottom: 8 }}>Select a profile to inspect</div>
+            <div style={{ fontSize: 13, opacity: 0.68, lineHeight: 1.7 }}>
+              This panel will show audit errors, warnings, alternatives, and the exact launch script.
             </div>
           </div>
-        ))
-      )}
-
-      {/* Preview Modal */}
-      {preview && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.7)",
-            zIndex: 100,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 40,
-          }}
-        >
-          <div
-            style={{
-              width: "100%",
-              maxWidth: 800,
-              maxHeight: "80vh",
-              background: "#0d0d0d",
-              border: "1px solid rgba(255,255,255,0.1)",
-              borderRadius: 12,
-              padding: 24,
-              display: "flex",
-              flexDirection: "column",
-              gap: 12,
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h3 style={{ margin: 0 }}>Preview: {preview.id}</h3>
-              <button onClick={() => setPreview(null)} style={{ background: "none", border: "none", color: "#dadada", cursor: "pointer" }}>
-                Close
-              </button>
-            </div>
-            <pre
-              style={{
-                flex: 1,
-                overflow: "auto",
-                background: "rgba(0,0,0,0.3)",
-                padding: 16,
-                borderRadius: 8,
-                fontSize: 12,
-                fontFamily: "'GeistMono', monospace",
-                color: "#f5f5f5",
-              }}
-            >
-              {preview.script}
-            </pre>
-          </div>
-        </div>
-      )}
+        )}
+      </section>
     </div>
   );
 }
 
-function Tag({ icon: Icon, text, color }: { icon?: any; text: string; color: string }) {
-  if (!text) return null;
+function CatalogSection({ title, subtitle, profiles, onInspect, onLaunch, launchingId }: { title: string; subtitle: string; profiles: any[]; onInspect: (profile: any) => void; onLaunch: (profile: any) => void; launchingId: string | null }) {
   return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 4,
-        padding: "3px 8px",
-        borderRadius: 4,
-        background: `${color}10`,
-        border: `1px solid ${color}25`,
-        color,
-        fontSize: 10,
-        letterSpacing: "0.03em",
-        textTransform: "uppercase",
-      }}
-    >
-      {Icon && <Icon size={10} />}
-      {text}
-    </span>
+    <section style={{ padding: 20, borderRadius: 22, background: "rgba(255,255,255,0.028)", border: "1px solid rgba(255,255,255,0.07)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline", marginBottom: 14 }}>
+        <div>
+          <div style={{ fontSize: 21, color: "#ffffff", fontWeight: 600 }}>{title}</div>
+          <div style={{ fontSize: 13, opacity: 0.58, marginTop: 4 }}>{subtitle}</div>
+        </div>
+        <div style={{ fontSize: 12, opacity: 0.42 }}>{profiles.length} profiles</div>
+      </div>
+      {profiles.length > 0 ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 12 }}>
+          {profiles.map((profile) => <ProfileCard key={profile.id} profile={profile} onInspect={() => onInspect(profile)} onLaunch={() => onLaunch(profile)} launching={launchingId === profile.id} />)}
+        </div>
+      ) : (
+        <div style={{ opacity: 0.52, fontSize: 13 }}>No profiles in this group.</div>
+      )}
+    </section>
   );
 }
+
+function ProfileCard({ profile, onInspect, onLaunch, launching }: { profile: any; onInspect: () => void; onLaunch: () => void; launching: boolean }) {
+  const tone = statusTone[profile.state || "UNKNOWN"] || statusTone.UNKNOWN;
+  return (
+    <div style={{ padding: 18, borderRadius: 18, background: "rgba(255,255,255,0.024)", border: `1px solid ${tone.border}` }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
+        <div>
+          <div style={{ fontSize: 16, color: "#ffffff", fontWeight: 600 }}>{profile.name}</div>
+          <div style={{ fontSize: 11, opacity: 0.42, marginTop: 4, fontFamily: "'GeistMono', monospace" }}>{profile.id}</div>
+        </div>
+        <div style={{ padding: "7px 10px", borderRadius: 999, background: tone.bg, border: `1px solid ${tone.border}`, color: tone.color, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+          {tone.label}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+        {profile.meta?.mode && <Chip text={profile.meta.mode} />}
+        {profile.meta?.task_mode && <Chip text={profile.meta.task_mode} />}
+        {profile.meta?.model && <Chip text={profile.meta.model} highlight />}
+      </div>
+
+      {profile.reasons?.length > 0 && (
+        <div style={{ marginTop: 12, padding: 12, borderRadius: 14, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+          {profile.reasons.slice(0, 2).map((reason: string, index: number) => (
+            <div key={index} style={{ fontSize: 12, lineHeight: 1.6, opacity: 0.72 }}>• {reason}</div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+        <button onClick={onInspect} style={secondaryButtonStyle}>
+          <Eye size={14} /> Inspect
+        </button>
+        <button onClick={onLaunch} disabled={launching || profile.state === "BLOCKED"} style={{ ...primaryButtonStyle, opacity: launching || profile.state === "BLOCKED" ? 0.56 : 1, cursor: launching || profile.state === "BLOCKED" ? "not-allowed" : "pointer" }}>
+          <PlayCircle size={14} /> {launching ? "Launching…" : "Launch"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AuditBlock({ title, tone, items, emptyLabel }: { title: string; tone: "red" | "gold"; items: string[]; emptyLabel?: string }) {
+  const styles = tone === "red"
+    ? { color: "#fca5a5", bg: "rgba(239,68,68,0.06)", border: "rgba(239,68,68,0.16)", icon: AlertTriangle }
+    : { color: "#ffcb89", bg: "rgba(255,176,66,0.06)", border: "rgba(255,176,66,0.16)", icon: CheckCircle2 };
+  const Icon = styles.icon;
+  return (
+    <div style={{ padding: 14, borderRadius: 16, background: styles.bg, border: `1px solid ${styles.border}` }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, color: styles.color, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.14em" }}>
+        <Icon size={14} />
+        {title}
+      </div>
+      {items.length > 0 ? items.map((item, index) => <div key={index} style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 6 }}>• {item}</div>) : <div style={{ fontSize: 13, opacity: 0.68 }}>{emptyLabel || "Nothing here."}</div>}
+    </div>
+  );
+}
+
+function SuggestionBlock({ suggestions }: { suggestions: any[] }) {
+  return (
+    <div style={{ padding: 14, borderRadius: 16, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.14em", opacity: 0.42 }}>
+        <Sparkles size={14} color="#ffb042" />
+        Suggestions
+      </div>
+      {suggestions.length > 0 ? suggestions.map((suggestion, index) => (
+        <div key={index} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "7px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+          <span style={{ fontSize: 13 }}>{suggestion.name || suggestion.id || "Alternative"}</span>
+          {suggestion.score !== undefined && <span style={{ fontSize: 12, opacity: 0.54 }}>{suggestion.score}%</span>}
+        </div>
+      )) : <div style={{ fontSize: 13, opacity: 0.68 }}>No alternatives suggested.</div>}
+    </div>
+  );
+}
+
+function SummaryPill({ label, tone }: { label: string; tone: "green" | "gold" | "red" }) {
+  const styles = tone === "green"
+    ? { color: "#86efac", bg: "rgba(74,222,128,0.08)", border: "rgba(74,222,128,0.18)" }
+    : tone === "gold"
+      ? { color: "#ffcb89", bg: "rgba(255,176,66,0.08)", border: "rgba(255,176,66,0.18)" }
+      : { color: "#fca5a5", bg: "rgba(239,68,68,0.08)", border: "rgba(239,68,68,0.18)" };
+  return <div style={{ padding: "10px 12px", borderRadius: 999, background: styles.bg, border: `1px solid ${styles.border}`, color: styles.color, fontSize: 12 }}>{label}</div>;
+}
+
+function Chip({ text, highlight }: { text: string; highlight?: boolean }) {
+  return <span style={{ padding: "6px 10px", borderRadius: 999, border: `1px solid ${highlight ? "rgba(255,176,66,0.22)" : "rgba(255,255,255,0.08)"}`, background: highlight ? "rgba(255,176,66,0.08)" : "rgba(255,255,255,0.03)", color: highlight ? "#ffcb89" : "#ddd6cb", fontSize: 11 }}>{text}</span>;
+}
+
+function InputShell({ icon: Icon, children }: { icon: any; children: React.ReactNode }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 12px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" }}>
+      <Icon size={14} color="#bfb8ab" />
+      {children}
+    </div>
+  );
+}
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  border: "none",
+  outline: "none",
+  background: "transparent",
+  color: "#ece8e1",
+  fontSize: 13,
+  padding: "12px 0",
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  flex: 1,
+  padding: "10px 14px",
+  borderRadius: 12,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.04)",
+  color: "#ece8e1",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+  fontSize: 13,
+};
+
+const primaryButtonStyle: React.CSSProperties = {
+  flex: 1,
+  padding: "10px 14px",
+  borderRadius: 12,
+  border: "1px solid rgba(74,222,128,0.2)",
+  background: "rgba(74,222,128,0.1)",
+  color: "#86efac",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+  fontSize: 13,
+};
