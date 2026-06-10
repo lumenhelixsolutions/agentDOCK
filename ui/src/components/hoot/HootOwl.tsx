@@ -16,7 +16,7 @@ export default function HootOwl({
   showWordmark?: boolean;
 }) {
   const [frame, setFrame] = useState(0);
-  const px = size === "lg" ? (showWordmark ? 120 : 96) : 64;
+  const px = size === "lg" ? (showWordmark ? 140 : 88) : 56;
   const color = moodColor(mood);
 
   useEffect(() => {
@@ -25,21 +25,21 @@ export default function HootOwl({
   }, [mood]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-      <HootLogo mood={mood} size={px} frame={frame} onClick={onClick} showWordmark={showWordmark} showSubtitle={size === "lg"} />
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+      <HootLogo mood={mood} size={px} frame={frame} onClick={onClick} showWordmark={showWordmark} />
       {!showWordmark && (
         <span
           style={{
-            fontSize: 9,
-            letterSpacing: "0.12em",
+            fontSize: 8,
+            letterSpacing: "0.14em",
             textTransform: "uppercase",
-            opacity: 0.55,
+            opacity: 0.45,
             color,
-            maxWidth: 140,
+            maxWidth: 120,
             textAlign: "center",
           }}
         >
-          {statusLine ? statusLine.slice(0, 32) : moodLabel(mood)}
+          {statusLine ? statusLine.slice(0, 28) : moodLabel(mood)}
         </span>
       )}
     </div>

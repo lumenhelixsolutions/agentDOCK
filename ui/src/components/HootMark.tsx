@@ -3,23 +3,10 @@ import type { HootMood } from "@/lib/hoot-ascii";
 
 type HootMarkProps = {
   size?: number;
-  showGlow?: boolean;
-  variant?: "app" | "favicon";
   mood?: HootMood;
 };
 
-/** Hollow line-art HOOT mark — matches animated mascot */
-export default function HootMark({ size = 40, mood = "idle" }: HootMarkProps) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        filter: "drop-shadow(0 0 14px rgba(124,255,124,0.18))",
-      }}
-    >
-      <HootLogo mood={mood} size={size} frame={0} />
-    </div>
-  );
+/** Sidebar mark — cropped from uploaded artwork */
+export default function HootMark({ size = 44, mood = "idle" }: HootMarkProps) {
+  return <HootLogo mood={mood} size={size} frame={0} />;
 }

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import HootLogo from "@/lib/hoot-logo";
 import { setHootToken } from "@/lib/api";
-import { BRAND, BRAND_COLORS } from "@/lib/brand";
+import { BRAND_COLORS } from "@/lib/brand";
 
 export default function HootUnlock({ onUnlocked }: { onUnlocked: () => void }) {
   const [token, setToken] = useState("");
@@ -55,13 +55,10 @@ export default function HootUnlock({ onUnlocked }: { onUnlocked: () => void }) {
           gap: 18,
         }}
       >
-        <HootLogo mood="monitoring" size={140} frame={0} showWordmark showSubtitle />
-        <div style={{ textAlign: "center" }}>
-          <h1 style={{ margin: 0, fontSize: 18, color: BRAND_COLORS.gold }}>{BRAND.title}</h1>
-          <p style={{ margin: "8px 0 0", fontSize: 13, opacity: 0.65, lineHeight: 1.5 }}>
-            LAN access requires your HOOT token. Localhost on the host PC does not need this.
-          </p>
-        </div>
+        <HootLogo mood="monitoring" size={240} frame={0} showWordmark />
+        <p style={{ margin: 0, fontSize: 13, opacity: 0.65, lineHeight: 1.5, textAlign: "center" }}>
+          LAN access requires your HOOT token. Localhost on the host PC does not need this.
+        </p>
         <input
           type="password"
           value={token}
