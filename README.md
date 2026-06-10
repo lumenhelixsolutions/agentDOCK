@@ -1,10 +1,29 @@
 # HOOT — Local AI Command Center
 
+<p align="center">
+  <img src="ui/public/hoot-favicon.svg" alt="HOOT owl mark" width="88" />
+</p>
+
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)]()
 
 > **HOOT** is your local AI command center — project-aware agent stack scanner, planner, Markdown memory core, research watch, monitored terminal, and launcher. (Technical package name remains `agentdock`.)
+
+## Rebrand note
+
+**AgentDock** is now **HOOT — Local AI Command Center**.
+
+| What changed | Details |
+|--------------|---------|
+| **Product name** | HOOT (sidebar, browser title, docs) |
+| **Subtitle** | Local AI Command Center |
+| **Mascot** | My Ops OWL — head-only ASCII coach with screen awareness |
+| **Logo** | Custom owl mark (`ui/src/components/HootMark.tsx`, favicon `ui/public/hoot-favicon.svg`) |
+
+**Unchanged (on purpose):** repo folder `agentdock`, npm package name, `AGENTDOCK_*` environment variables, `/api/*` routes, and launch profile internals. Existing scripts and env configs keep working; only user-facing branding moved to HOOT.
+
+If you have bookmarks or docs pointing at “AgentDock”, read them as HOOT — same local engine, new identity.
 
 ## Table of Contents
 
@@ -19,6 +38,7 @@
 - [Deployment](#deployment)
 - [Environment Variables](#environment-variables)
 - [Safety Model](#safety-model)
+- [Rebrand note](#rebrand-note)
 - [Changelog](#changelog)
 - [Contributing](#contributing)
 
@@ -60,7 +80,7 @@ Open `http://127.0.0.1:7777` in your browser.
 | **Scan** | Click "🔍 Scan" to detect installed agents, models, env keys, and hardware. |
 | **Plan** | Choose a goal (privacy, fastest, cheapest, heavy, audit) to get ranked profile recommendations. |
 | **Launch** | Select a profile and click Launch. Review the preview first if dangerous patterns are detected. |
-| **Chat** | Click the 🤖 button bottom-right for interactive help. |
+| **Chat** | Click the HOOT owl button bottom-right for interactive help. |
 | **Research** | Run the research watch to pull latest briefs from configured sources. |
 | **Theme** | Click the 🌓 button in the header to toggle dark/light mode. |
 
@@ -249,7 +269,7 @@ If exposing through a reverse proxy, ensure:
 - WebSocket support is not required (AgentDock uses HTTP polling).
 - The proxy sets `X-Forwarded-For` for logging if desired.
 
-> ⚠️ **Do not expose AgentDock directly to the public internet.** It has no built-in authentication and executes PowerShell scripts.
+> ⚠️ **Do not expose HOOT directly to the public internet.** It has no built-in authentication and executes PowerShell scripts.
 
 ## Environment Variables
 
@@ -272,6 +292,12 @@ If exposing through a reverse proxy, ensure:
 - Auto-blocks profiles after repeated failures on the same project.
 
 ## Changelog
+
+### v2.1.0 — HOOT rebrand
+- User-facing rebrand from AgentDock to **HOOT — Local AI Command Center**.
+- Custom owl logo, favicon, and wordmark; mascot line **My Ops OWL**.
+- System-wide agent radar, head-only HOOT ASCII, coach awareness upgrades.
+- Render perf: throttled pupil tracking, debounced hints, background poll pausing.
 
 ### v2.0.0
 - Project-aware registry with Git status, AGENTS.md detection, and portfolio health.

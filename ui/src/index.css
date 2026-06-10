@@ -61,4 +61,8 @@
   .hoot-scan-line {
     animation: hootScan 2.4s linear infinite;
   }
+
+  .hoot-brand-glow {
+    box-shadow: 0 10px 28px rgba(255, 176, 66, 0.22);
+  }
 }

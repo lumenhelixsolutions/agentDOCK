@@ -17,7 +17,8 @@ import {
 } from "lucide-react";
 import HootMascot from "./hoot/HootMascot";
 import HootMark from "./HootMark";
-import { BRAND } from "@/lib/brand";
+import HootWordmark from "./HootWordmark";
+import { BRAND, BRAND_COLORS } from "@/lib/brand";
 import HelpTooltip from "./HelpTooltip";
 import ViewGuideBar from "./ViewGuideBar";
 import { ToastProvider } from "./Toast";
@@ -102,15 +103,21 @@ export default function AppLayout() {
         >
           <div style={{ padding: collapsed ? "18px 16px" : "22px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <HootMark size={40} />
-              {!collapsed && (
-                <div>
-                  <div style={{ fontSize: 18, fontWeight: 600, color: "#ffffff", letterSpacing: "-0.02em" }}>{BRAND.name}</div>
-                  <div style={{ fontSize: 10, opacity: 0.5, letterSpacing: "0.12em", textTransform: "uppercase", lineHeight: 1.35 }}>
-                    {BRAND.subtitle}
-                  </div>
-                </div>
-              )}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: 16,
+                  padding: collapsed ? 4 : 2,
+                  background: `radial-gradient(circle at 30% 20%, rgba(255,226,168,0.18), transparent 58%), ${BRAND_COLORS.face}`,
+                  border: `1px solid rgba(255,176,66,0.16)`,
+                  boxShadow: `0 10px 28px ${BRAND_COLORS.glow}`,
+                }}
+              >
+                <HootMark size={collapsed ? 36 : 44} />
+              </div>
+              {!collapsed && <HootWordmark />}
             </div>
             {!collapsed && (
               <div
@@ -290,7 +297,7 @@ export default function AppLayout() {
                     textTransform: "uppercase",
                   }}
                 >
-                  Command shell
+                  {BRAND.mascotTagline}
                 </div>
               </div>
               <div>
@@ -315,8 +322,8 @@ export default function AppLayout() {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
               <StatusPill label="127.0.0.1 active" tone="green" />
-              <StatusPill label="Local-first command" tone="gold" />
-              <StatusPill label="Profiles + sessions in focus" tone="slate" />
+              <StatusPill label={BRAND.subtitle} tone="gold" />
+              <StatusPill label="Profiles + sessions" tone="slate" />
             </div>
           </header>
 
