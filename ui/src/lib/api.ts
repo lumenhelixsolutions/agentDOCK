@@ -123,4 +123,16 @@ export const api = {
     request<{ hints: Array<Record<string, unknown>>; view: string; guide?: Record<string, unknown>; orchestration?: Record<string, unknown> }>("POST", "/api/coach/hints", { view, pageContext: pageContext || {} }),
   getCoachDocs: (view: string) =>
     request<{ view: string; guide: Record<string, unknown>; orchestration: Record<string, unknown> }>("GET", `/api/coach/docs?view=${encodeURIComponent(view)}`),
+  getCoachBrain: () =>
+    request<{ brain: Record<string, unknown>; pull?: Record<string, unknown>; scan?: Record<string, unknown> }>("GET", "/api/coach/brain"),
+  coachExecute: (command: Record<string, unknown>) =>
+    request<{
+      ok: boolean;
+      results: Array<Record<string, unknown>>;
+      route?: string | null;
+      target?: string | null;
+      message?: string | null;
+      launched?: boolean;
+      session?: Record<string, unknown> | null;
+    }>("POST", "/api/coach/execute", { command }),
 } as const;

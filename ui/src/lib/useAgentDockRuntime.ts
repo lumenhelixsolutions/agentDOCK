@@ -11,8 +11,9 @@ export type AgentDockChatMessage = {
   source?: string;
 };
 
-function getModelProvider(): string {
-  return localStorage.getItem("agentdock_model_provider") || "gemini";
+function getModelProvider(): string | undefined {
+  const p = localStorage.getItem("agentdock_model_provider") || "auto";
+  return p === "auto" ? undefined : p;
 }
 
 /** Optional browser override; server resolves keys from scan vault first. */
@@ -57,8 +58,9 @@ export function useAgentDockRuntime(
       setIsRunning(true);
       onCommands?.(null);
       try {
+        const provider = getModelProvider();
         const res = await api.chat(sessionId, trimmed, {
-          provider: getModelProvider(),
+          ...(provider ? { provider } : {}),
           apiKey: getApiKeyOverride(),
           customEndpoint: localStorage.getItem("agentdock_custom_endpoint") || undefined,
           coachView: coachContext?.coachView,

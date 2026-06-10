@@ -4,6 +4,7 @@ import { useCoach } from "@/context/CoachContext";
 import CoachThread from "@/components/coach/CoachThread";
 import HootOwl from "./HootOwl";
 import { BRAND } from "@/lib/brand";
+import { api } from "@/lib/api";
 import { Pin, PinOff, X, ChevronRight, Maximize2, Minimize2, GripHorizontal } from "lucide-react";
 
 const SESSION_ID = "hoot-" + Math.random().toString(36).slice(2, 8);
@@ -42,7 +43,7 @@ export default function HootMascot() {
     topHint, viewGuide, dismissHint, coachOpen, setCoachOpen,
     consumeChatPrompt, emitCoachAction, queueChatPrompt,
     hootMood, hootPinned, setHootPinned,
-    hootError, clearHootError, hootStatus,
+    hootError, clearHootError, hootStatus, setHootStatus,
   } = useCoach();
   const [bubbleVisible, setBubbleVisible] = useState(true);
   const [composerPrompt, setComposerPrompt] = useState<string | null>(null);
@@ -123,14 +124,39 @@ export default function HootMascot() {
     if (action.type === "command" && action.target === "runScan") navigate("/scan");
   };
 
-  const executeCmd = (cmd: Record<string, unknown>) => {
-    switch (cmd.type) {
-      case "launch": navigate("/profiles"); break;
-      case "runScan": navigate("/scan"); break;
-      case "switchProject": navigate("/"); break;
-      case "showMessage": alert(String(cmd.text || "")); break;
-      case "openUrl": window.open(String(cmd.url || ""), "_blank"); break;
-      default: break;
+  const executeCmd = async (cmd: Record<string, unknown>) => {
+    const label = String(cmd.type || "action");
+    setHootStatus(`HOOT running ${label}…`);
+    try {
+      const res = await api.coachExecute(cmd);
+      const last = res.results?.[res.results.length - 1] as Record<string, unknown> | undefined;
+      if (res.route) navigate(res.route);
+      if (res.target) emitCoachAction(String(res.target));
+      if (res.message) alert(String(res.message));
+      if (res.launched && res.session) {
+        setHootStatus(`Launched ${(res.session as { profileName?: string }).profileName || "session"}`);
+        navigate("/terminal");
+        return;
+      }
+      if (last?.type === "runScan") {
+        setHootStatus("Scan complete");
+        navigate("/scan");
+        return;
+      }
+      if (last && last.ok === false) {
+        setHootStatus(String(last.error || "Command blocked"));
+        return;
+      }
+      setHootStatus(null);
+    } catch {
+      switch (cmd.type) {
+        case "launch": navigate("/profiles"); break;
+        case "runScan": navigate("/scan"); break;
+        case "switchProject": navigate("/"); break;
+        case "showMessage": alert(String(cmd.text || "")); break;
+        case "openUrl": window.open(String(cmd.url || ""), "_blank"); break;
+        default: setHootStatus(null); break;
+      }
     }
   };
 

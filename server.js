@@ -15,6 +15,8 @@ const { spawn, execFile } = require('child_process');
 const https = require('https');
 const { advisorAnalyze } = require('./advisor');
 const { processChatMessage, getChatHistory, clearChat } = require('./chat');
+const { executeCoachCommand } = require('./coach-operator');
+const { resolveHootBrain, getPullState } = require('./hoot-brain');
 const { buildCoachHints } = require('./coach-hints');
 const { getViewGuide, ORCHESTRATION_LOOP } = require('./coach-guides');
 const {
@@ -81,6 +83,7 @@ const DEFAULT_USER_SETTINGS = {
   mcp: { enabledServers: ['git'] },
   auth: { enabled: false, token_hash: null, created_at: null },
   network: { lan_enabled: LAN_MODE },
+  hoot_brain: { mode: 'auto', ollama_model: '', cloud_provider: 'gemini' },
 };
 const activityLog = createActivityLog({ stateFile: FILES.activityLog, diaryDir: DIARY_DIR, root: ROOT });
 const UI_DIST = path.join(ROOT, 'ui', 'dist');
@@ -380,6 +383,7 @@ function loadUserSettings() {
     mcp: { ...DEFAULT_USER_SETTINGS.mcp, ...(stored.mcp || {}) },
     auth: { ...DEFAULT_USER_SETTINGS.auth, ...(stored.auth || {}) },
     network: { ...DEFAULT_USER_SETTINGS.network, ...(stored.network || {}), lan_enabled: LAN_MODE },
+    hoot_brain: { ...DEFAULT_USER_SETTINGS.hoot_brain, ...(stored.hoot_brain || {}) },
   };
 }
 
@@ -398,9 +402,42 @@ function saveUserSettings(partial) {
     mcp: { ...current.mcp, ...(partial.mcp || {}) },
     auth: { ...current.auth, ...(partial.auth || {}) },
     network: { ...current.network, ...(partial.network || {}) },
+    hoot_brain: { ...current.hoot_brain, ...(partial.hoot_brain || {}) },
   };
   writeJSON(FILES.userSettings, next);
   return next;
+}
+
+function buildCoachDeps() {
+  return {
+    lastScan,
+    activeProject,
+    sessions,
+    readMemory,
+    appendMemory,
+    setActiveProject,
+    buildPlan,
+    listProfiles,
+    getProfile,
+    evaluateProfile,
+    auditProfile,
+    extractLaunchScript,
+    injectLaunchContext,
+    isBlockedByMemory,
+    createSession,
+    publicSession,
+    runScanner,
+    getPrefabInventory: () => getPrefabInventory({ root: ROOT, moduleManager, lastScan }),
+    activityToday: () => activityLog.todaySummary(),
+    getAgentRadar: async ({ force } = {}) => {
+      const now = Date.now();
+      if (!force && lastAgentRadar && now - lastAgentRadarAt < AGENT_RADAR_TTL_MS) return lastAgentRadar;
+      const radar = await runAgentRadar();
+      lastAgentRadar = radar;
+      lastAgentRadarAt = now;
+      return radar;
+    },
+  };
 }
 
 function injectProjectPath(script, projectPath) {
@@ -1827,8 +1864,35 @@ async function route(req, res) {
       }
       return send(res, 200, { launched, count: launched.length });
     }
+    if (pathName === '/api/coach/brain' && req.method === 'GET') {
+      const settings = loadUserSettings();
+      const brain = resolveHootBrain({ scan: lastScan, settings });
+      return send(res, 200, { brain, pull: getPullState(), scan: lastScan ? { ollama: lastScan.tools?.ollama, llamacpp: (lastScan.local_models?.backends || []).find(b => b.id === 'llamacpp') } : null });
+    }
+    if (pathName === '/api/coach/execute' && req.method === 'POST') {
+      const body = await readBody(req);
+      const deps = buildCoachDeps();
+      const items = body.commands || (body.command ? [body.command] : []);
+      if (!items.length) return send(res, 400, { error: 'command or commands required' });
+      const results = [];
+      for (const cmd of items) {
+        const result = await executeCoachCommand(cmd, deps);
+        results.push(result);
+      }
+      const last = results[results.length - 1] || {};
+      return send(res, 200, {
+        ok: results.every((r) => r.ok),
+        results,
+        route: last.route || null,
+        target: last.target || null,
+        message: last.message || null,
+        launched: last.launched || false,
+        session: last.session || null,
+      });
+    }
     if (pathName === '/api/chat' && req.method === 'POST') {
       const body = await readBody(req);
+      const settings = loadUserSettings();
       const proj = activeProject ? readProjectRegistry().projects.find(p => p.path === activeProject) : null;
       const coachView = body.coachView || body.view || '/';
       const pageContext = body.pageContext || {};
@@ -1839,7 +1903,8 @@ async function route(req, res) {
         missingAgents: (lastScan?.coders || []).filter(c => !c.detection?.present).map(c => c.id),
         envKeys: Object.entries(lastScan?.env || {}).filter(([_, v]) => v?.present).map(([k]) => k),
         profiles: listProfiles().map(p => ({ id: p.id, name: p.name, mode: p.meta.mode, status: p.meta.status, state: evaluateProfile(p, lastScan, readMemory()).state })),
-        scan: lastScan ? { system: lastScan.system, hardware: lastScan.hardware, tools: lastScan.tools } : null,
+        scan: lastScan ? { system: lastScan.system, hardware: lastScan.hardware, tools: lastScan.tools, ollama: lastScan.ollama } : null,
+        scanFull: lastScan,
         coachView,
         pageContext,
         viewGuide,
@@ -1855,6 +1920,7 @@ async function route(req, res) {
         model: body.model,
         apiKey: body.apiKey,
         customEndpoint: body.customEndpoint,
+        settings,
       });
       return send(res, 200, result);
     }

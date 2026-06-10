@@ -33,12 +33,19 @@ interface LlamaCppSettings {
   extraArgs: string;
 }
 
+interface HootBrainSettings {
+  mode: string;
+  ollama_model: string;
+  cloud_provider: string;
+}
+
 interface ServerSettings {
   localInference: {
     preferredBackend: string;
     llamacpp: LlamaCppSettings;
   };
   tokenEfficiency: { rtkRecommended: boolean };
+  hoot_brain?: HootBrainSettings;
   auth?: { enabled: boolean; token_hash?: string | null; created_at?: string | null };
   network?: { lan_enabled?: boolean };
 }
@@ -49,7 +56,8 @@ export default function SettingsPage() {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [modelProvider, setModelProvider] = useState("gemini");
+  const [modelProvider, setModelProvider] = useState("auto");
+  const [brainStatus, setBrainStatus] = useState<{ provider?: string; model?: string; available?: boolean } | null>(null);
   const [customEndpoint, setCustomEndpoint] = useState("");
   const [serverSettings, setServerSettings] = useState<ServerSettings | null>(null);
   const [scanHints, setScanHints] = useState<{ rtk?: { present?: boolean }; wsl?: { present?: boolean }; llamacpp?: { present?: boolean; server?: { reachable?: boolean } } } | null>(null);
@@ -63,7 +71,8 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
-    setModelProvider(localStorage.getItem("agentdock_model_provider") || "gemini");
+    setModelProvider(localStorage.getItem("agentdock_model_provider") || "auto");
+    api.getCoachBrain().then((r) => setBrainStatus(r.brain as typeof brainStatus)).catch(() => {});
     setCustomEndpoint(localStorage.getItem("agentdock_custom_endpoint") || "");
     loadKeys();
     api.getSettings().then((r) => {
@@ -82,6 +91,17 @@ export default function SettingsPage() {
       vaultKeyCount: vaultKeys.length,
     });
   }, [serverSettings, scanHints, vaultKeys.length, setPageContext]);
+
+  const updateHootBrain = (patch: Partial<HootBrainSettings>) => {
+    setServerSettings((prev) =>
+      prev
+        ? {
+            ...prev,
+            hoot_brain: { mode: "auto", ollama_model: "", cloud_provider: "gemini", ...prev.hoot_brain, ...patch },
+          }
+        : prev
+    );
+  };
 
   const updateLlama = (patch: Partial<LlamaCppSettings>) => {
     setServerSettings((prev) =>
@@ -165,14 +185,62 @@ export default function SettingsPage() {
 
       <div style={{ padding: 20, borderRadius: 12, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-          <Sparkles size={16} color="#ffb042" />
-          <h3 style={{ fontSize: 14, margin: 0, color: "#f5f5f5" }}>HOOT Model</h3>
+          <Cpu size={16} color="#4ade80" />
+          <h3 style={{ fontSize: 14, margin: 0, color: "#f5f5f5" }}>HOOT Brain (local-first)</h3>
         </div>
         <p style={{ fontSize: 12, opacity: 0.5, margin: "0 0 12px" }}>
-          Coach uses keys from the local vault (auto-imported on scan). No key → screen-aware local coach.
+          Auto uses Ollama when detected, then llama.cpp, then screen-aware rules. Cloud uses API keys below.
+          {brainStatus?.available && (
+            <span style={{ color: "#4ade80", display: "block", marginTop: 6 }}>
+              Active: {brainStatus.provider} · {brainStatus.model || "default"}
+            </span>
+          )}
+        </p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+          {["auto", "ollama", "llamacpp", "cloud"].map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => updateHootBrain({ mode })}
+              style={{
+                padding: "8px 16px",
+                borderRadius: 8,
+                border: "1px solid",
+                borderColor: serverSettings?.hoot_brain?.mode === mode || (!serverSettings?.hoot_brain?.mode && mode === "auto")
+                  ? "rgba(74,222,128,0.4)" : "rgba(255,255,255,0.08)",
+                background: serverSettings?.hoot_brain?.mode === mode || (!serverSettings?.hoot_brain?.mode && mode === "auto")
+                  ? "rgba(74,222,128,0.1)" : "rgba(255,255,255,0.02)",
+                color: serverSettings?.hoot_brain?.mode === mode || (!serverSettings?.hoot_brain?.mode && mode === "auto")
+                  ? "#4ade80" : "#dadada",
+                cursor: "pointer",
+                fontSize: 12,
+                textTransform: "capitalize",
+              }}
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
+        {serverSettings?.hoot_brain?.mode === "ollama" && (
+          <input
+            value={serverSettings.hoot_brain.ollama_model || ""}
+            onChange={(e) => updateHootBrain({ ollama_model: e.target.value })}
+            placeholder="Ollama model override (e.g. llama3.2:3b)"
+            style={{ ...inputStyle, marginBottom: 12 }}
+          />
+        )}
+      </div>
+
+      <div style={{ padding: 20, borderRadius: 12, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+          <Sparkles size={16} color="#ffb042" />
+          <h3 style={{ fontSize: 14, margin: 0, color: "#f5f5f5" }}>Cloud Model Override</h3>
+        </div>
+        <p style={{ fontSize: 12, opacity: 0.5, margin: "0 0 12px" }}>
+          Optional browser override when HOOT brain mode is Cloud. Keys come from the local vault.
         </p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {["gemini", "openai", "anthropic", "openrouter", "groq", "xai", "custom"].map((p) => (
+          {["auto", "gemini", "openai", "anthropic", "openrouter", "groq", "xai", "custom"].map((p) => (
             <button
               key={p}
               onClick={() => setModelProvider(p)}

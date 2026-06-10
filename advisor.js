@@ -4,6 +4,7 @@
  * Falls back to rule-based intelligence when no API key or on error.
  */
 
+const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
@@ -30,11 +31,12 @@ function getApiKey() {
   }
 }
 
-/* ── Generic HTTPS JSON POST ── */
+/* ── Generic HTTP(S) JSON POST ── */
 function postJSON(endpointUrl, headers, body, timeoutMs = 30000) {
   const url = new URL(endpointUrl);
+  const lib = url.protocol === 'http:' ? http : https;
   return new Promise((resolve, reject) => {
-    const req = https.request(url, {
+    const req = lib.request(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), ...headers },
       timeout: timeoutMs,
@@ -84,6 +86,20 @@ async function customChat(endpoint, apiKey, model, messages) {
   return json.choices?.[0]?.message?.content || json.choices?.[0]?.text || '';
 }
 
+/* ── Ollama (local OpenAI-compatible) ── */
+async function ollamaChat(endpoint, model, messages) {
+  if (!endpoint) throw new Error('No Ollama endpoint');
+  const body = JSON.stringify({ model: model || 'llama3.2:3b', messages, temperature: 0.3, max_tokens: 4096, stream: false });
+  const json = await postJSON(endpoint, {}, body, 120000);
+  if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
+  return json.choices?.[0]?.message?.content || '';
+}
+
+/* ── llama.cpp server (OpenAI-compatible) ── */
+async function llamacppChat(endpoint, model, messages) {
+  return customChat(endpoint, null, model || 'default', messages);
+}
+
 /* ── Provider dispatcher ── */
 async function providerChat({ provider, model, apiKey, customEndpoint, contents, messages }) {
   switch (provider) {
@@ -91,6 +107,10 @@ async function providerChat({ provider, model, apiKey, customEndpoint, contents,
       return geminiChat(contents, model || 'gemini-2.0-flash', apiKey);
     case 'openai':
       return openaiChat(messages, model || 'gpt-4o-mini', apiKey);
+    case 'ollama':
+      return ollamaChat(customEndpoint, model, messages);
+    case 'llamacpp':
+      return llamacppChat(customEndpoint, model, messages);
     case 'custom':
       return customChat(customEndpoint, apiKey, model || 'default', messages);
     default:
@@ -341,4 +361,4 @@ async function advisorAnalyze({ scan, project, profiles, sessions, question, use
   }
 }
 
-module.exports = { advisorAnalyze, geminiChat, openaiChat, customChat, providerChat, toGeminiContents, toOpenAIMessages, getApiKey, buildSystemContext };
+module.exports = { advisorAnalyze, geminiChat, openaiChat, customChat, ollamaChat, llamacppChat, providerChat, toGeminiContents, toOpenAIMessages, getApiKey, buildSystemContext, postJSON };

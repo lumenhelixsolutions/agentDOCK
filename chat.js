@@ -1,23 +1,31 @@
 /**
- * HOOT AI Coach chat — multi-provider with view-aware local fallback.
+ * HOOT AI Coach chat — multi-provider with local brain + operator commands.
  */
 
 const { providerChat, toGeminiContents, toOpenAIMessages, getApiKey } = require('./advisor');
-const { resolveProviderKey } = require('./key-vault');
+const { resolveProviderKey, isLocalProvider } = require('./key-vault');
+const { resolveHootBrain } = require('./hoot-brain');
 const { buildCoachChatResponse, summarizeCoachContext } = require('./coach-chat');
 
 const MAX_HISTORY = 50;
 const chats = new Map();
 
+const OPERATOR_SYSTEM_PROMPT = `You are HOOT Operator — local ops owl for this command center.
+
+YOU DO: explain screens, run scans, read repo/memory, recommend safe-audit profiles,
+        navigate, stage launches, monitor sessions, manage modules/MCP policy.
+
+YOU DO NOT: write code, edit source files, run shell, launch coding/refactor profiles,
+             use write/delete MCP tools, or act as a coding agent.
+
+When the user wants code changes, route them: Profiles → safe coding agent in Sessions.
+Prefer app tools over prose. Use MCP only to read context (when available).
+Answer conversationally. You may include \`\`\`json commands\`\`\` blocks for app actions.`;
+
 function getChat(sessionId) {
   if (!chats.has(sessionId)) {
     chats.set(sessionId, {
-      messages: [
-        {
-          role: 'system',
-          text: 'You are HOOT — My Ops OWL, the local AI command center coach. You see the user\'s current screen (coachView), live pageContext, and viewGuide. Answer conversationally — never dump a raw operations report. Explain features on the current screen, recommend the next step in the operator loop (Overview → Readiness → Profiles → Launch → Sessions → Memory), and give 2-3 concrete actions. Use markdown sparingly. You may include ```json commands blocks for app actions.',
-        },
-      ],
+      messages: [{ role: 'system', text: OPERATOR_SYSTEM_PROMPT }],
       lastActive: Date.now(),
     });
   }
@@ -39,8 +47,20 @@ function buildCommandPrompt(context) {
   return `Current screen context (use this — do NOT invent state):
 ${JSON.stringify(summary, null, 2)}
 
-App commands (optional \`\`\`json commands block):
-- launch, switchProject, runScan, generatePlan, showMessage, openUrl, askUser, setMemory
+App commands (optional \`\`\`json commands\`\`\` block — server executes allowlisted tools):
+- navigate { route } — e.g. /scan, /profiles, /terminal, /memory
+- runScan { repo? }
+- getStatus {}
+- launchProfile { profileId } — safe-audit/read-only/monitoring only
+- switchProject { path }
+- readMemory {}
+- appendMemory { title, kind, observed, reason, profileId? }
+- makePlan { goal }
+- coachAction { target } — scan-run, launch-staged, module-sync
+- getPrefab {}, getActivity {}
+- showMessage { text }, openUrl { url }
+
+Aliases: launch→launchProfile, generatePlan→makePlan, setMemory→appendMemory
 
 Respond to the user's message directly. Reference the screen they are on.`;
 }
@@ -57,7 +77,31 @@ function extractCommands(aiText) {
   return { text, commands };
 }
 
-async function processChatMessage({ sessionId, text, event, context, provider, model, apiKey, customEndpoint }) {
+function resolveEffectiveBrain({ provider, context, settings }) {
+  const scan = context?.scanFull || context?.scan;
+  const brainCfg = settings?.hoot_brain || {};
+  const mode = String(brainCfg.mode || 'auto').toLowerCase();
+
+  if (provider && provider !== 'auto') {
+    if (isLocalProvider(provider)) {
+      const brain = resolveHootBrain({ scan, settings, providerOverride: provider });
+      return { ...brain, provider };
+    }
+    return { provider, model: null, endpoint: null, available: Boolean(resolveProviderKey(provider)), source: 'explicit' };
+  }
+
+  if (mode === 'cloud') {
+    const cloudProvider = brainCfg.cloud_provider || 'gemini';
+    return { provider: cloudProvider, model: null, endpoint: null, available: Boolean(resolveProviderKey(cloudProvider)), source: 'cloud' };
+  }
+
+  const brain = resolveHootBrain({ scan, settings });
+  if (brain.available) return brain;
+  if (brain.pulling) return brain;
+  return brain;
+}
+
+async function processChatMessage({ sessionId, text, event, context, provider, model, apiKey, customEndpoint, settings }) {
   const chat = getChat(sessionId);
 
   if (event) {
@@ -69,20 +113,35 @@ async function processChatMessage({ sessionId, text, event, context, provider, m
 
   trimHistory(chat);
 
-  const effectiveProvider = provider || 'gemini';
+  const brain = resolveEffectiveBrain({ provider, context, settings });
+  const effectiveProvider = brain.provider || 'coach-local';
+  const effectiveModel = model || brain.model;
+  const effectiveEndpoint = customEndpoint || brain.endpoint;
+
   const systemMsg = chat.messages.find((m) => m.role === 'system')?.text || '';
   const commandPrompt = buildCommandPrompt(context || {});
   const history = chat.messages.filter((m) => m.role !== 'system');
 
   const resolvedKey = apiKey || resolveProviderKey(effectiveProvider) || (effectiveProvider === 'gemini' ? getApiKey() : undefined);
-  const hasLlm = Boolean(resolvedKey || (effectiveProvider === 'custom' && customEndpoint));
+  const hasLlm = Boolean(
+    (isLocalProvider(effectiveProvider) && brain.available)
+    || (resolvedKey && resolvedKey !== '__local__')
+    || (effectiveProvider === 'custom' && effectiveEndpoint),
+  );
 
-  // No key → conversational local coach (never operations report)
+  if (brain.pulling && !hasLlm) {
+    const local = buildCoachChatResponse({ text, context: context || {} });
+    const pullMsg = '_HOOT is fetching your local brain (`llama3.2:3b`) — try again in a minute._';
+    chat.messages.push({ role: 'model', text: `${local.text}\n\n${pullMsg}` });
+    trimHistory(chat);
+    return { text: `${local.text}\n\n${pullMsg}`, commands: local.commands, source: 'coach-local', brain };
+  }
+
   if (!hasLlm) {
     const local = buildCoachChatResponse({ text, context: context || {} });
     chat.messages.push({ role: 'model', text: local.text });
     trimHistory(chat);
-    return { text: local.text, commands: local.commands, source: local.source };
+    return { text: local.text, commands: local.commands, source: 'coach-local', brain };
   }
 
   let aiText = '';
@@ -94,13 +153,19 @@ async function processChatMessage({ sessionId, text, event, context, provider, m
         { role: 'system', text: `${systemMsg}\n\n${commandPrompt}` },
         ...history,
       ]);
-      aiText = await providerChat({ provider: 'gemini', model: model || 'gemini-2.0-flash', apiKey: resolvedKey, contents });
+      aiText = await providerChat({ provider: 'gemini', model: effectiveModel || 'gemini-2.0-flash', apiKey: resolvedKey, contents });
     } else {
       const messages = toOpenAIMessages([
         { role: 'system', text: `${systemMsg}\n\n${commandPrompt}` },
         ...history,
       ]);
-      aiText = await providerChat({ provider: effectiveProvider, model, apiKey: resolvedKey, customEndpoint, messages });
+      aiText = await providerChat({
+        provider: effectiveProvider,
+        model: effectiveModel,
+        apiKey: resolvedKey === '__local__' ? undefined : resolvedKey,
+        customEndpoint: effectiveEndpoint,
+        messages,
+      });
     }
     const extracted = extractCommands(aiText);
     aiText = extracted.text;
@@ -112,13 +177,13 @@ async function processChatMessage({ sessionId, text, event, context, provider, m
     commands = local.commands;
     chat.messages.push({ role: 'model', text: aiText });
     trimHistory(chat);
-    return { text: aiText, commands, source: 'coach-local', llmError: shortErr };
+    return { text: aiText, commands, source: 'coach-local', llmError: shortErr, brain };
   }
 
   chat.messages.push({ role: 'model', text: aiText });
   trimHistory(chat);
 
-  return { text: aiText, commands, source: effectiveProvider };
+  return { text: aiText, commands, source: effectiveProvider, brain: { provider: effectiveProvider, model: effectiveModel, endpoint: effectiveEndpoint } };
 }
 
 function getChatHistory(sessionId) {
@@ -129,4 +194,4 @@ function clearChat(sessionId) {
   chats.delete(sessionId);
 }
 
-module.exports = { processChatMessage, getChatHistory, clearChat };
+module.exports = { processChatMessage, getChatHistory, clearChat, OPERATOR_SYSTEM_PROMPT };

@@ -143,8 +143,15 @@ function keyAvailable(name) {
   return { available: false, source: 'missing' };
 }
 
+const LOCAL_PROVIDERS = new Set(['ollama', 'llamacpp', 'coach-local']);
+
+function isLocalProvider(provider) {
+  return LOCAL_PROVIDERS.has(String(provider || '').toLowerCase());
+}
+
 function resolveProviderKey(provider) {
   const p = String(provider || 'gemini').toLowerCase();
+  if (p === 'ollama' || p === 'llamacpp') return '__local__';
   const map = {
     gemini: ['GEMINI_API_KEY', 'GOOGLE_API_KEY'],
     openai: ['OPENAI_API_KEY'],
@@ -218,6 +225,7 @@ module.exports = {
   KNOWN_KEYS,
   PROVIDER_FOR_KEY,
   VAULT_FILE,
+  LOCAL_PROVIDERS,
   maskKey,
   loadVault,
   getVaultKey,
@@ -226,6 +234,7 @@ module.exports = {
   listMaskedKeys,
   getVaultEnvForLaunch,
   keyAvailable,
+  isLocalProvider,
   resolveProviderKey,
   harvestFromScan,
   harvestFromProcessEnv,
