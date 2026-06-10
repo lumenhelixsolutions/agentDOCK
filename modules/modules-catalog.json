@@ -7,10 +7,10 @@
       "name": "Compound Engineering",
       "type": "plugin-pack",
       "tag": "Skills pack",
-      "description": "37 CE skills + 51 review agents from EveryInc. Native on Claude Code and Codex; converter-backed on Gemini/OpenCode.",
+      "description": "39 CE skills (catalog) + 51 upstream review agents from EveryInc. Native on Claude Code and Codex; converter-backed on Gemini/OpenCode.",
       "source": "https://github.com/EveryInc/compound-engineering-plugin",
       "version": "3.11.2",
-      "counts": { "skills": 37, "agents": 51, "cached_skills": 9 },
+      "counts": { "skills": 39, "agents_catalog": 21, "agents_upstream": 51, "cached_skills": 9 },
       "catalog": {
         "skills": "skills/compound-engineering/skills-catalog.json",
         "agents": "skills/compound-engineering/agents-catalog.json"

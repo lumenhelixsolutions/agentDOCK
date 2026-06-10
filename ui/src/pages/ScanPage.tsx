@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import { useCoach } from "@/context/CoachContext";
+import { hootSignal } from "@/lib/hoot-signals";
 import { Scan, Cpu, HardDrive, Microchip, Radar, Flame } from "lucide-react";
 import { BRAND } from "@/lib/brand";
 import TokenBurnPanel, { type TokenBurnReport } from "@/components/TokenBurnPanel";
@@ -23,10 +24,12 @@ export default function ScanPage() {
     try {
       const data = await api.getTokenBurn(forceRtk);
       setTokenBurn(data);
+      const saved = data.formatted?.total_saved;
       setPageContext({
         tokenBurnRisk: data.risk?.level,
-        tokenBurnSaved: data.formatted?.total_saved,
+        tokenBurnSaved: saved,
         rtkPresent: data.prevention?.rtk?.present,
+        ...(data.risk?.level === "low" && saved ? hootSignal("burn:savings", 5000) : {}),
       });
     } catch (e) {
       reportError({

@@ -16,9 +16,9 @@ This directory contains offline copies of core CE skills.
 | ce-debug | `ce-debug/SKILL.md` |
 | ce-product-pulse | `ce-product-pulse/SKILL.md` |
 
-## On-Demand Skills (30)
+## Metadata-only skills (30)
 
-The remaining 30 skills are fetched from GitHub on demand via `/api/skills/:id/content`.
+The remaining 30 skills are listed in `skills-catalog.json` only. Full content ships inside the CE plugin after **Full setup**, or re-run `sync-ce-skills.js` when new core skills are added to the cache list. `/api/skills/:id/content` returns a placeholder for uncached skills.
 
 ## Sync
 

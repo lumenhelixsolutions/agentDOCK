@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle2, Eye, FolderKanban, Layers3, PlayCircle, Sh
 import { api } from "@/lib/api";
 import { useToast } from "@/components/Toast";
 import { useCoach } from "@/context/CoachContext";
+import { hootSignal } from "@/lib/hoot-signals";
 
 export default function LaunchCenterPage() {
   const [profiles, setProfiles] = useState<any[]>([]);
@@ -86,6 +87,7 @@ export default function LaunchCenterPage() {
     try {
       const result = await api.launch(id, overrideReason);
       if (result.blocked) {
+        setPageContext(hootSignal("launch:blocked", 6000));
         toast.showToast(result.message || "Launch blocked", "warning", 6000);
       } else if (result.session) {
         toast.showToast(`Launched ${result.session.profileName}`, "success");

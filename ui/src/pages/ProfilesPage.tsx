@@ -123,6 +123,7 @@ export default function ProfilesPage() {
       viewMode,
       profileCount: profiles.length,
       blockedCount: stats.blocked,
+      profilesBlocked: stats.blocked,
       easyStep,
       easyTopPickId: easyTopPick?.id || null,
       easyTopPickName: easyTopPick?.name || null,

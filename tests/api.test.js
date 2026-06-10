@@ -230,4 +230,14 @@ describe('api', () => {
     assert.ok(Array.isArray(json.recommendations));
     assert.ok(json.gain);
   });
+
+  it('GET /api/prefab returns bundled inventory', async () => {
+    const res = await get('/api/prefab');
+    assert.strictEqual(res.status, 200);
+    const json = JSON.parse(res.body);
+    assert.strictEqual(json.version, '1.0');
+    assert.ok(json.bundled.skills_cached >= 9);
+    assert.ok(json.bundled.agents_upstream >= 51);
+    assert.ok(json.detected);
+  });
 });

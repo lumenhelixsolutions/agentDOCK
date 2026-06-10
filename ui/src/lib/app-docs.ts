@@ -77,6 +77,27 @@ export const VIEW_DOCS: Record<string, ViewDoc> = {
     orchestration: "Reference before picking a profile for a complex task.",
     tips: ["Match skill category to your task intent"],
   },
+  "/modules": {
+    title: "Modules",
+    group: "Build + Configure",
+    summary: "Prefab inventory — packs, built-ins, CE skills/agents, and MCP servers.",
+    features: [
+      "Bundled vs cached vs detected summary",
+      "Compound Engineering sync and full setup",
+      "Skills catalog with cached/metadata badges",
+      "MCP git/fetch enable toggles",
+    ],
+    orchestration: "Check inventory → sync 9 core skills → full setup into detected frontends.",
+    tips: ["21 agents in catalog · 51 in upstream plugin", "HOOT reacts when sync or install runs"],
+  },
+  "/activity": {
+    title: "Activity",
+    group: "Intelligence",
+    summary: "Session diary, radar history, and telemetry calendar.",
+    features: ["Today's event timeline", "Heatmap calendar", "Agent radar diffs"],
+    orchestration: "Review after sessions to see what HOOT logged.",
+    tips: ["HOOT switches to logging mood on this view"],
+  },
   "/settings": {
     title: "Settings",
     group: "Build + Configure",

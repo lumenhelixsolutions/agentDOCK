@@ -102,6 +102,7 @@ export const api = {
   getPortfolioHealth: () => request<any>("GET", "/api/portfolio/health"),
   getSuggestions: () => request<any>("GET", "/api/suggestions"),
   getModules: () => request<{ version: string; modules: Array<any>; auto_sync?: { enabled: boolean; interval_days: number } }>("GET", "/api/modules"),
+  getPrefab: () => request<Record<string, unknown>>("GET", "/api/prefab"),
   getModule: (id: string) => request<any>("GET", `/api/modules/${encodeURIComponent(id)}`),
   getModuleInstallPlan: (id: string) => request<any>("GET", `/api/modules/${encodeURIComponent(id)}/install-plan`),
   setModuleEnabled: (id: string, enabled: boolean) =>

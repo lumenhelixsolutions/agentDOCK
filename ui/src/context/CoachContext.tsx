@@ -191,6 +191,30 @@ export function CoachProvider({ children }: { children: ReactNode }) {
   }, [location.pathname]);
 
   useEffect(() => {
+    const signal = pageContext.hootSignal as string | undefined;
+    const at = Number(pageContext.hootSignalAt) || 0;
+    const ttl = Number(pageContext.hootSignalTtl) || 0;
+    if (!signal || !at || !ttl) return;
+    const remaining = ttl - (Date.now() - at);
+    const clear = () => {
+      setPageContextState((prev) => {
+        if (prev.hootSignal !== signal) return prev;
+        const next = { ...prev };
+        delete next.hootSignal;
+        delete next.hootSignalAt;
+        delete next.hootSignalTtl;
+        return next;
+      });
+    };
+    if (remaining <= 0) {
+      clear();
+      return;
+    }
+    const t = setTimeout(clear, remaining);
+    return () => clearTimeout(t);
+  }, [pageContext.hootSignal, pageContext.hootSignalAt, pageContext.hootSignalTtl]);
+
+  useEffect(() => {
     const t = setTimeout(refreshHints, 400);
     return () => clearTimeout(t);
   }, [location.pathname, hintContextKey, refreshHints]);

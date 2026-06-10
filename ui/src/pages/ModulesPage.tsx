@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/Toast";
 import { useCoach } from "@/context/CoachContext";
+import { hootSignal } from "@/lib/hoot-signals";
 import {
   Box, Puzzle, Server, Wrench, Search, Loader2, AlertCircle,
   Download, CheckCircle2, Copy, RefreshCw, Play, ChevronDown, Package, Zap, FolderOpen,
@@ -60,6 +61,7 @@ export default function ModulesPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [skillContent, setSkillContent] = useState<string | null>(null);
+  const [prefab, setPrefab] = useState<Record<string, any> | null>(null);
   const toast = useToast();
   const { setPageContext } = useCoach();
 
@@ -67,15 +69,17 @@ export default function ModulesPage() {
     setLoading(true);
     setError(null);
     try {
-      const [mods, skillData, agentData] = await Promise.all([
+      const [mods, skillData, agentData, prefabData] = await Promise.all([
         api.getModules(),
         api.getSkills().catch(() => ({ skills: [] })),
         api.getAgents().catch(() => ({ agents: [] })),
+        api.getPrefab().catch(() => null),
       ]);
       setModules(mods.modules || []);
       if (mods.auto_sync) setAutoSync(mods.auto_sync);
       setSkills(skillData.skills || []);
       setAgents(agentData.agents || []);
+      setPrefab(prefabData);
       setLoading(false);
     } catch (e) {
       setError(String(e));
@@ -91,6 +95,8 @@ export default function ModulesPage() {
       moduleCount: modules.length,
       modulesEnabled: modules.filter((m) => m.enabled).length,
       modulesReady: modules.filter((m) => m.detection?.status === "ready").length,
+      modulesNeedSync: modules.filter((m) => m.sync_stale).length,
+      modulesOutdated: modules.filter((m) => m.version_behind).length,
       modulesTab: tab,
       cePluginDetected: Boolean(ce?.detection?.claude_plugin || ce?.detection?.codex_skills),
     });
@@ -122,11 +128,14 @@ export default function ModulesPage() {
 
   const syncModule = async (mod: ModuleRow) => {
     setBusy(`sync-${mod.id}`);
+    setPageContext(hootSignal("module:syncing", 8000));
     try {
       const r = await api.syncModule(mod.id);
       toast.showToast(r.output || "Sync complete", "success");
+      setPageContext(hootSignal("module:ready", 5000));
       await load();
     } catch (e) {
+      setPageContext(hootSignal("module:install-fail", 5000));
       toast.showToast(String(e), "error");
     } finally {
       setBusy(null);
@@ -136,6 +145,7 @@ export default function ModulesPage() {
   const fullSetup = async (mod: ModuleRow) => {
     setBusy(`full-${mod.id}`);
     setInstallLog(null);
+    setPageContext(hootSignal("module:installing", 12000));
     try {
       const r = await api.fullModuleSetup(mod.id);
       const lines = (r.results || []).map((x: any) => `${x.step}: ${x.ok ? "ok" : x.error || x.output || "fail"}`);
@@ -145,8 +155,10 @@ export default function ModulesPage() {
         setInstallLog(lines.join("\n"));
       }
       toast.showToast(r.ok ? "Full setup complete" : "Setup finished with issues", r.ok ? "success" : "warning");
+      setPageContext(hootSignal(r.ok ? "module:ready" : "module:install-fail", 6000));
       await load();
     } catch (e) {
+      setPageContext(hootSignal("module:install-fail", 5000));
       toast.showToast(String(e), "error");
     } finally {
       setBusy(null);
@@ -155,12 +167,16 @@ export default function ModulesPage() {
 
   const runInstallTarget = async (mod: ModuleRow, target: string) => {
     setBusy(`install-${target}`);
+    setPageContext(hootSignal("module:installing", 8000));
     try {
       const r = await api.installModule(mod.id, target);
       setInstallLog(r.output || r.error || (r.manual ? r.command : "done"));
       toast.showToast(r.manual ? "Manual step required — see log" : "Install step complete", r.ok ? "success" : "warning");
+      if (r.ok) setPageContext(hootSignal("module:ready", 4000));
+      else if (!r.manual) setPageContext(hootSignal("module:install-fail", 4000));
       await load();
     } catch (e) {
+      setPageContext(hootSignal("module:install-fail", 5000));
       toast.showToast(String(e), "error");
     } finally {
       setBusy(null);
@@ -237,6 +253,24 @@ export default function ModulesPage() {
           detect · install · load · auto-sync
         </span>
       </div>
+
+      {prefab?.bundled && (
+        <div style={{ marginBottom: 16, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
+          {[
+            { label: "Bundled", value: `${prefab.bundled.plugin_packs} pack · ${prefab.bundled.builtins?.length || 4} built-ins`, color: "#93c5fd" },
+            { label: "Cached", value: `${prefab.bundled.skills_cached}/${prefab.bundled.skills_catalog} skills`, color: "#4ade80" },
+            { label: "Catalog", value: `${prefab.bundled.agents_catalog}/${prefab.bundled.agents_upstream} agents`, color: "#fcd34d" },
+            { label: "Profiles", value: String(prefab.bundled.launch_profiles), color: "#ffb042" },
+            { label: "Detected", value: prefab.detected?.ce_status || "—", color: prefab.detected?.ce_status === "ready" ? "#4ade80" : "#fb923c" },
+            { label: "Needs install", value: `${prefab.gaps?.skills_metadata_only || 0} skills metadata-only`, color: "#f87171" },
+          ].map((card) => (
+            <div key={card.label} style={{ padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.02)" }}>
+              <div style={{ fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", opacity: 0.5 }}>{card.label}</div>
+              <div style={{ marginTop: 6, fontSize: 13, fontWeight: 600, color: card.color }}>{card.value}</div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {cePack && (
         <div style={{ marginBottom: 16, padding: 14, borderRadius: 10, background: "rgba(96,165,250,0.06)", border: "1px solid rgba(96,165,250,0.2)", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
@@ -318,7 +352,12 @@ export default function ModulesPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
             {filteredSkills.map((skill) => (
               <button key={skill.id} type="button" onClick={() => readSkill(skill)} style={{ padding: 14, borderRadius: 10, border: "1px solid rgba(255,255,255,0.06)", background: expanded === skill.id ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.02)", color: "#f5f5f5", cursor: "pointer", textAlign: "left" }}>
-                <div style={{ fontSize: 13, fontWeight: 500 }}>{skill.name}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 500 }}>{skill.name}</span>
+                  <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 999, background: skill.cached ? "rgba(74,222,128,0.15)" : "rgba(255,255,255,0.06)", color: skill.cached ? "#4ade80" : "#888" }}>
+                    {skill.cached ? "cached" : "metadata"}
+                  </span>
+                </div>
                 <div style={{ fontSize: 11, opacity: 0.55, marginTop: 4 }}>{skill.description?.slice(0, 90)}…</div>
               </button>
             ))}
@@ -330,14 +369,19 @@ export default function ModulesPage() {
       )}
 
       {tab === "agents" && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+        <>
+          <p style={{ fontSize: 12, opacity: 0.55, marginBottom: 14 }}>
+            {agents.length} agents in HOOT catalog · {prefab?.bundled?.agents_upstream || 51} in upstream CE plugin (install via Full setup).
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
           {agents.map((agent) => (
             <div key={agent.id} style={{ padding: 14, borderRadius: 10, border: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.02)" }}>
               <div style={{ fontSize: 13, fontWeight: 500 }}>{agent.name}</div>
               <div style={{ fontSize: 11, opacity: 0.55, marginTop: 6, lineHeight: 1.45 }}>{agent.description}</div>
             </div>
           ))}
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

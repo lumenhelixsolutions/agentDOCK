@@ -29,6 +29,7 @@ const {
   keyAvailable,
 } = require('./key-vault');
 const { createModuleManager } = require('./module-manager');
+const { getPrefabInventory } = require('./prefab-inventory');
 const { runAgentRadar } = require('./agent-radar');
 const { buildTokenBurnReport, refreshRtkGain } = require('./token-burn');
 const { checkAuth, generateToken, hashToken, getAuthSettings, isAuthPublicPath } = require('./hoot-auth');
@@ -1506,6 +1507,10 @@ async function route(req, res) {
       return send(res, 200, next);
     }
     if (pathName === '/api/catalog' && req.method === 'GET') return send(res, 200, loadCatalog());
+    if (pathName === '/api/prefab' && req.method === 'GET') {
+      const inventory = await getPrefabInventory({ root: ROOT, moduleManager, lastScan });
+      return send(res, 200, inventory);
+    }
     if (pathName === '/api/modules' && req.method === 'GET') {
       const listed = await moduleManager.listModules(lastScan);
       return send(res, 200, listed);

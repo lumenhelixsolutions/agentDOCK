@@ -84,6 +84,10 @@
     animation: hootAsciiBreathe 2.2s ease-in-out infinite;
   }
 
+  .hoot-ascii--pulse-fast {
+    animation: hootAsciiBreathe 1.4s ease-in-out infinite;
+  }
+
   .hoot-ascii--celebrate {
     animation: hootAsciiCelebrate 0.6s ease-in-out infinite;
   }

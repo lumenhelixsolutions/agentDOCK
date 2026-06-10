@@ -172,7 +172,7 @@ export default function HootLogo({
       style={style}
       aria-label="HOOT"
     >
-      {(mood === "scanning" || mood === "monitoring" || mood === "logging") && !showWordmark && (
+      {(mood === "scanning" || mood === "syncing" || mood === "monitoring" || mood === "watchful" || mood === "logging") && !showWordmark && (
         <span className="hoot-ascii-scan" aria-hidden />
       )}
       <AsciiBlock lines={lines} mood={mood} frame={frame} fontSize={fontSize} wordmarkStart={wordmarkStart} />
