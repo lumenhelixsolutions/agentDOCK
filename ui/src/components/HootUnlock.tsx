@@ -55,7 +55,7 @@ export default function HootUnlock({ onUnlocked }: { onUnlocked: () => void }) {
           gap: 18,
         }}
       >
-        <HootLogo mood="monitoring" size={96} frame={0} showWordmark />
+        <HootLogo mood="monitoring" size={140} frame={0} showWordmark showSubtitle />
         <div style={{ textAlign: "center" }}>
           <h1 style={{ margin: 0, fontSize: 18, color: BRAND_COLORS.gold }}>{BRAND.title}</h1>
           <p style={{ margin: "8px 0 0", fontSize: 13, opacity: 0.65, lineHeight: 1.5 }}>

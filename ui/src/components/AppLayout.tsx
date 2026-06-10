@@ -112,14 +112,10 @@ export default function AppLayout() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  borderRadius: 16,
-                  padding: collapsed ? 4 : 2,
-                  background: `radial-gradient(circle at 30% 20%, rgba(255,226,168,0.18), transparent 58%), ${BRAND_COLORS.face}`,
-                  border: `1px solid rgba(255,176,66,0.16)`,
-                  boxShadow: `0 10px 28px ${BRAND_COLORS.glow}`,
+                  padding: collapsed ? 2 : 0,
                 }}
               >
-                <HootMark size={collapsed ? 36 : 44} />
+                <HootMark size={collapsed ? 40 : 52} mood="idle" />
               </div>
               {!collapsed && <HootWordmark />}
             </div>

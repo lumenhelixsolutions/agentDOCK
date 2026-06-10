@@ -8,17 +8,15 @@ type HootMarkProps = {
   mood?: HootMood;
 };
 
-/** Geometric HOOT owl mark — matches animated mascot */
+/** Hollow line-art HOOT mark — matches animated mascot */
 export default function HootMark({ size = 40, mood = "idle" }: HootMarkProps) {
   return (
     <div
       style={{
-        width: size,
-        height: size,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        filter: "drop-shadow(0 4px 12px rgba(255,176,66,0.2))",
+        filter: "drop-shadow(0 0 14px rgba(124,255,124,0.18))",
       }}
     >
       <HootLogo mood={mood} size={size} frame={0} />

@@ -1,4 +1,6 @@
-import { BRAND, BRAND_COLORS } from "@/lib/brand";
+import { BRAND } from "@/lib/brand";
+
+const GOLD = "#E8D5A3";
 
 export default function HootWordmark({
   showSubtitle = true,
@@ -11,12 +13,12 @@ export default function HootWordmark({
     <div style={{ minWidth: 0 }}>
       <div
         style={{
-          fontSize: compact ? 16 : 19,
+          fontSize: compact ? 17 : 20,
           fontWeight: 700,
-          color: "#ffffff",
-          letterSpacing: "0.14em",
+          color: GOLD,
+          letterSpacing: "0.22em",
           lineHeight: 1,
-          fontFamily: "'Inter', system-ui, sans-serif",
+          fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
         }}
       >
         {BRAND.name}
@@ -24,14 +26,13 @@ export default function HootWordmark({
       {showSubtitle && (
         <div
           style={{
-            marginTop: compact ? 4 : 6,
-            fontSize: compact ? 9 : 10,
+            marginTop: compact ? 5 : 7,
+            fontSize: compact ? 8 : 9,
             fontWeight: 500,
-            color: BRAND_COLORS.goldLight,
-            letterSpacing: "0.1em",
+            color: "rgba(220,215,200,0.68)",
+            letterSpacing: "0.14em",
             textTransform: "uppercase",
             lineHeight: 1.35,
-            opacity: 0.82,
           }}
         >
           {BRAND.subtitle}
