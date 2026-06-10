@@ -1,7 +1,7 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert');
 const path = require('path');
-const { createPrefabInventory } = require('../prefab-inventory');
+const { loadPrefabManifest, createPrefabInventory } = require('../prefab-inventory');
 const { createModuleManager } = require('../module-manager');
 
 const ROOT = path.join(__dirname, '..');
@@ -15,21 +15,25 @@ describe('prefab inventory', () => {
     loadMcpCatalog: () => ({ servers: [{ id: 'git' }, { id: 'fetch' }] }),
   });
 
-  it('reports bundled counts', () => {
-    const inv = createPrefabInventory({ root: ROOT, moduleManager: mgr, lastScan: null });
-    assert.ok(inv.bundled.plugin_packs >= 1);
-    assert.strictEqual(inv.bundled.skills_cached, 9);
-    assert.ok(inv.bundled.skills_catalog >= 39);
-    assert.ok(inv.bundled.agents_catalog >= 21);
-    assert.strictEqual(inv.bundled.agents_upstream, 51);
-    assert.ok(inv.bundled.launch_profiles >= 90);
-    assert.strictEqual(inv.bundled.stack_templates, 9);
-    assert.ok(inv.bundled.builtins.length >= 4);
+  it('ships prefab-manifest.json (repo root) with packs, builtins, mcp_servers', () => {
+    const manifest = loadPrefabManifest(ROOT);
+    assert.strictEqual(manifest.packs.length, 1);
+    assert.strictEqual(manifest.packs[0].id, 'compound-engineering');
+    assert.strictEqual(manifest.builtins.length, 4);
+    assert.strictEqual(manifest.mcp_servers.length, 2);
+    assert.ok(manifest.mcp_servers.some((s) => s.id === 'git'));
+    assert.ok(manifest.mcp_servers.some((s) => s.id === 'fetch'));
   });
 
-  it('documents gaps', () => {
+  it('API inventory returns only prefab deliverable shape', () => {
     const inv = createPrefabInventory({ root: ROOT, moduleManager: mgr, lastScan: null });
-    assert.ok(inv.gaps.skills_metadata_only >= 20);
-    assert.strictEqual(inv.gaps.on_demand_skill_fetch, false);
+    assert.ok(inv.prefab);
+    assert.strictEqual(inv.counts.packs, 1);
+    assert.strictEqual(inv.counts.builtins, 4);
+    assert.strictEqual(inv.counts.mcp_servers, 2);
+    assert.ok(inv.prefab.packs[0].name);
+    assert.ok(inv.prefab.builtins.every((b) => b.always_on));
+    assert.ok(!inv.bundled);
+    assert.ok(!inv.gaps);
   });
 });

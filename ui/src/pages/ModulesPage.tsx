@@ -254,21 +254,29 @@ export default function ModulesPage() {
         </span>
       </div>
 
-      {prefab?.bundled && (
-        <div style={{ marginBottom: 16, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
-          {[
-            { label: "Bundled", value: `${prefab.bundled.plugin_packs} pack · ${prefab.bundled.builtins?.length || 4} built-ins`, color: "#93c5fd" },
-            { label: "Cached", value: `${prefab.bundled.skills_cached}/${prefab.bundled.skills_catalog} skills`, color: "#4ade80" },
-            { label: "Catalog", value: `${prefab.bundled.agents_catalog}/${prefab.bundled.agents_upstream} agents`, color: "#fcd34d" },
-            { label: "Profiles", value: String(prefab.bundled.launch_profiles), color: "#ffb042" },
-            { label: "Detected", value: prefab.detected?.ce_status || "—", color: prefab.detected?.ce_status === "ready" ? "#4ade80" : "#fb923c" },
-            { label: "Needs install", value: `${prefab.gaps?.skills_metadata_only || 0} skills metadata-only`, color: "#f87171" },
-          ].map((card) => (
-            <div key={card.label} style={{ padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.02)" }}>
-              <div style={{ fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", opacity: 0.5 }}>{card.label}</div>
-              <div style={{ marginTop: 6, fontSize: 13, fontWeight: 600, color: card.color }}>{card.value}</div>
+      {prefab?.prefab && (
+        <div style={{ marginBottom: 16, padding: 14, borderRadius: 10, border: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.02)" }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", opacity: 0.5, marginBottom: 10 }}>Prefab deliverable (shipped with HOOT)</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 11, color: "#93c5fd", marginBottom: 6 }}>Packs ({prefab.counts?.packs || prefab.prefab.packs?.length || 0})</div>
+              {(prefab.prefab.packs || []).map((p: { id: string; name: string; version?: string }) => (
+                <div key={p.id} style={{ fontSize: 12, opacity: 0.85 }}>{p.name}{p.version ? ` v${p.version}` : ""}</div>
+              ))}
             </div>
-          ))}
+            <div>
+              <div style={{ fontSize: 11, color: "#4ade80", marginBottom: 6 }}>Built-ins ({prefab.counts?.builtins || prefab.prefab.builtins?.length || 0})</div>
+              {(prefab.prefab.builtins || []).map((b: { id: string; name: string }) => (
+                <div key={b.id} style={{ fontSize: 12, opacity: 0.85 }}>{b.name}</div>
+              ))}
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#fcd34d", marginBottom: 6 }}>MCP servers ({prefab.counts?.mcp_servers || prefab.prefab.mcp_servers?.length || 0})</div>
+              {(prefab.prefab.mcp_servers || []).map((m: { id: string; name: string; default_enabled?: boolean }) => (
+                <div key={m.id} style={{ fontSize: 12, opacity: 0.85 }}>{m.name}{m.default_enabled ? " · on" : " · opt-in"}</div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
@@ -371,7 +379,7 @@ export default function ModulesPage() {
       {tab === "agents" && (
         <>
           <p style={{ fontSize: 12, opacity: 0.55, marginBottom: 14 }}>
-            {agents.length} agents in HOOT catalog · {prefab?.bundled?.agents_upstream || 51} in upstream CE plugin (install via Full setup).
+            {agents.length} agents in CE catalog (install via Compound Engineering pack Full setup).
           </p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
           {agents.map((agent) => (

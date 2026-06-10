@@ -1,0 +1,41 @@
+{
+  "version": "1.0",
+  "description": "HOOT prefab deliverable — plugin packs, built-in modules, and MCP servers shipped with this install.",
+  "packs": [
+    {
+      "id": "compound-engineering",
+      "name": "Compound Engineering",
+      "version": "3.11.2",
+      "catalog": "modules/modules-catalog.json",
+      "skills_catalog": "skills/compound-engineering/skills-catalog.json",
+      "agents_catalog": "skills/compound-engineering/agents-catalog.json",
+      "cache_dir": "skills/compound-engineering/cache"
+    }
+  ],
+  "builtins": [
+    { "id": "agentdock-coach", "name": "HOOT Coach", "always_on": true },
+    { "id": "agentdock-audit", "name": "Launch Audit", "always_on": true },
+    { "id": "agentdock-key-vault", "name": "Key Vault", "always_on": true },
+    { "id": "agentdock-stack-builder", "name": "Stack Builder", "always_on": true }
+  ],
+  "mcp_servers": [
+    {
+      "id": "git",
+      "module_id": "mcp-git",
+      "name": "MCP Git",
+      "package": "mcp-server-git",
+      "catalog": "state/mcp-catalog.json",
+      "default_enabled": true,
+      "risk_tier": "low"
+    },
+    {
+      "id": "fetch",
+      "module_id": "mcp-fetch",
+      "name": "MCP Fetch",
+      "package": "mcp-server-fetch",
+      "catalog": "state/mcp-catalog.json",
+      "default_enabled": false,
+      "risk_tier": "medium"
+    }
+  ]
+}
