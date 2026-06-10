@@ -1,19 +1,22 @@
 /**
- * AgentDock AI Chat / Mascot Controller (Multi-provider)
- * Maintains chat history, processes user messages + system events,
- * generates AI responses with structured app-control commands.
+ * HOOT AI Coach chat — multi-provider with view-aware local fallback.
  */
 
-const { advisorAnalyze, providerChat, toGeminiContents, toOpenAIMessages } = require('./advisor');
+const { providerChat, toGeminiContents, toOpenAIMessages, getApiKey } = require('./advisor');
+const { resolveProviderKey } = require('./key-vault');
+const { buildCoachChatResponse, summarizeCoachContext } = require('./coach-chat');
 
 const MAX_HISTORY = 50;
-const chats = new Map(); // sessionId -> { messages[], lastActive }
+const chats = new Map();
 
 function getChat(sessionId) {
   if (!chats.has(sessionId)) {
     chats.set(sessionId, {
       messages: [
-        { role: 'system', text: 'You are AgentDock AI, the operations mascot and assistant. You help users manage AI coding agents, choose profiles, fix setup issues, and control AgentDock. Be concise, helpful, and proactive. You can issue commands to control the app.' }
+        {
+          role: 'system',
+          text: 'You are HOOT — My Ops OWL, the local AI command center coach. You see the user\'s current screen (coachView), live pageContext, and viewGuide. Answer conversationally — never dump a raw operations report. Explain features on the current screen, recommend the next step in the operator loop (Overview → Readiness → Profiles → Launch → Sessions → Memory), and give 2-3 concrete actions. Use markdown sparingly. You may include ```json commands blocks for app actions.',
+        },
       ],
       lastActive: Date.now(),
     });
@@ -25,29 +28,33 @@ function getChat(sessionId) {
 
 function trimHistory(chat) {
   if (chat.messages.length > MAX_HISTORY) {
-    const system = chat.messages.filter(m => m.role === 'system');
-    const rest = chat.messages.filter(m => m.role !== 'system').slice(-(MAX_HISTORY - system.length));
+    const system = chat.messages.filter((m) => m.role === 'system');
+    const rest = chat.messages.filter((m) => m.role !== 'system').slice(-(MAX_HISTORY - system.length));
     chat.messages = [...system, ...rest];
   }
 }
 
 function buildCommandPrompt(context) {
-  return `You can control AgentDock by returning JSON commands in your response. Wrap them in a markdown code block labeled \`\`\`json commands.
+  const summary = summarizeCoachContext(context);
+  return `Current screen context (use this — do NOT invent state):
+${JSON.stringify(summary, null, 2)}
 
-Available commands:
-- { "type": "launch", "profileId": "string" } — launch a profile
-- { "type": "switchProject", "path": "string" } — switch active project
-- { "type": "runScan" } — run system scan
-- { "type": "generatePlan", "goal": "string" } — generate a plan
-- { "type": "showMessage", "text": "string" } — show a toast message
-- { "type": "openUrl", "url": "string" } — open URL in new tab
-- { "type": "askUser", "question": "string" } — ask the user a question
-- { "type": "setMemory", "text": "string" } — update AgentDock memory
+App commands (optional \`\`\`json commands block):
+- launch, switchProject, runScan, generatePlan, showMessage, openUrl, askUser, setMemory
 
-Current context:
-${JSON.stringify(context, null, 2)}
+Respond to the user's message directly. Reference the screen they are on.`;
+}
 
-Respond naturally to the user. If you want to take action, include the command block.`;
+function extractCommands(aiText) {
+  const cmdMatch = /```json commands\s*\n([\s\S]*?)```/i.exec(aiText);
+  if (!cmdMatch) return { text: aiText, commands: [] };
+  let commands = [];
+  try {
+    const parsed = JSON.parse(cmdMatch[1]);
+    commands = Array.isArray(parsed) ? parsed : [parsed];
+  } catch { /* ignore */ }
+  const text = aiText.replace(/```json commands\s*\n[\s\S]*?```/i, '').trim();
+  return { text, commands };
 }
 
 async function processChatMessage({ sessionId, text, event, context, provider, model, apiKey, customEndpoint }) {
@@ -56,7 +63,6 @@ async function processChatMessage({ sessionId, text, event, context, provider, m
   if (event) {
     chat.messages.push({ role: 'system', text: `[EVENT] ${event.type}: ${JSON.stringify(event.data || {})}` });
   }
-
   if (text) {
     chat.messages.push({ role: 'user', text });
   }
@@ -64,9 +70,20 @@ async function processChatMessage({ sessionId, text, event, context, provider, m
   trimHistory(chat);
 
   const effectiveProvider = provider || 'gemini';
-  const systemMsg = chat.messages.find(m => m.role === 'system')?.text || '';
-  const commandPrompt = buildCommandPrompt(context);
-  const history = chat.messages.filter(m => m.role !== 'system');
+  const systemMsg = chat.messages.find((m) => m.role === 'system')?.text || '';
+  const commandPrompt = buildCommandPrompt(context || {});
+  const history = chat.messages.filter((m) => m.role !== 'system');
+
+  const resolvedKey = apiKey || resolveProviderKey(effectiveProvider) || (effectiveProvider === 'gemini' ? getApiKey() : undefined);
+  const hasLlm = Boolean(resolvedKey || (effectiveProvider === 'custom' && customEndpoint));
+
+  // No key → conversational local coach (never operations report)
+  if (!hasLlm) {
+    const local = buildCoachChatResponse({ text, context: context || {} });
+    chat.messages.push({ role: 'model', text: local.text });
+    trimHistory(chat);
+    return { text: local.text, commands: local.commands, source: local.source };
+  }
 
   let aiText = '';
   let commands = [];
@@ -77,48 +94,35 @@ async function processChatMessage({ sessionId, text, event, context, provider, m
         { role: 'system', text: `${systemMsg}\n\n${commandPrompt}` },
         ...history,
       ]);
-      aiText = await providerChat({ provider: 'gemini', model: model || 'gemini-2.0-flash', apiKey, contents });
+      aiText = await providerChat({ provider: 'gemini', model: model || 'gemini-2.0-flash', apiKey: resolvedKey, contents });
     } else {
       const messages = toOpenAIMessages([
         { role: 'system', text: `${systemMsg}\n\n${commandPrompt}` },
         ...history,
       ]);
-      aiText = await providerChat({ provider: effectiveProvider, model, apiKey, customEndpoint, messages });
+      aiText = await providerChat({ provider: effectiveProvider, model, apiKey: resolvedKey, customEndpoint, messages });
     }
-
-    // Extract commands
-    const cmdMatch = /```json commands\s*\n([\s\S]*?)```/i.exec(aiText);
-    if (cmdMatch) {
-      try {
-        const parsed = JSON.parse(cmdMatch[1]);
-        commands = Array.isArray(parsed) ? parsed : [parsed];
-      } catch {
-        // ignore parse errors
-      }
-      aiText = aiText.replace(/```json commands\s*\n[\s\S]*?```/i, '').trim();
-    }
+    const extracted = extractCommands(aiText);
+    aiText = extracted.text;
+    commands = extracted.commands;
   } catch (e) {
-    // Fallback to advisor
-    const advisor = await advisorAnalyze({
-      scan: context.scan,
-      project: context.project,
-      profiles: context.profiles,
-      sessions: context.sessions,
-      question: text || event?.type,
-      useGemini: false,
-    });
-    aiText = advisor.advice || 'I am having trouble connecting. Here is what I know: ' + advisor.fallback;
+    const local = buildCoachChatResponse({ text, context: context || {} });
+    const shortErr = String(e.message || 'unavailable').split('\n')[0].slice(0, 120);
+    aiText = `${local.text}\n\n_(LLM unavailable — ${shortErr}. Answering from your screen.)_`;
+    commands = local.commands;
+    chat.messages.push({ role: 'model', text: aiText });
+    trimHistory(chat);
+    return { text: aiText, commands, source: 'coach-local', llmError: shortErr };
   }
 
   chat.messages.push({ role: 'model', text: aiText });
   trimHistory(chat);
 
-  return { text: aiText, commands };
+  return { text: aiText, commands, source: effectiveProvider };
 }
 
 function getChatHistory(sessionId) {
-  const chat = getChat(sessionId);
-  return chat.messages.filter(m => m.role !== 'system');
+  return getChat(sessionId).messages.filter((m) => m.role !== 'system');
 }
 
 function clearChat(sessionId) {

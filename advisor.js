@@ -1,5 +1,5 @@
 /**
- * AgentDock Operations Advisor
+ * HOOT Operations Advisor
  * Multi-provider AI assistant: Gemini, OpenAI, and custom OpenAI-compatible endpoints.
  * Falls back to rule-based intelligence when no API key or on error.
  */
@@ -21,7 +21,13 @@ function logAdvisor(msg) {
 }
 
 function getApiKey() {
-  return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || null;
+  try {
+    const { getVaultKey } = require('./key-vault');
+    return getVaultKey('GEMINI_API_KEY') || getVaultKey('GOOGLE_API_KEY')
+      || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || null;
+  } catch {
+    return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || null;
+  }
 }
 
 /* ── Generic HTTPS JSON POST ── */
@@ -144,7 +150,7 @@ function ruleBasedAdvice(ctx, question) {
   const lines = [];
   const { activeProject, installedAgents, missingAgents, envKeys, ollamaLoaded, ollamaPresent } = ctx;
 
-  lines.push('=== AgentDock Operations Report ===');
+  lines.push('=== HOOT Operations Report ===');
   lines.push('');
 
   const hw = ctx.hardware || {};
@@ -312,7 +318,7 @@ async function advisorAnalyze({ scan, project, profiles, sessions, question, use
   }
 
   try {
-    const systemPrompt = `You are AgentDock Operations Advisor, a proactive AI operations manager. You help users orchestrate AI coding agents. Be concise, actionable, and technically specific.`;
+    const systemPrompt = `You are HOOT Operations Advisor (My Ops OWL), a proactive local AI command center. You help users orchestrate coding agents on their machine. Be concise, actionable, and technically specific.`;
     const userPrompt = `System State:\n${JSON.stringify(ctx, null, 2)}\n\nUser Question: ${question || 'What should I do next? Give me proactive recommendations.'}`;
 
     let text = '';

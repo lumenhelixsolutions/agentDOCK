@@ -50,4 +50,15 @@
   .spin {
     animation: spin 1s linear infinite;
   }
+
+  @keyframes hootScan {
+    0% { top: -2px; opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+  }
+
+  .hoot-scan-line {
+    animation: hootScan 2.4s linear infinite;
+  }
 }

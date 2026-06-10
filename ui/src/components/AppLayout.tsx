@@ -15,8 +15,13 @@ import {
   TerminalSquare,
   Wrench,
 } from "lucide-react";
-import ChatMascot from "./ChatMascot";
+import HootMascot from "./hoot/HootMascot";
+import HootMark from "./HootMark";
+import { BRAND } from "@/lib/brand";
+import HelpTooltip from "./HelpTooltip";
+import ViewGuideBar from "./ViewGuideBar";
 import { ToastProvider } from "./Toast";
+import { getViewDoc } from "@/lib/app-docs";
 
 const priorityRoutes = ["/", "/scan", "/profiles", "/terminal"];
 
@@ -39,7 +44,7 @@ const navGroups = [
     title: "Build + Configure",
     items: [
       { label: "Stack Builder", path: "/builder", icon: Sparkles, desc: "Compose premium operator stacks" },
-      { label: "Skills", path: "/skills", icon: Wrench, desc: "Engineering capabilities and reusable flows" },
+      { label: "Modules", path: "/modules", icon: Wrench, desc: "Plugin packs, skills, MCP — manager · installer · loader" },
       { label: "Settings", path: "/settings", icon: SettingsIcon, desc: "Providers, policies, keys, and local state" },
     ],
   },
@@ -54,8 +59,10 @@ export default function AppLayout() {
       const found = group.items.find((item) => item.path === location.pathname);
       if (found) return { ...found, group: group.title };
     }
-    return { label: "AgentDock", desc: "Local agent command center", group: "Command Center" };
+    return { label: BRAND.name, desc: BRAND.subtitle, group: "Command Center" };
   }, [location.pathname]);
+
+  const viewDoc = useMemo(() => getViewDoc(location.pathname), [location.pathname]);
 
   const focusItems = useMemo(
     () =>
@@ -95,27 +102,12 @@ export default function AppLayout() {
         >
           <div style={{ padding: collapsed ? "18px 16px" : "22px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 14,
-                  background: "linear-gradient(135deg, #f0b56a 0%, #d68f36 100%)",
-                  color: "#0a0a0a",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontWeight: 800,
-                  boxShadow: "0 12px 30px rgba(214,143,54,0.25)",
-                }}
-              >
-                A
-              </div>
+              <HootMark size={40} />
               {!collapsed && (
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 600, color: "#ffffff", letterSpacing: "-0.02em" }}>AgentDock</div>
-                  <div style={{ fontSize: 11, opacity: 0.5, letterSpacing: "0.14em", textTransform: "uppercase" }}>
-                    Premium command center
+                  <div style={{ fontSize: 18, fontWeight: 600, color: "#ffffff", letterSpacing: "-0.02em" }}>{BRAND.name}</div>
+                  <div style={{ fontSize: 10, opacity: 0.5, letterSpacing: "0.12em", textTransform: "uppercase", lineHeight: 1.35 }}>
+                    {BRAND.subtitle}
                   </div>
                 </div>
               )}
@@ -175,8 +167,13 @@ export default function AppLayout() {
                       >
                         <Icon size={18} strokeWidth={1.8} color={active ? "#ffb042" : undefined} />
                         {!collapsed && (
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: active ? 600 : 500 }}>{item.label}</div>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <div style={{ fontSize: 13, fontWeight: active ? 600 : 500 }}>{item.label}</div>
+                              <span onClick={(e) => e.preventDefault()} style={{ display: "inline-flex" }}>
+                                <HelpTooltip title={item.label} body={item.desc} size={11} />
+                              </span>
+                            </div>
                             <div style={{ fontSize: 11, opacity: 0.48, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                               {item.desc}
                             </div>
@@ -297,7 +294,10 @@ export default function AppLayout() {
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: 28, fontWeight: 650, letterSpacing: "-0.04em", color: "#ffffff" }}>{current.label}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ fontSize: 28, fontWeight: 650, letterSpacing: "-0.04em", color: "#ffffff" }}>{current.label}</div>
+                  <HelpTooltip title={viewDoc.title} body={viewDoc.summary} features={viewDoc.features} size={16} />
+                </div>
                 <div style={{ fontSize: 14, opacity: 0.72, marginTop: 4, maxWidth: 760 }}>{current.desc}</div>
               </div>
               <div style={{ display: "flex", alignItems: "stretch", gap: 12, flexWrap: "wrap" }}>
@@ -321,11 +321,12 @@ export default function AppLayout() {
           </header>
 
           <div style={{ padding: "28px 30px 34px", flex: 1 }}>
+            <ViewGuideBar />
             <Outlet />
           </div>
         </main>
 
-        <ChatMascot />
+        <HootMascot />
       </div>
     </ToastProvider>
   );

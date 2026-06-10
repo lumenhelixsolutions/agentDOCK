@@ -87,18 +87,47 @@
       "notes": "Good fallback for explicit git-diff based coding."
     },
     {
+      "id": "grok-cli",
+      "name": "Grok Build CLI",
+      "command": "grok",
+      "category": "agent-frontend",
+      "best_for": "xAI Grok Build agent — plan mode, subagents, skills, MCP, AGENTS.md",
+      "official": "https://docs.x.ai/build/overview",
+      "docs": ["https://docs.x.ai/build/overview", "https://x.ai/cli"],
+      "install_guide": "curl -fsSL https://x.ai/cli/install.sh | bash",
+      "install_windows": "irm https://x.ai/cli/install.ps1 | iex",
+      "verify": "grok --version",
+      "prerequisites": ["XAI_API_KEY or SuperGrok/X Premium+ auth", "curl or PowerShell"],
+      "notes": "CLI command is grok. Uses XAI_API_KEY for headless/API auth. Model grok-build-0.1 on xAI API."
+    },
+    {
       "id": "gemini-cli",
       "name": "Gemini CLI",
       "command": "gemini",
       "category": "agent-frontend",
-      "best_for": "Google model backed terminal agent workflows",
+      "best_for": "Google terminal agent — cloud Gemini, gemma gemma setup local router, skills/hooks",
       "official": "https://github.com/google-gemini/gemini-cli",
-      "docs": ["https://github.com/google-gemini/gemini-cli"],
+      "docs": ["https://github.com/google-gemini/gemini-cli", "https://geminicli.com/docs/core/gemma-setup/"],
       "install_guide": "npm install -g @google/gemini-cli",
       "install_windows": "npm install -g @google/gemini-cli",
       "verify": "gemini --version",
-      "prerequisites": ["Node.js 18+", "npm", "Google account"],
-      "notes": "Detected by the gemini command when installed."
+      "prerequisites": ["Node.js 18+", "npm", "Google account or GEMINI_API_KEY"],
+      "required_env": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
+      "notes": "Consumer/unpaid tier migrates to Antigravity CLI June 18, 2026. Enterprise Gemini Code Assist keeps Gemini CLI. Local routing: gemini gemma setup (Gemma 3 1B classifier)."
+    },
+    {
+      "id": "antigravity-cli",
+      "name": "Antigravity CLI",
+      "command": "agy",
+      "category": "agent-frontend",
+      "best_for": "Google's successor to Gemini CLI — Go-based multi-agent terminal (June 2026)",
+      "official": "https://antigravity.google/download",
+      "docs": ["https://antigravity.google/docs/gcli-migration", "https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/"],
+      "install_guide": "Download from antigravity.google/download",
+      "install_windows": "Download from antigravity.google/download",
+      "verify": "agy version",
+      "prerequisites": ["Google account", "Antigravity install"],
+      "notes": "Replaces unpaid Gemini CLI June 18, 2026. Shares harness with Antigravity 2.0 desktop. Skills, hooks, subagents carry over as plugins."
     },
     {
       "id": "cline",

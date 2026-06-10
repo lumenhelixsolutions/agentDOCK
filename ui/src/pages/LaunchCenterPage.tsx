@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, Eye, FolderKanban, Layers3, PlayCircle, ShieldAlert, Sparkles, TerminalSquare } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/Toast";
+import { useCoach } from "@/context/CoachContext";
 
 export default function LaunchCenterPage() {
   const [profiles, setProfiles] = useState<any[]>([]);
@@ -16,6 +17,7 @@ export default function LaunchCenterPage() {
   const [audit, setAudit] = useState<any>(null);
   const [launchingId, setLaunchingId] = useState<string | null>(null);
   const toast = useToast();
+  const { setPageContext, registerActionHandler } = useCoach();
 
   useEffect(() => {
     Promise.all([api.getProfiles(), api.getActiveProject().catch(() => null), api.getSessions().catch(() => ({ sessions: [] }))])
@@ -68,6 +70,17 @@ export default function LaunchCenterPage() {
     }
   };
 
+  useEffect(() => {
+    const auditWarn = Boolean(audit?.audit?.warnings?.length || audit?.audit?.errors?.length);
+    setPageContext({
+      recommendedCount: recommended.length,
+      previewProfileId: preview?.id || null,
+      stagedProfileId: preview?.id && !auditWarn ? preview.id : null,
+      hasAuditWarnings: auditWarn,
+      runningSessions: runningSessions.length,
+    });
+  }, [recommended.length, preview, audit, runningSessions.length, setPageContext]);
+
   const launchProfile = async (id: string, overrideReason?: string) => {
     setLaunchingId(id);
     try {
@@ -86,6 +99,14 @@ export default function LaunchCenterPage() {
       setLaunchingId(null);
     }
   };
+
+  useEffect(() => {
+    return registerActionHandler((target) => {
+      const topId = launchCandidates[0]?.id;
+      if (target === "launch-review-first" && topId) reviewProfile(topId);
+      if (target === "launch-staged-go" && preview?.id) launchProfile(preview.id);
+    });
+  });
 
   if (loading) {
     return <div style={{ minHeight: "50vh", display: "grid", placeItems: "center", opacity: 0.56 }}>Loading launch center…</div>;

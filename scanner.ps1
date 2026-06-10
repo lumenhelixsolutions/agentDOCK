@@ -19,9 +19,13 @@ function Command-Info($name) {
       'codex' { $version = (& codex --version 2>$null | Out-String).Trim() }
       'kimi' { $version = (& kimi --version 2>$null | Out-String).Trim() }
       'claude' { $version = (& claude --version 2>$null | Out-String).Trim() }
+      'grok' { $version = (& grok --version 2>$null | Out-String).Trim() }
       'aider' { $version = (& aider --version 2>$null | Out-String).Trim() }
       'gemini' { $version = (& gemini --version 2>$null | Out-String).Trim() }
+      'agy' { $version = (& agy version 2>$null | Out-String).Trim() }
       'goose' { $version = (& goose --version 2>$null | Out-String).Trim() }
+      'rtk' { $version = (& rtk --version 2>$null | Out-String).Trim() }
+      'llama-server' { $version = (& llama-server --version 2>$null | Out-String).Trim() }
       default { $version = $null }
     }
   } catch { $version = $null }
@@ -87,6 +91,7 @@ function Read-InterestingEnvFile($file) {
           'GEMINI|GOOGLE' { $providerHints += 'google/gemini' }
           'OLLAMA' { $providerHints += 'ollama' }
           'GROQ' { $providerHints += 'groq' }
+          'XAI|GROK' { $providerHints += 'xai/grok' }
           'MISTRAL' { $providerHints += 'mistral' }
           'HUGGINGFACE|HF_' { $providerHints += 'huggingface' }
         }
@@ -112,14 +117,14 @@ function Read-InterestingEnvFile($file) {
 function Find-EnvFiles($repoPath, $maxFiles) {
   $roots = @()
   if ($repoPath -and (Test-Path $repoPath)) { $roots += (Resolve-Path $repoPath).Path }
-  $home = [Environment]::GetFolderPath('UserProfile')
+  $userProfile = [Environment]::GetFolderPath('UserProfile')
   foreach ($candidate in @(
-    (Join-Path $home '.hermes'),
-    (Join-Path $home '.codex'),
-    (Join-Path $home '.claude'),
-    (Join-Path $home '.config'),
-    (Join-Path $home 'Documents'),
-    (Join-Path $home 'Desktop'),
+    (Join-Path $userProfile '.hermes'),
+    (Join-Path $userProfile '.codex'),
+    (Join-Path $userProfile '.claude'),
+    (Join-Path $userProfile '.config'),
+    (Join-Path $userProfile 'Documents'),
+    (Join-Path $userProfile 'Desktop'),
     'D:\projects',
     'C:\projects'
   )) { if (Test-Path $candidate) { $roots += $candidate } }
@@ -144,11 +149,11 @@ function Find-EnvFiles($repoPath, $maxFiles) {
 }
 
 function Detect-VSCodeExtensions() {
-  $home = [Environment]::GetFolderPath('UserProfile')
+  $userProfile = [Environment]::GetFolderPath('UserProfile')
   $dirs = @(
-    (Join-Path $home '.vscode\extensions'),
-    (Join-Path $home '.cursor\extensions'),
-    (Join-Path $home '.windsurf\extensions')
+    (Join-Path $userProfile '.vscode\extensions'),
+    (Join-Path $userProfile '.cursor\extensions'),
+    (Join-Path $userProfile '.windsurf\extensions')
   )
   $ext = @()
   foreach ($d in $dirs) {
@@ -215,7 +220,7 @@ try {
   foreach ($d in Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3") { $disk += @{ name = $d.DeviceID; free_gb = [math]::Round($d.FreeSpace/1GB,2); size_gb = [math]::Round($d.Size/1GB,2) } }
 } catch {}
 
-$commands = @('ollama','hermes','opencode','codex','kimi','claude','aider','gemini','goose','git','node','npm','python','code','cursor','windsurf','docker')
+$commands = @('ollama','hermes','opencode','codex','kimi','claude','grok','aider','gemini','agy','goose','git','node','npm','python','code','cursor','windsurf','docker','rtk','llama-server','wsl','uvx','uv')
 $tools = @{}
 foreach ($t in $commands) { $tools[$t] = Command-Info $t }
 
@@ -225,8 +230,10 @@ $coders = @(
   @{ id='codex'; name='OpenAI Codex CLI'; command='codex'; detection=$tools.codex },
   @{ id='kimi'; name='Kimi Code CLI'; command='kimi'; detection=$tools.kimi },
   @{ id='claude-code'; name='Claude Code'; command='claude'; detection=$tools.claude },
+  @{ id='grok-cli'; name='Grok Build CLI'; command='grok'; detection=$tools.grok },
   @{ id='aider'; name='Aider'; command='aider'; detection=$tools.aider },
   @{ id='gemini-cli'; name='Gemini CLI'; command='gemini'; detection=$tools.gemini },
+  @{ id='antigravity-cli'; name='Antigravity CLI'; command='agy'; detection=$tools.agy },
   @{ id='goose'; name='Goose'; command='goose'; detection=$tools.goose }
 )
 
@@ -241,7 +248,7 @@ if ($tools.ollama.present) {
 }
 
 $env = @{}
-foreach ($e in @('OLLAMA_CONTEXT_LENGTH','OLLAMA_FLASH_ATTENTION','OLLAMA_KV_CACHE_TYPE','OLLAMA_NUM_PARALLEL','OLLAMA_MAX_LOADED_MODELS','OPENAI_API_KEY','OPENROUTER_API_KEY','MOONSHOT_API_KEY','DEEPSEEK_API_KEY','ANTHROPIC_API_KEY','GEMINI_API_KEY','GOOGLE_API_KEY','GROQ_API_KEY','MISTRAL_API_KEY','HF_TOKEN')) { $env[$e] = Env-State $e }
+foreach ($e in @('OLLAMA_CONTEXT_LENGTH','OLLAMA_FLASH_ATTENTION','OLLAMA_KV_CACHE_TYPE','OLLAMA_NUM_PARALLEL','OLLAMA_MAX_LOADED_MODELS','OPENAI_API_KEY','OPENROUTER_API_KEY','MOONSHOT_API_KEY','DEEPSEEK_API_KEY','ANTHROPIC_API_KEY','GEMINI_API_KEY','GOOGLE_API_KEY','GROQ_API_KEY','MISTRAL_API_KEY','XAI_API_KEY','HF_TOKEN')) { $env[$e] = Env-State $e }
 
 $repo = @{ path = $RepoPath; exists = (Test-Path $RepoPath); git = @{ present = $false } }
 try {
@@ -268,11 +275,11 @@ $npmGlobals = Detect-NpmGlobals
 
 function Detect-LocalModelBackends() {
   $backends = @()
-  $home = [Environment]::GetFolderPath('UserProfile')
+  $userProfile = [Environment]::GetFolderPath('UserProfile')
   
   # LM Studio
-  $lmStudioDir = Join-Path $home '.cache\lm-studio'
-  $lmStudioExe = Join-Path $home 'AppData\Local\LM-Studio\LM Studio.exe'
+  $lmStudioDir = Join-Path $userProfile '.cache\lm-studio'
+  $lmStudioExe = Join-Path $userProfile 'AppData\Local\LM-Studio\LM Studio.exe'
   $lmStudioModels = @()
   if (Test-Path $lmStudioDir) {
     try {
@@ -298,7 +305,7 @@ function Detect-LocalModelBackends() {
   $tgWebuiDirs = @(
     'D:\text-generation-webui',
     'C:\text-generation-webui',
-    (Join-Path $home 'text-generation-webui')
+    (Join-Path $userProfile 'text-generation-webui')
   )
   $tgPresent = $false
   $tgPath = $null
@@ -333,14 +340,45 @@ function Detect-LocalModelBackends() {
     present = $koboldPresent
   }
   
-  # llama.cpp (server.exe or main.exe)
-  $llamaPaths = @('llama-server','llama-cli','main','server')
-  $llamaPresent = $false
-  foreach ($p in $llamaPaths) { if (Get-Command $p -ErrorAction SilentlyContinue) { $llamaPresent = $true; break } }
+  # llama.cpp (llama-server)
+  $llamaBin = $null
+  foreach ($p in @('llama-server','llama-cli')) {
+    $cmd = Get-Command $p -ErrorAction SilentlyContinue
+    if ($cmd) { $llamaBin = $cmd.Source; break }
+  }
+  $llamaPresent = [bool]$llamaBin
+  $llamaVersion = $null
+  if ($llamaPresent) {
+    try { $llamaVersion = (& llama-server --version 2>$null | Out-String).Trim() } catch {}
+  }
+  $settingsFile = Join-Path $PSScriptRoot 'state\user-settings.json'
+  $llamaPort = 8081
+  $llamaHost = '127.0.0.1'
+  $llamaModel = $null
+  if (Test-Path $settingsFile) {
+    try {
+      $us = Get-Content $settingsFile -Raw | ConvertFrom-Json
+      if ($us.localInference.llamacpp.port) { $llamaPort = [int]$us.localInference.llamacpp.port }
+      if ($us.localInference.llamacpp.host) { $llamaHost = $us.localInference.llamacpp.host }
+      if ($us.localInference.llamacpp.modelPath) { $llamaModel = $us.localInference.llamacpp.modelPath }
+    } catch {}
+  }
+  $serverReachable = $false
+  if ($llamaPresent) {
+    try {
+      $uri = "http://${llamaHost}:${llamaPort}/v1/models"
+      $resp = Invoke-WebRequest -Uri $uri -Method Get -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop
+      $serverReachable = ($resp.StatusCode -eq 200)
+    } catch { $serverReachable = $false }
+  }
   $backends += @{
     id = 'llamacpp'
     name = 'llama.cpp'
     present = $llamaPresent
+    binary = $llamaBin
+    version = $llamaVersion
+    configured_model = $llamaModel
+    server = @{ host = $llamaHost; port = $llamaPort; reachable = $serverReachable; endpoint = "http://${llamaHost}:${llamaPort}/v1" }
   }
   
   # vLLM
@@ -358,10 +396,10 @@ function Detect-LocalModelBackends() {
   # Scan for .gguf files in common model directories (fast, limited depth)
   $ggufModels = @()
   $commonModelDirs = @(
-    (Join-Path $home '.cache\lm-studio\models'),
-    (Join-Path $home '.ollama\models'),
-    (Join-Path $home 'models'),
-    (Join-Path $home 'Documents\models'),
+    (Join-Path $userProfile '.cache\lm-studio\models'),
+    (Join-Path $userProfile '.ollama\models'),
+    (Join-Path $userProfile 'models'),
+    (Join-Path $userProfile 'Documents\models'),
     'D:\models',
     'D:\LLMs',
     'D:\AI',
@@ -384,6 +422,25 @@ function Detect-LocalModelBackends() {
 
 $localModels = Detect-LocalModelBackends
 
+$rtkGain = $null
+if ($tools.rtk.present) {
+  try {
+    $gainJson = (& rtk gain --all --format json 2>$null | Out-String).Trim()
+    if ($gainJson) { $rtkGain = $gainJson | ConvertFrom-Json }
+  } catch {}
+}
+
+$wslDetail = @{ present = $false; full_hooks = $false }
+if ($tools.wsl.present) {
+  $wslDetail.present = $true
+  try {
+    $wslTest = $null
+    & wsl -e true 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) { $wslTest = 'ok' }
+    $wslDetail.full_hooks = ($wslTest -eq 'ok')
+  } catch { $wslDetail.full_hooks = $false }
+}
+
 $result = @{
   system = $system
   hardware = @{ cpu = $cpu; ram_gb = $ramGb; gpu = $gpus; disk = $disk }
@@ -395,6 +452,7 @@ $result = @{
   env_files = $envFiles
   ollama = @{ list_raw = $ollamaListRaw; ps_raw = $ollamaPsRaw; loaded_models = (Parse-OllamaPs $ollamaPsRaw) }
   local_models = $localModels
+  token_efficiency = @{ rtk = @{ present = $tools.rtk.present; version = $tools.rtk.version; gain = $rtkGain }; wsl = $wslDetail }
   repo = $repo
 }
 

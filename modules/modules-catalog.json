@@ -1,0 +1,143 @@
+{
+  "version": "2.0",
+  "description": "AgentDock module registry v2 — detect, install, load",
+  "modules": [
+    {
+      "id": "compound-engineering",
+      "name": "Compound Engineering",
+      "type": "plugin-pack",
+      "tag": "Skills pack",
+      "description": "37 CE skills + 51 review agents from EveryInc. Native on Claude Code and Codex; converter-backed on Gemini/OpenCode.",
+      "source": "https://github.com/EveryInc/compound-engineering-plugin",
+      "version": "3.11.2",
+      "counts": { "skills": 37, "agents": 51, "cached_skills": 9 },
+      "catalog": {
+        "skills": "skills/compound-engineering/skills-catalog.json",
+        "agents": "skills/compound-engineering/agents-catalog.json"
+      },
+      "cache_dir": "skills/compound-engineering/cache",
+      "sync": { "script": "scripts/sync-ce-skills.js", "label": "Sync 9 core skills to local cache" },
+      "install": {
+        "note": "Full setup syncs cache, then installs into every detected frontend. Codex still needs /plugins TUI install for native skills after marketplace + agents steps.",
+        "targets": {
+          "claude_marketplace": {
+            "label": "Claude — add marketplace",
+            "command": "claude",
+            "args": ["plugin", "marketplace", "add", "EveryInc/compound-engineering-plugin"],
+            "requires_frontend": "claude",
+            "runnable": true
+          },
+          "claude_plugin": {
+            "label": "Claude — install plugin",
+            "command": "claude",
+            "args": ["plugin", "install", "compound-engineering"],
+            "requires_frontend": "claude",
+            "runnable": true
+          },
+          "codex_marketplace": {
+            "label": "Codex — register marketplace",
+            "command": "codex",
+            "args": ["plugin", "marketplace", "add", "EveryInc/compound-engineering-plugin"],
+            "requires_frontend": "codex",
+            "runnable": true
+          },
+          "codex_agents": {
+            "label": "Codex — install review agents (bunx)",
+            "command": "bunx",
+            "args": ["@every-env/compound-plugin", "install", "compound-engineering", "--to", "codex"],
+            "requires_frontend": "codex",
+            "requires_tool": "node",
+            "runnable": true,
+            "optional": true,
+            "next_steps": ["Launch codex, run /plugins, install compound-engineering, restart Codex"]
+          },
+          "codex_tui": {
+            "label": "Codex — TUI plugin install (manual)",
+            "command": "codex",
+            "args": [],
+            "requires_frontend": "codex",
+            "runnable": false,
+            "manual_only": true,
+            "manual_note": "Launch codex → /plugins → Compound Engineering marketplace → install compound-engineering → restart Codex."
+          },
+          "gemini_convert": {
+            "label": "Gemini CLI — converter install",
+            "command": "bunx",
+            "args": ["@every-env/compound-plugin", "install", "compound-engineering", "--to", "gemini"],
+            "requires_frontend": "gemini",
+            "requires_tool": "node",
+            "runnable": true,
+            "optional": true
+          }
+        }
+      },
+      "detect": {
+        "cache_min_files": 1,
+        "frontends": ["claude", "codex", "gemini"]
+      },
+      "default_enabled": true
+    },
+    {
+      "id": "mcp-git",
+      "name": "MCP Git",
+      "type": "mcp-server",
+      "tag": "MCP",
+      "description": "Read-only Git repository tools for agents — safer than raw shell for diff/log/blame workflows.",
+      "source": "https://github.com/modelcontextprotocol/servers/tree/main/src/git",
+      "risk_tier": "low",
+      "mcp_id": "git",
+      "requires": ["uvx", "git"],
+      "install_snippet": "uvx mcp-server-git --repository <REPO_PATH>",
+      "default_enabled": true
+    },
+    {
+      "id": "mcp-fetch",
+      "name": "MCP Fetch",
+      "type": "mcp-server",
+      "tag": "MCP",
+      "description": "Fetch web pages as markdown for grounded agent context. Medium risk — enables network access.",
+      "source": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
+      "risk_tier": "medium",
+      "mcp_id": "fetch",
+      "requires": ["uvx"],
+      "install_snippet": "uvx mcp-server-fetch",
+      "default_enabled": false
+    },
+    {
+      "id": "agentdock-coach",
+      "name": "HOOT Coach",
+      "type": "builtin",
+      "tag": "Built-in",
+      "description": "Screen-aware ops owl — contextual hints, error surfacing, and local/cloud coach chat on every view.",
+      "always_on": true,
+      "default_enabled": true
+    },
+    {
+      "id": "agentdock-audit",
+      "name": "Launch Audit",
+      "type": "builtin",
+      "tag": "Built-in",
+      "description": "Pre-launch compatibility gate — model tier vs task, CE frontend checks, and alternative profile suggestions.",
+      "always_on": true,
+      "default_enabled": true
+    },
+    {
+      "id": "agentdock-key-vault",
+      "name": "Key Vault",
+      "type": "builtin",
+      "tag": "Built-in",
+      "description": "Auto-import API keys from scan/.env into state/key-vault.json; injects into launches and stack health checks.",
+      "always_on": true,
+      "default_enabled": true
+    },
+    {
+      "id": "agentdock-stack-builder",
+      "name": "Stack Builder",
+      "type": "builtin",
+      "tag": "Built-in",
+      "description": "Guided stack composer with Google/Gemma/Grok templates, health scoring, and profile export.",
+      "always_on": true,
+      "default_enabled": true
+    }
+  ]
+}

@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/Toast";
+import { useCoach } from "@/context/CoachContext";
 import {
   TASK_INTENTS, getAgentTheme, normalizeAgentId, profileMatchesTask,
   sortProfilesForPick, statusTone,
@@ -26,6 +27,7 @@ export default function ProfilesPage() {
   const [preview, setPreview] = useState<any>(null);
   const [launchingId, setLaunchingId] = useState<string | null>(null);
   const toast = useToast();
+  const { setPageContext, registerActionHandler } = useCoach();
 
   useEffect(() => {
     api.getProfiles()
@@ -115,6 +117,24 @@ export default function ProfilesPage() {
 
   const resetEasy = () => { setEasyAgent(null); setEasyTask(null); };
   const easyStep = !easyAgent ? 1 : !easyTask ? 2 : 3;
+
+  useEffect(() => {
+    setPageContext({
+      viewMode,
+      profileCount: profiles.length,
+      blockedCount: stats.blocked,
+      easyStep,
+      easyTopPickId: easyTopPick?.id || null,
+      easyTopPickName: easyTopPick?.name || null,
+    });
+  }, [viewMode, profiles.length, stats.blocked, easyStep, easyTopPick, setPageContext]);
+
+  useEffect(() => {
+    return registerActionHandler((target) => {
+      if (target === "profiles-easy-mode") setViewMode("easy");
+      if (target === "profiles-launch-top" && easyTopPick) launchProfile(easyTopPick);
+    });
+  });
 
   if (loading) {
     return <div style={{ minHeight: "50vh", display: "grid", placeItems: "center", opacity: 0.56 }}>Loading profiles…</div>;

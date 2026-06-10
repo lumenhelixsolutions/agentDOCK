@@ -1,13 +1,20 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { useCoach } from "@/context/CoachContext";
 
 export default function MemoryPage() {
   const [text, setText] = useState("");
   const [saved, setSaved] = useState(false);
+  const { setPageContext } = useCoach();
 
   useEffect(() => {
     api.getMemory().then((m) => setText(m.text));
   }, []);
+
+  useEffect(() => {
+    const hasBlockedEvidence = /## Evidence:|BLOCKED|blocked/i.test(text);
+    setPageContext({ hasBlockedEvidence, memoryLength: text.length });
+  }, [text, setPageContext]);
 
   const save = async () => {
     await api.setMemory(text);
@@ -35,7 +42,7 @@ export default function MemoryPage() {
         </button>
       </div>
       <p style={{ fontSize: 12, opacity: 0.6, margin: 0 }}>
-        This is the local learning layer. AgentDock reads this before recommending or launching stacks. Edit freely — the advisor parses evidence blocks automatically.
+        This is the local learning layer. HOOT reads this before recommending or launching stacks. Edit freely — the advisor parses evidence blocks automatically.
       </p>
       <textarea
         value={text}

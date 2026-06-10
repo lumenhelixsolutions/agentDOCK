@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/Toast";
+import { useCoach } from "@/context/CoachContext";
+import { BRAND } from "@/lib/brand";
 
 const statusTone: Record<string, { color: string; bg: string; border: string; label: string }> = {
   READY: { color: "#86efac", bg: "rgba(74,222,128,0.08)", border: "rgba(74,222,128,0.18)", label: "Ready" },
@@ -41,6 +43,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [switchingProject, setSwitchingProject] = useState(false);
   const toast = useToast();
+  const { setPageContext, pageContext } = useCoach();
 
   useEffect(() => {
     let mounted = true;
@@ -108,6 +111,15 @@ export default function Dashboard() {
     return item?.issues || [];
   }, [portfolio, activeProject]);
 
+  useEffect(() => {
+    setPageContext({
+      scanPresent: Boolean(scan),
+      readyCount: profileCounts.READY,
+      blockedCount: profileCounts.BLOCKED,
+      portfolioIssues: activeIssues.length,
+    });
+  }, [scan, profileCounts, activeIssues.length, setPageContext]);
+
   const readiness = useMemo(() => {
     if (!scan) {
       return {
@@ -148,24 +160,43 @@ export default function Dashboard() {
     const installedCoders = coders.filter((coder: any) => coder.detection?.present).length;
     const loadedModels = (scan?.ollama?.loaded_models || []).length;
     const cleanProjects = projects.filter((project: any) => project.git?.clean).length;
-    return [
+    const radarTotal = Number(pageContext.agentRadarTotal) || 0;
+    const radarExt = Number(pageContext.agentRadarExternal) || 0;
+    const radarDock = Number(pageContext.agentRadarDock) || 0;
+    const items = [
       { label: "Readiness", value: statusTone[readiness.state]?.label || "Unknown", note: readiness.headline },
       { label: "Active project", value: activeProject?.name || "None selected", note: activeProject?.type || "Pick a repo to ground recommendations" },
       { label: "Profiles ready", value: `${profileCounts.READY}/${profiles.length || 0}`, note: `${profileCounts.DEGRADED} fixable · ${profileCounts.BLOCKED} blocked` },
       { label: "Toolchain", value: `${installedCoders}/${coders.length || 0} detected`, note: `${loadedModels} models loaded locally` },
       { label: "Project health", value: `${cleanProjects}/${projects.length || 0} clean`, note: activeIssues.length ? activeIssues.join(", ") : "No active-project issues surfaced" },
     ];
-  }, [scan, projects, activeProject, readiness, profileCounts, profiles.length, activeIssues]);
+    if (radarTotal > 0) {
+      items.push({
+        label: "Agent radar",
+        value: `${radarTotal} running`,
+        note: radarExt > 0 ? `${radarExt} external · ${radarDock} docked` : `${radarDock} docked · HOOT monitoring`,
+      });
+    }
+    return items;
+  }, [scan, projects, activeProject, readiness, profileCounts, profiles.length, activeIssues, pageContext]);
 
   const recommendedActions = useMemo(() => {
     const actions: Array<{ title: string; body: string; to: string; icon: any }> = [];
     if (!scan) actions.push({ title: "Run the first scan", body: "Detect local agents, models, and machine capability before launch.", to: "/scan", icon: Scan });
-    if (!activeProject) actions.push({ title: "Choose an active project", body: "AgentDock works best when the home screen, memory, and launches are tied to a repo.", to: "/launch", icon: FolderKanban });
+    if (!activeProject) actions.push({ title: "Choose an active project", body: "HOOT works best when the home screen, memory, and launches are tied to a repo.", to: "/launch", icon: FolderKanban });
     if (activeProject && !activeProject.hasAgentsMd) actions.push({ title: "Add AGENTS.md context", body: "Document architecture and workflow so the first autonomous run is grounded.", to: "/memory", icon: BookOpen });
     if (readiness.state !== "READY") actions.push({ title: "Resolve readiness gaps", body: "Review scan results and settings to clear blockers or missing pieces.", to: "/settings", icon: Wrench });
+    if (Number(pageContext.agentRadarExternal) > 0) {
+      actions.unshift({
+        title: "Review external agents",
+        body: `${pageContext.agentRadarExternal} coding agent(s) running ${BRAND.externalLabel} — see radar report on Readiness.`,
+        to: "/scan",
+        icon: Radar,
+      });
+    }
     if (actions.length === 0) actions.push({ title: "Open Launch Center", body: "Your system looks ready. Review profiles and continue with a guided launch.", to: "/launch", icon: PlayCircle });
     return actions.slice(0, 4);
-  }, [scan, activeProject, readiness.state]);
+  }, [scan, activeProject, readiness.state, pageContext.agentRadarExternal]);
 
   const suggestedProfiles = useMemo(() => {
     return profiles
@@ -216,14 +247,14 @@ export default function Dashboard() {
         <div style={{ display: "grid", gridTemplateColumns: "1.45fr 0.9fr", gap: 18, alignItems: "start" }}>
           <div>
             <div style={{ fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", opacity: 0.48, marginBottom: 12 }}>
-              Mission control
+              Command center
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
               <Badge text={statusTone[readiness.state]?.label || "Unknown"} tone={readiness.state} />
               <Badge text="Local-first" tone="UNKNOWN" />
             </div>
             <h1 style={{ margin: 0, fontSize: 36, lineHeight: 1.02, letterSpacing: "-0.05em", color: "#ffffff" }}>
-              {activeProject ? `${activeProject.name} mission control` : "Prepare AgentDock for the first run"}
+              {activeProject ? `${activeProject.name} command center` : `Prepare ${BRAND.name} for the first run`}
             </h1>
             <p style={{ margin: "14px 0 0", fontSize: 15, lineHeight: 1.7, opacity: 0.7 }}>
               {activeProject
@@ -323,7 +354,7 @@ export default function Dashboard() {
             <EmptyState
               icon={FolderKanban}
               title="No active project selected"
-              body="Pick a local repository so AgentDock can give project-aware recommendations, first-run setup guidance, and cleaner session recovery context."
+              body="Pick a local repository so HOOT can give project-aware recommendations, first-run setup guidance, and cleaner session recovery context."
               actionLabel="Open Launch Center"
               actionTo="/launch"
             />

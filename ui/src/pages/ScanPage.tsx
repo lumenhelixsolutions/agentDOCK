@@ -1,24 +1,105 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
-import { Scan, Cpu, HardDrive, Microchip } from "lucide-react";
+import { useCoach } from "@/context/CoachContext";
+import { Scan, Cpu, HardDrive, Microchip, Radar } from "lucide-react";
+import { BRAND } from "@/lib/brand";
+
+type AgentRadar = Awaited<ReturnType<typeof api.getAgentRadar>>;
 
 export default function ScanPage() {
   const [scan, setScan] = useState<Record<string, unknown> | null>(null);
+  const [radar, setRadar] = useState<AgentRadar | null>(null);
+  const [radarLoading, setRadarLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { pageContext, setPageContext, registerActionHandler, setHootMood, setHootStatus, reportError } = useCoach();
+
+  const refreshRadar = async (force = true) => {
+    setRadarLoading(true);
+    setPageContext({ radarLoading: true });
+    try {
+      const data = await api.getAgentRadar(force);
+      setRadar(data);
+      setPageContext({
+        agentRadarTotal: data.summary?.total ?? 0,
+        agentRadarDock: data.summary?.dock ?? 0,
+        agentRadarExternal: data.summary?.external ?? 0,
+        agentRadarAgents: data.agents ?? [],
+        agentRadarScannedAt: data.scanned_at,
+        radarLoading: false,
+      });
+    } catch (e) {
+      reportError({
+        message: e instanceof Error ? e.message : String(e),
+        source: "agent radar",
+        fix: "Ensure PowerShell can run agent-radar.ps1 (same policy as system scan).",
+      });
+      setPageContext({ radarLoading: false });
+    } finally {
+      setRadarLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshRadar(false);
+  }, []);
+
+  useEffect(() => {
+    const coders = (scan?.coders || []) as any[];
+    setPageContext({
+      scanLoaded: Boolean(scan),
+      ollamaPresent: Boolean((scan?.tools as any)?.ollama?.present),
+      missingAgents: coders.filter((c) => !c.detection?.present).length,
+    });
+  }, [scan, setPageContext]);
+
+  useEffect(() => {
+    if (pageContext.agentRadarTotal != null && !radar) {
+      setRadar({
+        scanned_at: String(pageContext.agentRadarScannedAt || new Date().toISOString()),
+        processes: [],
+        agents: (pageContext.agentRadarAgents as AgentRadar["agents"]) || [],
+        summary: {
+          total: Number(pageContext.agentRadarTotal) || 0,
+          dock: Number(pageContext.agentRadarDock) || 0,
+          external: Number(pageContext.agentRadarExternal) || 0,
+          agent_types: ((pageContext.agentRadarAgents as any[]) || []).length,
+        },
+      });
+    }
+  }, [pageContext, radar]);
 
   const run = async () => {
     setLoading(true);
     setError(null);
+    setPageContext({ scanLoading: true });
+    setHootStatus("Scanning your system…");
     try {
       const s = await api.runScan();
       setScan(s);
+      setHootMood("celebrating", { ttl: 2500 });
+      setHootStatus(null);
     } catch (e) {
-      setError(String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+      reportError({
+        message: msg,
+        source: "system scan",
+        fix: "PowerShell scanner failed — HOOT can help diagnose. Try: Set-ExecutionPolicy Bypass -Scope Process, then re-run scan.",
+      });
     } finally {
       setLoading(false);
+      setPageContext({ scanLoading: false });
+      setHootStatus(null);
     }
   };
+
+  useEffect(() => {
+    return registerActionHandler((target) => {
+      if (target === "scan-run") run();
+      if (target === "radar-refresh") refreshRadar(true);
+    });
+  });
 
   const hw = (scan?.hardware || {}) as any;
   const tools = (scan?.tools || {}) as any;
@@ -54,6 +135,71 @@ export default function ScanPage() {
       </div>
 
       {error && <div style={{ padding: 16, borderRadius: 8, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#ef4444", fontSize: 13 }}>{error}</div>}
+
+      <Section title="Agent Radar — running processes">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <p style={{ margin: 0, fontSize: 12, opacity: 0.65, lineHeight: 1.5 }}>
+            System-wide scan for coding agents (Claude, Codex, Gemini, Cursor, etc.) — {BRAND.dockLabel} vs {BRAND.externalLabel}.
+          </p>
+          <button
+            onClick={() => refreshRadar(true)}
+            disabled={radarLoading}
+            style={{
+              padding: "8px 14px",
+              borderRadius: 8,
+              border: "1px solid rgba(52,211,153,0.3)",
+              background: "rgba(52,211,153,0.08)",
+              color: "#34d399",
+              cursor: radarLoading ? "not-allowed" : "pointer",
+              fontSize: 12,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              flexShrink: 0,
+            }}
+          >
+            <Radar size={14} />
+            {radarLoading ? "Scanning…" : "Refresh"}
+          </button>
+        </div>
+        {radar ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+              <RadarStat label="Total" value={radar.summary.total} color="#f5f5f5" />
+              <RadarStat label={BRAND.dockLabel} value={radar.summary.dock} color="#4ade80" />
+              <RadarStat label="External" value={radar.summary.external} color={radar.summary.external > 0 ? "#fb923c" : "#6b7280"} />
+              <RadarStat label="Types" value={radar.summary.agent_types} color="#93c5fd" />
+            </div>
+            {(radar.agents || []).length > 0 ? (
+              (radar.agents || []).map((agent) => (
+                <div key={agent.id} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                  <span style={{ fontSize: 13 }}>{agent.name}</span>
+                  <span style={{ fontSize: 12, opacity: 0.75 }}>
+                    {agent.count} proc · <span style={{ color: "#4ade80" }}>{agent.dock} dock</span>
+                    {agent.external > 0 && <span style={{ color: "#fb923c" }}> · {agent.external} ext</span>}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div style={{ fontSize: 12, opacity: 0.5, padding: "8px 0" }}>No coding-agent processes detected.</div>
+            )}
+            {radar.scanned_at && (
+              <div style={{ fontSize: 10, opacity: 0.4 }}>Last scan {new Date(radar.scanned_at).toLocaleTimeString()}{radar.cached ? " · cached" : ""}</div>
+            )}
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, opacity: 0.5 }}>Loading agent radar…</div>
+        )}
+      </Section>
+
+      {scan && (scan as any).key_vault?.imported > 0 && (
+        <div style={{ padding: 12, borderRadius: 8, background: "rgba(74,222,128,0.08)", border: "1px solid rgba(74,222,128,0.2)", color: "#4ade80", fontSize: 13 }}>
+          Imported {(scan as any).key_vault.imported} API key{(scan as any).key_vault.imported === 1 ? "" : "s"} into local vault
+          {((scan as any).key_vault.keys || []).length > 0 && (
+            <span style={{ opacity: 0.8 }}> — {((scan as any).key_vault.keys as any[]).map((k) => k.masked).join(", ")}</span>
+          )}
+        </div>
+      )}
 
       {scan && (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -122,6 +268,15 @@ function InfoCard({ icon: Icon, label, value }: { icon: any; label: string; valu
         <span style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", opacity: 0.5 }}>{label}</span>
       </div>
       <span style={{ fontSize: 14, color: "#f5f5f5", fontFamily: "'GeistMono', monospace" }}>{value}</span>
+    </div>
+  );
+}
+
+function RadarStat({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div style={{ padding: 12, borderRadius: 10, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", opacity: 0.45 }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 600, color, marginTop: 4 }}>{value}</div>
     </div>
   );
 }

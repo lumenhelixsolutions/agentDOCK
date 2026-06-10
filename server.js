@@ -1,5 +1,5 @@
 /*
-  AgentDock 1.1
+  HOOT — Local AI Command Center (agentdock engine)
   Local-only AI agent stack scanner, planner, terminal monitor, launcher, and memory system.
   - No external npm dependencies.
   - Binds to 127.0.0.1 only.
@@ -15,6 +15,21 @@ const { spawn, execFile } = require('child_process');
 const https = require('https');
 const { advisorAnalyze } = require('./advisor');
 const { processChatMessage, getChatHistory, clearChat } = require('./chat');
+const { buildCoachHints } = require('./coach-hints');
+const { getViewGuide, ORCHESTRATION_LOOP } = require('./coach-guides');
+const {
+  harvestFromScan,
+  harvestFromProcessEnv,
+  listMaskedKeys,
+  setVaultKey,
+  deleteVaultKey,
+  getVaultEnvForLaunch,
+  getVaultKey,
+  hasVaultKey,
+  keyAvailable,
+} = require('./key-vault');
+const { createModuleManager } = require('./module-manager');
+const { runAgentRadar } = require('./agent-radar');
 
 const ROOT = __dirname;
 const HOST = '127.0.0.1';
@@ -38,12 +53,29 @@ const FILES = {
   catalog: path.join(ROOT, 'coders-catalog.json'),
   usage: path.join(DIRS.state, 'stack-usage.json'),
   projects: path.join(DIRS.state, 'projects.json'),
+  mcpCatalog: path.join(DIRS.state, 'mcp-catalog.json'),
+  userSettings: path.join(DIRS.state, 'user-settings.json'),
+  modulesState: path.join(DIRS.state, 'modules-state.json'),
+};
+
+const DEFAULT_USER_SETTINGS = {
+  version: 1,
+  localInference: {
+    preferredBackend: 'ollama',
+    ollama: { host: 'http://127.0.0.1:11434', contextLength: 8192, flashAttention: true, kvCacheType: 'q8_0', numParallel: 1, maxLoadedModels: 1 },
+    llamacpp: { enabled: false, binary: 'llama-server', modelPath: '', host: '127.0.0.1', port: 8081, contextSize: 8192, nGpuLayers: -1, threads: 8, extraArgs: '' },
+  },
+  tokenEfficiency: { rtkRecommended: true, rtkAgents: ['claude', 'codex', 'cursor', 'hermes'] },
+  mcp: { enabledServers: ['git'] },
 };
 const UI_DIST = path.join(ROOT, 'ui', 'dist');
 const SKILLS_DIR = path.join(ROOT, 'skills', 'compound-engineering');
 const SKILLS_CATALOG = path.join(SKILLS_DIR, 'skills-catalog.json');
 
 let lastScan = null;
+let lastAgentRadar = null;
+let lastAgentRadarAt = 0;
+const AGENT_RADAR_TTL_MS = 8000;
 let activeProject = null;
 const sessions = new Map();
 
@@ -52,6 +84,7 @@ const sessions = new Map();
   const proj = readJSON(FILES.projects, { projects: [], active: null });
   if (proj.active && fs.existsSync(proj.active)) activeProject = path.normalize(proj.active);
 })();
+harvestFromProcessEnv();
 
 function nowStamp() { return new Date().toISOString().replace(/[:.]/g, '-'); }
 function isWindows() { return process.platform === 'win32'; }
@@ -295,6 +328,41 @@ function readAgentsMd(projectPath) {
   try { return fs.readFileSync(file, 'utf8'); } catch { return null; }
 }
 
+function loadUserSettings() {
+  const stored = readJSON(FILES.userSettings, null);
+  if (!stored || typeof stored !== 'object') return JSON.parse(JSON.stringify(DEFAULT_USER_SETTINGS));
+  return {
+    ...DEFAULT_USER_SETTINGS,
+    ...stored,
+    localInference: {
+      ...DEFAULT_USER_SETTINGS.localInference,
+      ...(stored.localInference || {}),
+      ollama: { ...DEFAULT_USER_SETTINGS.localInference.ollama, ...(stored.localInference?.ollama || {}) },
+      llamacpp: { ...DEFAULT_USER_SETTINGS.localInference.llamacpp, ...(stored.localInference?.llamacpp || {}) },
+    },
+    tokenEfficiency: { ...DEFAULT_USER_SETTINGS.tokenEfficiency, ...(stored.tokenEfficiency || {}) },
+    mcp: { ...DEFAULT_USER_SETTINGS.mcp, ...(stored.mcp || {}) },
+  };
+}
+
+function saveUserSettings(partial) {
+  const current = loadUserSettings();
+  const next = {
+    ...current,
+    ...partial,
+    localInference: {
+      ...current.localInference,
+      ...(partial.localInference || {}),
+      ollama: { ...current.localInference.ollama, ...(partial.localInference?.ollama || {}) },
+      llamacpp: { ...current.localInference.llamacpp, ...(partial.localInference?.llamacpp || {}) },
+    },
+    tokenEfficiency: { ...current.tokenEfficiency, ...(partial.tokenEfficiency || {}) },
+    mcp: { ...current.mcp, ...(partial.mcp || {}) },
+  };
+  writeJSON(FILES.userSettings, next);
+  return next;
+}
+
 function injectProjectPath(script, projectPath) {
   if (!projectPath) return script;
   const winPath = projectPath.replace(/\//g, '\\');
@@ -302,6 +370,25 @@ function injectProjectPath(script, projectPath) {
   return script
     .replace(/\{\{PROJECT_PATH\}\}/g, winPath)
     .replace(/\{\{PROJECT_PATH_UNIX\}\}/g, unixPath);
+}
+
+function injectLaunchVars(script) {
+  const s = loadUserSettings();
+  const lc = s.localInference?.llamacpp || {};
+  const esc = v => String(v ?? '').replace(/\\/g, '\\\\');
+  return script
+    .replace(/\{\{LLAMACPP_BINARY\}\}/g, esc(lc.binary || 'llama-server'))
+    .replace(/\{\{LLAMACPP_MODEL\}\}/g, esc(lc.modelPath || ''))
+    .replace(/\{\{LLAMACPP_HOST\}\}/g, esc(lc.host || '127.0.0.1'))
+    .replace(/\{\{LLAMACPP_PORT\}\}/g, String(lc.port || 8081))
+    .replace(/\{\{LLAMACPP_CONTEXT\}\}/g, String(lc.contextSize || 8192))
+    .replace(/\{\{LLAMACPP_NGL\}\}/g, String(lc.nGpuLayers ?? -1))
+    .replace(/\{\{LLAMACPP_THREADS\}\}/g, String(lc.threads || 8))
+    .replace(/\{\{LLAMACPP_EXTRA_ARGS\}\}/g, esc(lc.extraArgs || ''));
+}
+
+function injectLaunchContext(script, projectPath) {
+  return injectLaunchVars(injectProjectPath(script, projectPath));
 }
 
 function readJSON(file, fallback) {
@@ -370,8 +457,15 @@ function getLoadedModelContext(scan, modelName) {
   const found = loaded.find(m => variants.includes(String(m.name).toLowerCase()) || variants.some(v => String(m.name).toLowerCase().startsWith(v.replace(':latest', ''))));
   return found?.context ?? null;
 }
-function envPresent(scan, name) { return Boolean(scan?.env?.[name]?.present); }
+function envPresent(scan, name) { return Boolean(scan?.env?.[name]?.present) || hasVaultKey(name); }
 function envFileHas(scan, name) { return (scan?.env_files || []).some(f => (f.key_names || []).includes(name)); }
+function envKeyStatus(scan, name) {
+  const vault = keyAvailable(name);
+  if (vault.available) return { available: true, source: vault.source };
+  if (scan?.env?.[name]?.present) return { available: true, source: 'scan-process' };
+  if (envFileHas(scan, name)) return { available: false, source: 'env-file-not-imported' };
+  return { available: false, source: 'missing' };
+}
 function coderById(scan, id) { return (scan?.coders || []).find(c => c.id === id || c.command === id); }
 function toolPresent(scan, toolOrId) {
   if (!scan) return false;
@@ -420,9 +514,34 @@ function evaluateProfile(profile, scan, memory) {
     }
   }
 
+  if (backend === 'llamacpp' || backend === 'llama.cpp') {
+    const settings = loadUserSettings();
+    const lc = settings.localInference?.llamacpp || {};
+    const llamaBackend = (scan?.local_models?.backends || []).find(b => b.id === 'llamacpp');
+    if (!llamaBackend?.present && !lc.binary) {
+      reasons.push('llama-server / llama.cpp binary not detected on PATH');
+      score -= 35;
+    } else {
+      reasons.push('llama.cpp backend available'); score += 8;
+    }
+    if (!lc.enabled) { reasons.push('llama.cpp disabled in user settings — enable in Settings → Local Inference'); score -= 15; }
+    if (!lc.modelPath) { reasons.push('GGUF modelPath not set in user settings'); score -= 30; state = state === 'DEGRADED' ? state : 'DEGRADED'; }
+    else { reasons.push(`GGUF configured: ${path.basename(lc.modelPath)}`); score += 12; }
+    if (llamaBackend?.server?.reachable) { reasons.push(`llama-server reachable on port ${lc.port}`); score += 20; }
+    else if (lc.modelPath) { reasons.push(`Start llama-server on ${lc.host}:${lc.port} before chat clients connect`); }
+  }
+
+  if (profile.meta.token_efficiency === 'rtk') {
+    if (scan?.tools?.rtk?.present) { reasons.push('RTK detected for token-efficient shell output'); score += 8; }
+    else { reasons.push('RTK recommended but not installed — use WSL: curl install + rtk init -g'); score -= 6; }
+    if (scan?.tools?.wsl?.present) { reasons.push('WSL available for full RTK hook support'); score += 4; }
+    else { reasons.push('WSL not detected — RTK auto-rewrite hooks limited on native Windows'); score -= 2; }
+  }
+
   for (const envName of requiredEnv) {
-    if (envPresent(scan, envName)) { reasons.push(`${envName} present in environment`); score += 7; }
-    else if (envFileHas(scan, envName)) { reasons.push(`${envName} found in scanned .env file but not loaded into process environment`); score -= 4; }
+    const ks = envKeyStatus(scan, envName);
+    if (ks.available) { reasons.push(`${envName} available (${ks.source})`); score += 7; }
+    else if (envFileHas(scan, envName)) { reasons.push(`${envName} found in .env — re-run scan to import into key vault`); score -= 2; }
     else { reasons.push(`${envName} missing`); score -= 20; }
   }
 
@@ -458,12 +577,14 @@ function buildSuggestions(scan = lastScan) {
     if (tool.id === 'claude-code') authHints.push(envPresent(scan, 'ANTHROPIC_API_KEY') ? 'ANTHROPIC_API_KEY loaded' : envKeys.has('ANTHROPIC_API_KEY') ? 'ANTHROPIC_API_KEY found in .env' : 'Anthropic auth not detected');
     if (tool.id === 'kimi') authHints.push(envPresent(scan, 'MOONSHOT_API_KEY') ? 'MOONSHOT_API_KEY loaded' : envKeys.has('MOONSHOT_API_KEY') ? 'MOONSHOT_API_KEY found in .env' : 'MOONSHOT_API_KEY not detected');
     if (tool.id === 'opencode') authHints.push(envPresent(scan, 'OPENROUTER_API_KEY') ? 'OPENROUTER_API_KEY loaded' : envKeys.has('OPENROUTER_API_KEY') ? 'OPENROUTER_API_KEY found in .env' : 'provider key not detected');
+    if (tool.id === 'grok-cli') authHints.push(envPresent(scan, 'XAI_API_KEY') ? 'XAI_API_KEY loaded' : envKeys.has('XAI_API_KEY') ? 'XAI_API_KEY found in .env' : 'XAI_API_KEY not detected — use SuperGrok auth or set key');
     let status = detected ? 'INSTALLED' : 'SUGGESTED';
     let priority = detected ? 100 : 40;
     if (tool.id === 'hermes' && detected) priority += 15;
     if (tool.id === 'codex' && (envPresent(scan, 'OPENAI_API_KEY') || envKeys.has('OPENAI_API_KEY'))) priority += 20;
     if (tool.id === 'claude-code' && (envPresent(scan, 'ANTHROPIC_API_KEY') || envKeys.has('ANTHROPIC_API_KEY'))) priority += 20;
     if (tool.id === 'kimi' && (envPresent(scan, 'MOONSHOT_API_KEY') || envKeys.has('MOONSHOT_API_KEY'))) priority += 20;
+    if (tool.id === 'grok-cli' && (envPresent(scan, 'XAI_API_KEY') || envKeys.has('XAI_API_KEY'))) priority += 20;
     suggestions.push({ ...tool, detected, status, priority, authHints });
   }
   return suggestions.sort((a, b) => b.priority - a.priority);
@@ -497,8 +618,11 @@ function runScanner(repoPath) {
       try {
         const parsed = JSON.parse(out);
         lastScan = parsed;
+        const keyHarvest = harvestFromScan(parsed);
+        parsed.key_vault = { imported: keyHarvest.count, keys: keyHarvest.keys };
         const logPath = path.join(DIRS.logs, `scan-${nowStamp()}.json`);
-        fs.writeFileSync(logPath, JSON.stringify(parsed, null, 2), 'utf8');
+        const logPayload = { ...parsed, key_vault: { imported: keyHarvest.count, key_names: keyHarvest.keys.map(k => k.name) } };
+        fs.writeFileSync(logPath, JSON.stringify(logPayload, null, 2), 'utf8');
         resolve(parsed);
       } catch (e) { reject(new Error(`Failed to parse scanner JSON: ${e.message}\n${out.slice(0, 2000)}`)); }
     });
@@ -720,12 +844,19 @@ function generateFixes(profile, evalResult, scan) {
     }
   }
 
-  // Fix 3: missing env vars
+  // Fix 3: missing env vars (vault + process count as available)
   for (const envName of requiredEnv) {
-    if (!envPresent(scan, envName)) {
-      const envFile = (scan?.env_files || []).find(f => (f.key_names || []).includes(envName));
-      fixes.push({ order: 3, action: 'env', target: envName, command: envFile ? `# Found in ${envFile.path}\n$env:${envName}="your-key-here"` : `$env:${envName}="your-key-here"`, why: `${envName} not loaded into process environment`, detected_in_file: Boolean(envFile) });
-    }
+    const ks = envKeyStatus(scan, envName);
+    if (ks.available) continue;
+    const envFile = (scan?.env_files || []).find(f => (f.key_names || []).includes(envName));
+    fixes.push({
+      order: 3,
+      action: 'env',
+      target: envName,
+      command: envFile ? `# Re-run scan to import from ${envFile.path}\n# Or set in Settings → API Keys` : `# Set in Settings → API Keys or export ${envName}`,
+      why: envFile ? `${envName} in .env but not imported — run scan again` : `${envName} not in key vault`,
+      detected_in_file: Boolean(envFile),
+    });
   }
 
   // Fix 4: ollama model not loaded or context insufficient
@@ -977,6 +1108,41 @@ function generateProfileGroups(scan = lastScan) {
   return { byTask, byMode, byFrontend, byBackend, stats: matrix.stats };
 }
 
+function loadMcpCatalog() {
+  return readJSON(FILES.mcpCatalog, { version: '1.0', servers: [] });
+}
+
+const moduleManager = createModuleManager({
+  root: ROOT,
+  files: FILES,
+  loadUserSettings,
+  saveUserSettings: (settings) => saveUserSettings(settings),
+  loadMcpCatalog,
+});
+
+function buildMcpInstallSnippet(serverId, repoPath) {
+  const catalog = loadMcpCatalog();
+  const server = (catalog.servers || []).find(s => s.id === serverId);
+  if (!server) return null;
+  const repo = repoPath || activeProject || ROOT;
+  const winRepo = repo.replace(/\//g, '\\');
+  const unixRepo = repo.replace(/\\/g, '/');
+  const isWin = process.platform === 'win32';
+  const template = isWin ? server.install?.windows : server.install?.unix;
+  if (!template) return null;
+  const args = (template.args || []).map(a =>
+    a.replace(/\{\{REPO_PATH\}\}/g, isWin ? winRepo : unixRepo)
+  );
+  return {
+    id: server.id,
+    name: server.name,
+    risk_tier: server.risk_tier,
+    mcpServers: {
+      [server.id]: { command: template.command, args },
+    },
+  };
+}
+
 function scanMcpConfigs() {
   const home = os.homedir();
   const configs = [];
@@ -999,6 +1165,23 @@ function scanMcpConfigs() {
   return configs;
 }
 
+function buildMcpPayload() {
+  const settings = loadUserSettings();
+  const catalog = loadMcpCatalog();
+  const enabled = settings.mcp?.enabledServers || ['git'];
+  const repoPath = activeProject || ROOT;
+  const snippets = enabled
+    .map(id => buildMcpInstallSnippet(id, repoPath))
+    .filter(Boolean);
+  return {
+    configs: scanMcpConfigs(),
+    catalog,
+    enabledServers: enabled,
+    activeRepository: repoPath,
+    installSnippets: snippets,
+  };
+}
+
 function buildPortfolioHealth() {
   const data = readProjectRegistry();
   const items = [];
@@ -1018,7 +1201,8 @@ function createSession(profile, script, options = {}) {
   fs.writeFileSync(scriptPath, header + '\n' + script + '\n', 'utf8');
   const args = ['-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath];
   const startedAt = new Date().toISOString();
-  const child = spawn('powershell.exe', args, { cwd: ROOT, env: { ...process.env, AGENTDOCK_SESSION_ID: id }, windowsHide: false });
+  const moduleEnv = moduleManager.getLaunchPayload(lastScan).env;
+  const child = spawn('powershell.exe', args, { cwd: ROOT, env: { ...process.env, ...getVaultEnvForLaunch(), ...moduleEnv, AGENTDOCK_SESSION_ID: id }, windowsHide: false });
   const sess = { id, profileId: profile.id, profileName: profile.name, pid: child.pid, status: 'running', startedAt, endedAt: null, exitCode: null, output: '', outputLimit: 1024 * 1024 * 2, scriptPath, dangerous: shouldWarnDanger(script) };
   sessions.set(id, sess);
   const add = (prefix, data) => {
@@ -1148,7 +1332,79 @@ async function route(req, res) {
       const repo = url.searchParams.get('repo') || process.cwd();
       return send(res, 200, await runScanner(repo));
     }
+    if (pathName === '/api/agent-radar' && req.method === 'GET') {
+      const force = url.searchParams.get('force') === '1';
+      const dockPids = [...sessions.values()].filter((s) => s.status === 'running' && s.pid).map((s) => s.pid);
+      const stale = !lastAgentRadar || Date.now() - lastAgentRadarAt > AGENT_RADAR_TTL_MS;
+      if (force || stale) {
+        lastAgentRadar = await runAgentRadar({ dockPids });
+        lastAgentRadarAt = Date.now();
+      }
+      return send(res, 200, { ...lastAgentRadar, dock_sessions: dockPids.length, cached: !force && !stale });
+    }
     if (pathName === '/api/catalog' && req.method === 'GET') return send(res, 200, loadCatalog());
+    if (pathName === '/api/modules' && req.method === 'GET') {
+      const listed = await moduleManager.listModules(lastScan);
+      return send(res, 200, listed);
+    }
+    if (pathName === '/api/modules/auto-sync' && req.method === 'POST') {
+      const result = await moduleManager.maybeAutoSync(lastScan);
+      const modules = await moduleManager.listModules(lastScan);
+      return send(res, 200, { ...result, modules });
+    }
+    if (pathName === '/api/modules/settings' && req.method === 'POST') {
+      const body = await readBody(req);
+      const result = moduleManager.setAutoSyncSettings(body.auto_sync || body);
+      const modules = await moduleManager.listModules(lastScan);
+      return send(res, 200, { ...result, modules });
+    }
+    if (pathName.startsWith('/api/modules/') && req.method === 'GET') {
+      const modId = decodeURIComponent(pathName.slice('/api/modules/'.length).split('/')[0]);
+      if (pathName.endsWith('/install-plan')) {
+        const plan = moduleManager.getInstallPlan(modId);
+        if (!plan.ok) return send(res, 404, plan);
+        return send(res, 200, plan);
+      }
+      const listed = await moduleManager.listModules(lastScan);
+      const mod = listed.modules.find((m) => m.id === modId);
+      if (!mod) return send(res, 404, { error: 'Module not found' });
+      return send(res, 200, mod);
+    }
+    if (pathName.startsWith('/api/modules/') && req.method === 'POST') {
+      const parts = pathName.slice('/api/modules/'.length).split('/');
+      const modId = decodeURIComponent(parts[0]);
+      const action = parts[1];
+      const body = await readBody(req);
+      if (action === 'enable') {
+        const result = moduleManager.setEnabled(modId, body.enabled !== false);
+        if (!result.ok) return send(res, 400, result);
+        const modules = await moduleManager.listModules(lastScan);
+        return send(res, 200, { ...result, modules });
+      }
+      if (action === 'sync') {
+        const result = await moduleManager.syncModule(modId);
+        if (!result.ok) return send(res, 500, result);
+        const modules = await moduleManager.listModules(lastScan);
+        return send(res, 200, { ...result, modules });
+      }
+      if (action === 'install') {
+        const target = body.target || 'sync';
+        const result = await moduleManager.runInstallTarget(modId, target, lastScan);
+        if (!result.ok && !result.manual) return send(res, 500, result);
+        const modules = await moduleManager.listModules(lastScan);
+        return send(res, 200, { ...result, modules });
+      }
+      if (action === 'full-setup') {
+        const result = await moduleManager.runFullSetup(modId, lastScan);
+        const modules = await moduleManager.listModules(lastScan);
+        return send(res, result.ok ? 200 : 500, { ...result, modules });
+      }
+      return send(res, 404, { error: 'Unknown module action' });
+    }
+    if (pathName === '/api/agents' && req.method === 'GET') {
+      const agentsPath = path.join(SKILLS_DIR, 'agents-catalog.json');
+      return send(res, 200, readJSON(agentsPath, { agents: [] }));
+    }
     if (pathName === '/api/skills' && req.method === 'GET') {
       return send(res, 200, loadSkillsCatalog());
     }
@@ -1229,7 +1485,7 @@ async function route(req, res) {
       const body = await readBody(req);
       let script = extractLaunchScript(p.body);
       if (!script) return send(res, 400, { error: 'No launch block in profile' });
-      script = injectProjectPath(script, activeProject);
+      script = injectLaunchContext(script, activeProject);
       const blocked = isBlockedByMemory(p, readMemory());
       if (blocked && !body.overrideReason && !body.dryRun) return send(res, 200, { blocked: true, message: `Profile is blocked by memory: ${blocked.title}`, evidence: blocked.raw.slice(0, 1200) });
 
@@ -1351,7 +1607,40 @@ async function route(req, res) {
       return send(res, 200, getQuickTemplates());
     }
     if (pathName === '/api/mcp' && req.method === 'GET') {
-      return send(res, 200, { configs: scanMcpConfigs() });
+      return send(res, 200, buildMcpPayload());
+    }
+    if (pathName === '/api/keys' && req.method === 'GET') {
+      return send(res, 200, { keys: listMaskedKeys(), count: listMaskedKeys().length });
+    }
+    if (pathName === '/api/keys' && req.method === 'POST') {
+      const body = await readBody(req);
+      if (body.delete && body.name) {
+        deleteVaultKey(body.name);
+        return send(res, 200, { ok: true, keys: listMaskedKeys() });
+      }
+      if (body.name && body.value) {
+        setVaultKey(body.name, body.value, 'manual', { force: true });
+        return send(res, 200, { ok: true, keys: listMaskedKeys() });
+      }
+      return send(res, 400, { error: 'name and value required' });
+    }
+    if (pathName === '/api/keys/sync' && req.method === 'POST') {
+      const harvest = lastScan ? harvestFromScan(lastScan) : { count: harvestFromProcessEnv(), keys: listMaskedKeys() };
+      return send(res, 200, { ok: true, imported: harvest.count, keys: harvest.keys });
+    }
+    if (pathName === '/api/settings' && req.method === 'GET') {
+      const settings = loadUserSettings();
+      const scanHints = {
+        rtk: lastScan?.tools?.rtk || null,
+        wsl: lastScan?.tools?.wsl || null,
+        llamacpp: (lastScan?.local_models?.backends || []).find(b => b.id === 'llamacpp') || null,
+      };
+      return send(res, 200, { settings, scanHints, keys: listMaskedKeys() });
+    }
+    if (pathName === '/api/settings' && req.method === 'POST') {
+      const body = await readBody(req);
+      const saved = saveUserSettings(body.settings || body);
+      return send(res, 200, { ok: true, settings: saved });
     }
     if (pathName === '/api/portfolio/health' && req.method === 'GET') {
       return send(res, 200, { items: buildPortfolioHealth() });
@@ -1364,7 +1653,7 @@ async function route(req, res) {
         if (!p) continue;
         let script = extractLaunchScript(p.body);
         if (!script) continue;
-        script = injectProjectPath(script, activeProject);
+        script = injectLaunchContext(script, activeProject);
         const sess = createSession(p, script, body);
         launched.push(publicSession(sess));
       }
@@ -1373,13 +1662,21 @@ async function route(req, res) {
     if (pathName === '/api/chat' && req.method === 'POST') {
       const body = await readBody(req);
       const proj = activeProject ? readProjectRegistry().projects.find(p => p.path === activeProject) : null;
+      const coachView = body.coachView || body.view || '/';
+      const pageContext = body.pageContext || {};
+      const viewGuide = getViewGuide(coachView);
       const context = {
         activeProject: proj,
         installedAgents: (lastScan?.coders || []).filter(c => c.detection?.present).map(c => c.id),
         missingAgents: (lastScan?.coders || []).filter(c => !c.detection?.present).map(c => c.id),
         envKeys: Object.entries(lastScan?.env || {}).filter(([_, v]) => v?.present).map(([k]) => k),
-        profiles: listProfiles().map(p => ({ id: p.id, name: p.name, mode: p.meta.mode, status: p.meta.status })),
-        scan: lastScan ? { system: lastScan.system, hardware: lastScan.hardware } : null,
+        profiles: listProfiles().map(p => ({ id: p.id, name: p.name, mode: p.meta.mode, status: p.meta.status, state: evaluateProfile(p, lastScan, readMemory()).state })),
+        scan: lastScan ? { system: lastScan.system, hardware: lastScan.hardware, tools: lastScan.tools } : null,
+        coachView,
+        pageContext,
+        viewGuide,
+        orchestration: ORCHESTRATION_LOOP,
+        sessions: [...sessions.values()].map(publicSession).slice(0, 8),
       };
       const result = await processChatMessage({
         sessionId: body.sessionId || 'default',
@@ -1401,6 +1698,33 @@ async function route(req, res) {
       const body = await readBody(req);
       clearChat(body.sessionId || 'default');
       return send(res, 200, { ok: true });
+    }
+    if (pathName === '/api/coach/hints' && req.method === 'POST') {
+      const body = await readBody(req);
+      const view = body.view || '/';
+      const pageContext = body.pageContext || {};
+      const memory = readMemory();
+      const profiles = listProfiles().map((p) => {
+        const ev = evaluateProfile(p, lastScan, memory);
+        return { id: p.id, name: p.name, meta: p.meta, state: ev.state, evaluation: ev };
+      });
+      const sessionList = [...sessions.values()].map(publicSession);
+      const portfolio = { items: buildPortfolioHealth() };
+      const hints = buildCoachHints({
+        view,
+        pageContext,
+        scan: lastScan,
+        profiles,
+        sessions: sessionList,
+        portfolio,
+        agentRadar: lastAgentRadar,
+      });
+      const guide = getViewGuide(view);
+      return send(res, 200, { hints, view, guide, orchestration: ORCHESTRATION_LOOP });
+    }
+    if (pathName === '/api/coach/docs' && req.method === 'GET') {
+      const view = url.searchParams.get('view') || '/';
+      return send(res, 200, { view, guide: getViewGuide(view), orchestration: ORCHESTRATION_LOOP });
     }
     return serveStatic(req, res);
   } catch (e) {
@@ -1435,7 +1759,12 @@ if (require.main === module) {
     .then(() => {
       const addr = __server.address();
       const displayPort = addr && typeof addr === 'object' ? addr.port : PORT;
-      console.log(`AgentDock running at http://${HOST}:${displayPort}`);
+      console.log(`HOOT Local AI Command Center running at http://${HOST}:${displayPort}`);
+      setTimeout(() => {
+        moduleManager.maybeAutoSync(lastScan).then((r) => {
+          if (r.ran) console.log(`Module auto-sync: ${JSON.stringify(r.results)}`);
+        }).catch(() => {});
+      }, 3000);
     })
     .catch((err) => {
       console.error(`AgentDock server error: ${err.message}`);

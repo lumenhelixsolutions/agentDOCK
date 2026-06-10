@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/Toast";
+import { useCoach } from "@/context/CoachContext";
+import { STACK_TEMPLATES, type StackTemplate } from "@/lib/stack-catalog";
 import {
   Cpu, Brain, Wrench, Terminal, FileOutput, AlertTriangle, CheckCircle2,
   Plus, Trash2, Play, Save, ChevronRight, ChevronDown, BookOpen,
@@ -24,11 +27,16 @@ const NODE_TYPES = [
 ];
 
 const LLM_OPTIONS = [
+  { id: "gemma3:4b", name: "Gemma 3 4B", context: 128000, backend: "ollama", mode: "local" },
+  { id: "gemma3:4b-it-qat", name: "Gemma 3 4B QAT", context: 128000, backend: "ollama", mode: "local" },
+  { id: "gemma3:12b", name: "Gemma 3 12B", context: 128000, backend: "ollama", mode: "local" },
+  { id: "gemma3:1b", name: "Gemma 3 1B (router)", context: 32000, backend: "ollama", mode: "local" },
   { id: "llama3.1:8b", name: "Llama 3.1 8B", context: 8192, backend: "ollama", mode: "local" },
   { id: "llama3.1:8b-instruct-q8_0", name: "Llama 3.1 8B Q8_0", context: 64000, backend: "ollama", mode: "local" },
   { id: "claude-sonnet-4", name: "Claude Sonnet 4", context: 200000, backend: "anthropic", mode: "cloud" },
   { id: "gpt-4o", name: "GPT-4o", context: 128000, backend: "openai", mode: "cloud" },
   { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", context: 1000000, backend: "google", mode: "cloud" },
+  { id: "grok-build-0.1", name: "Grok Build 0.1", context: 256000, backend: "xai", mode: "cloud" },
   { id: "qwen2.5:7b", name: "Qwen 2.5 7B", context: 32768, backend: "ollama", mode: "local" },
 ];
 
@@ -40,7 +48,60 @@ const AGENT_OPTIONS = [
   { id: "kimi", name: "Kimi CLI", install: "npm install -g kimi-code" },
   { id: "aider", name: "Aider", install: "pip install aider-chat" },
   { id: "gemini-cli", name: "Gemini CLI", install: "npm install -g @google/gemini-cli" },
+  { id: "antigravity-cli", name: "Antigravity CLI", install: "See antigravity.google/download" },
+  { id: "grok-cli", name: "Grok Build CLI", install: "irm https://x.ai/cli/install.ps1 | iex" },
 ];
+
+type WizardStep = "agent" | "llm" | "tools" | "review";
+
+const WIZARD_STEPS: { id: WizardStep; label: string; hint: string }[] = [
+  { id: "agent", label: "Agent", hint: "Pick the coding frontend detected on your machine" },
+  { id: "llm", label: "Model", hint: "Green models are loaded in Ollama right now" },
+  { id: "tools", label: "Tools", hint: "Optional — MCP git is safer than raw shell" },
+  { id: "review", label: "Review", hint: "Check health score, then save or launch" },
+];
+
+function isModelLoaded(scan: any, modelId: string) {
+  const loaded = scan?.ollama?.loaded_models || [];
+  return loaded.some((m: any) => m.name === modelId || m.name === `${modelId}:latest` || m.name?.startsWith(`${modelId}:`));
+}
+
+function buildLlmOptions(scan: any) {
+  const loaded = scan?.ollama?.loaded_models || [];
+  const seen = new Set<string>();
+  const options = LLM_OPTIONS.map((l) => ({ ...l, loaded: isModelLoaded(scan, l.id) }));
+  const llamaBackend = (scan?.local_models?.backends || []).find((b: any) => b.id === "llamacpp");
+  if (llamaBackend?.present) {
+    const ggufs = scan?.local_models?.discovered_ggufs || [];
+    const ggufPath = ggufs[0]?.path || "gguf-local";
+    options.unshift({
+      id: "llamacpp-local",
+      name: `llama.cpp (${ggufs[0]?.name || "GGUF"})`,
+      context: llamaBackend.server?.context_size || 8192,
+      backend: "llamacpp",
+      mode: "local",
+      loaded: Boolean(llamaBackend.server?.reachable),
+    });
+  }
+  for (const m of loaded) {
+    const id = String(m.name || "").replace(/:latest$/, "");
+    if (!id || seen.has(id) || options.some((o) => o.id === id)) continue;
+    seen.add(id);
+    options.unshift({ id, name: id, context: m.context_length || m.context || 8192, backend: "ollama", mode: "local", loaded: true });
+  }
+  return options;
+}
+
+function buildAgentOptions(scan: any) {
+  return [...AGENT_OPTIONS].sort((a, b) => {
+    const aOk = (scan?.coders || []).find((c: any) => c.id === a.id)?.detection?.present ? 1 : 0;
+    const bOk = (scan?.coders || []).find((c: any) => c.id === b.id)?.detection?.present ? 1 : 0;
+    return bOk - aOk;
+  }).map((a) => ({
+    ...a,
+    present: Boolean((scan?.coders || []).find((c: any) => c.id === a.id)?.detection?.present),
+  }));
+}
 
 const RESEARCH_CATEGORIES = [
   { id: "mcp", label: "MCP Servers", icon: Server, color: "#4ade80" },
@@ -65,7 +126,25 @@ export default function StackBuilder() {
   const [search, setSearch] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
   const [launching, setLaunching] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [wizardStep, setWizardStep] = useState<WizardStep>("agent");
+  const [filterLoadedOnly, setFilterLoadedOnly] = useState(false);
+  const [researchCategory, setResearchCategory] = useState<string | null>(null);
+  const [vaultKeys, setVaultKeys] = useState<Set<string>>(new Set());
+  const [expandedTemplate, setExpandedTemplate] = useState<string | null>(null);
   const toast = useToast();
+  const navigate = useNavigate();
+  const { setPageContext, registerActionHandler } = useCoach();
+
+  const llmOptions = useMemo(() => buildLlmOptions(scan), [scan]);
+  const agentOptions = useMemo(() => buildAgentOptions(scan), [scan]);
+  const visibleLlmOptions = useMemo(
+    () => (filterLoadedOnly ? llmOptions.filter((l) => l.loaded || l.mode === "cloud") : llmOptions),
+    [llmOptions, filterLoadedOnly],
+  );
+  const hasAgent = nodes.some((n) => n.type === "agent");
+  const hasLlm = nodes.some((n) => n.type === "llm");
+  const selectedNode = nodes.find((n) => n.id === selected);
 
   useEffect(() => {
     Promise.all([
@@ -73,13 +152,29 @@ export default function StackBuilder() {
       api.getCatalog().catch(() => null),
       api.getResearch().catch(() => null),
       api.getMcp().catch(() => null),
-    ]).then(([s, c, r, m]) => {
+      api.getKeys().catch(() => ({ keys: [] })),
+    ]).then(([s, c, r, m, keys]) => {
       setScan(s);
       setCatalog(c);
       setResearch(r);
       setMcp(m);
+      setVaultKeys(new Set((keys?.keys || []).map((k: { name: string }) => k.name)));
     });
   }, []);
+
+  useEffect(() => {
+    setPageContext({
+      stackScore: score,
+      stackIssues: issues,
+      nodeCount: nodes.length,
+      wizardStep: nodes.length === 0 ? wizardStep : hasAgent && !hasLlm ? "llm" : hasAgent && hasLlm ? "review" : wizardStep,
+      hasAgent,
+      hasLlm,
+      launching,
+      selectedNodeType: selectedNode?.type || null,
+      toolFromMcp: selectedNode?.type === "tool" ? Boolean(selectedNode.config.mcpServer) : false,
+    });
+  }, [score, issues, nodes.length, wizardStep, hasAgent, hasLlm, launching, selectedNode, setPageContext]);
 
   const analyze = useCallback(() => {
     if (!scan) return;
@@ -88,9 +183,14 @@ export default function StackBuilder() {
 
     for (const node of nodes) {
       if (node.type === "llm") {
-        const llm = LLM_OPTIONS.find((l) => l.id === node.config.model);
+        const llm = llmOptions.find((l) => l.id === node.config.model) || LLM_OPTIONS.find((l) => l.id === node.config.model);
         if (!llm) continue;
         if (llm.mode === "local") {
+          if (llm.backend === "llamacpp") {
+            const llamaBackend = (scan.local_models?.backends || []).find((b: any) => b.id === "llamacpp");
+            if (!llamaBackend?.present) { newIssues.push("llama.cpp binary not detected — set path in Settings"); newScore -= 30; }
+            else if (!llamaBackend.server?.reachable) { newIssues.push("llama-server not reachable — start it before launch"); newScore -= 15; }
+          } else {
           const ollama = scan.tools?.ollama;
           if (!ollama?.present) { newIssues.push(`Ollama not installed — required for ${llm.name}`); newScore -= 30; }
           else {
@@ -98,13 +198,19 @@ export default function StackBuilder() {
             const isLoaded = loaded.some((m: any) => m.name === llm.id || m.name === `${llm.id}:latest`);
             if (!isLoaded) { newIssues.push(`${llm.name} is not loaded. Run: ollama pull ${llm.id}`); newScore -= 15; }
           }
+          }
           const vramGB = ((scan.hardware?.gpu?.[0]?.memory_total_mb || 0) / 1024);
           if (llm.context >= 64000 && vramGB < 8) { newIssues.push(`${llm.name} needs 8GB+ VRAM. You have ${vramGB.toFixed(1)}GB.`); newScore -= 20; }
         }
         if (llm.mode === "cloud") {
-          const envKey = `${llm.backend.toUpperCase()}_API_KEY`;
-          const env = scan.env?.[envKey];
-          if (!env?.present) { newIssues.push(`Missing ${envKey} — required for ${llm.name}`); newScore -= 25; }
+          const keyNames = llm.backend === "google"
+            ? ["GEMINI_API_KEY", "GOOGLE_API_KEY"]
+            : [`${String(llm.backend).toUpperCase()}_API_KEY`];
+          const hasKey = keyNames.some((k) => (scan.env as any)?.[k]?.present || vaultKeys.has(k));
+          if (!hasKey) {
+            newIssues.push(`Missing ${keyNames[0]} — run scan or set in Settings (vault auto-imports from .env)`);
+            newScore -= 25;
+          }
         }
       }
       if (node.type === "agent") {
@@ -121,25 +227,102 @@ export default function StackBuilder() {
 
     setIssues(newIssues);
     setScore(Math.max(0, newScore));
-  }, [nodes, scan]);
+  }, [nodes, scan, llmOptions, vaultKeys]);
 
-  useEffect(() => { analyze(); }, [analyze]);
+  useEffect(() => {
+    const t = setTimeout(() => analyze(), 140);
+    return () => clearTimeout(t);
+  }, [analyze]);
 
-  const addNode = (type: string) => {
+  const addNode = (type: string, configPatch?: Record<string, unknown>) => {
     const def = NODE_TYPES.find((n) => n.type === type);
     if (!def) return;
     const id = `${type}-${Date.now()}`;
-    const config: any = {};
-    if (type === "llm") config.model = LLM_OPTIONS[0].id;
-    if (type === "agent") config.agent = AGENT_OPTIONS[0].id;
-    if (type === "tool") config.command = "";
-    setNodes((prev) => [...prev, { id, type: type as any, label: def.label, config }]);
+    const config: Record<string, unknown> = {};
+    if (type === "llm") config.model = llmOptions.find((l) => l.loaded)?.id || llmOptions[0]?.id || LLM_OPTIONS[0].id;
+    if (type === "agent") config.agent = agentOptions.find((a) => a.present)?.id || agentOptions[0]?.id || AGENT_OPTIONS[0].id;
+    if (type === "tool") { config.command = ""; config.mcpServer = ""; }
+    Object.assign(config, configPatch);
+    setNodes((prev) => [...prev, { id, type: type as StackNode["type"], label: def.label, config }]);
     setSelected(id);
+  };
+
+  const addMcpGitTool = useCallback(() => {
+    addNode("tool", { command: "mcp-server-git", mcpServer: "git", label: "MCP Git" });
+    setWizardStep("review");
+  }, []);
+
+  const applyTemplate = (templateId: string) => {
+    const tpl = STACK_TEMPLATES.find((t) => t.id === templateId);
+    if (!tpl) return;
+    const built: StackNode[] = tpl.nodes.map((n, i) => {
+      const def = NODE_TYPES.find((nt) => nt.type === n.type)!;
+      const id = `${n.type}-${Date.now()}-${i}`;
+      const config: Record<string, unknown> =
+        n.type === "agent"
+          ? { agent: n.agent }
+          : n.type === "llm"
+            ? { model: n.model }
+            : { command: n.command, mcpServer: n.mcpServer || "" };
+      return { id, type: n.type as StackNode["type"], label: def.label, config };
+    });
+    setNodes(built);
+    setSelected(built[0]?.id || null);
+    setWizardStep("review");
+    setTab("builder");
+    toast.showToast(`Applied "${tpl.name}" template`, "success");
+  };
+
+  const buildProfilePayload = () => {
+    const llmNode = nodes.find((n) => n.type === "llm");
+    const agentNode = nodes.find((n) => n.type === "agent");
+    const llm = llmNode ? llmOptions.find((l) => l.id === llmNode.config.model) : null;
+    const agent = agentNode ? agentOptions.find((a) => a.id === agentNode.config.agent) : null;
+    const mode = llm?.mode || "hybrid";
+    const name = `stack-${mode}-${agent?.id || "custom"}-${Date.now()}`;
+    const profileId = name.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").slice(0, 60);
+    const launchCmd = agent ? `${agent.id} ${mode === "local" ? "--local" : ""}` : `echo "Custom stack: ${profileId}"`;
+    const meta: Record<string, unknown> = {
+      name: `Custom ${mode} stack`,
+      mode,
+      status: "experimental",
+      command: agent?.id || "",
+      backend: llm?.backend || "",
+      model: llm?.id || "",
+      required_context: llm?.context || 0,
+    };
+    if (llm?.mode === "cloud") {
+      const envKey = `${String(llm.backend).toUpperCase()}_API_KEY`;
+      meta.required_env = [envKey];
+    }
+    return {
+      id: profileId,
+      meta,
+      description: `Stack Builder profile. LLM: ${llm?.name || "none"}, Agent: ${agent?.name || "none"}`,
+      launch: launchCmd,
+    };
+  };
+
+  const saveStack = async () => {
+    if (nodes.length === 0) {
+      toast.showToast("Add at least one node before saving", "warning");
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = buildProfilePayload();
+      await api.createProfile(payload);
+      toast.showToast(`Profile "${payload.id}" saved`, "success");
+      navigate("/profiles");
+    } catch (e: unknown) {
+      toast.showToast(e instanceof Error ? e.message : "Save failed", "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const removeNode = (id: string) => { setNodes((prev) => prev.filter((n) => n.id !== id)); if (selected === id) setSelected(null); };
   const updateNode = (id: string, patch: Partial<StackNode>) => { setNodes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n))); };
-  const selectedNode = nodes.find((n) => n.id === selected);
   const getScoreColor = () => score >= 80 ? "#4ade80" : score >= 50 ? "#f59e0b" : "#ef4444";
 
   const missingTools = useMemo(() => {
@@ -151,6 +334,35 @@ export default function StackBuilder() {
   }, [scan, catalog]);
 
   const mcpConfigs = useMemo(() => (mcp?.configs || []), [mcp]);
+  const mcpCatalog = useMemo(() => (mcp?.catalog?.servers || []), [mcp]);
+
+  const researchSuggestions = useMemo(() => {
+    const items: Array<{ title: string; detail: string; action?: () => void }> = [];
+    if (!researchCategory || researchCategory === "mcp") {
+      for (const srv of mcpCatalog) {
+        items.push({
+          title: srv.name || srv.id,
+          detail: srv.description || "MCP server from catalog",
+          action: () => addMcpGitTool(),
+        });
+      }
+    }
+    if (!researchCategory || researchCategory === "agents") {
+      for (const a of agentOptions.filter((x) => !x.present).slice(0, 4)) {
+        items.push({ title: a.name, detail: `Install: ${a.install}`, action: () => setTab("install") });
+      }
+    }
+    if (!researchCategory || researchCategory === "models") {
+      for (const l of llmOptions.filter((x) => x.loaded).slice(0, 4)) {
+        items.push({ title: l.name, detail: "Loaded on this machine", action: () => { addNode("llm", { model: l.id }); setTab("builder"); } });
+      }
+    }
+    if (research?.text && (!researchCategory || researchCategory === "prompts")) {
+      const lines = String(research.text).split("\n").filter((l: string) => l.trim()).slice(0, 5);
+      for (const line of lines) items.push({ title: "Research brief", detail: line.slice(0, 120) });
+    }
+    return items.slice(0, 8);
+  }, [researchCategory, mcpCatalog, agentOptions, llmOptions, research]);
 
   const copyText = (text: string, id: string) => {
     navigator.clipboard.writeText(text).then(() => { setCopied(id); setTimeout(() => setCopied(null), 1500); });
@@ -160,30 +372,9 @@ export default function StackBuilder() {
     if (score < 50 || nodes.length === 0) return;
     setLaunching(true);
     try {
-      const llmNode = nodes.find((n) => n.type === "llm");
-      const agentNode = nodes.find((n) => n.type === "agent");
-      const llm = llmNode ? LLM_OPTIONS.find((l) => l.id === llmNode.config.model) : null;
-      const agent = agentNode ? AGENT_OPTIONS.find((a) => a.id === agentNode.config.agent) : null;
-      const mode = llm?.mode || "hybrid";
-      const name = `stack-${mode}-${agent?.id || "custom"}-${Date.now()}`;
-      const profileId = name.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").slice(0, 60);
-      const launchCmd = agent
-        ? `${agent.id} ${mode === "local" ? "--local" : ""}`
-        : `echo "Custom stack: ${profileId}"`;
-      const meta: any = {
-        name: `Custom ${mode} stack`,
-        mode,
-        status: "experimental",
-        command: agent?.id || "",
-        backend: llm?.backend || "",
-        model: llm?.id || "",
-        required_context: llm?.context || 0,
-      };
-      if (llm?.mode === "cloud") {
-        const envKey = `${llm.backend.toUpperCase()}_API_KEY`;
-        meta.required_env = [envKey];
-      }
-      await api.createProfile({ id: profileId, meta, description: `Auto-generated stack profile. LLM: ${llm?.name || "none"}, Agent: ${agent?.name || "none"}`, launch: launchCmd });
+      const payload = buildProfilePayload();
+      const profileId = payload.id;
+      await api.createProfile(payload);
       toast.showToast(`Profile "${profileId}" created. Launching...`, "success");
       const result = await api.launch(profileId);
       if (result.launched) {
@@ -201,13 +392,32 @@ export default function StackBuilder() {
     }
   };
 
+  useEffect(() => {
+    return registerActionHandler((target) => {
+      if (target === "wizard-agent") { setTab("builder"); setWizardStep("agent"); }
+      else if (target === "wizard-llm") {
+        setTab("builder");
+        setWizardStep("llm");
+        if (!hasAgent) addNode("agent");
+        if (!hasLlm) addNode("llm");
+      }
+      else if (target === "template-local-audit") applyTemplate("local-audit");
+      else if (target.startsWith("template-")) applyTemplate(target.replace("template-", ""));
+      else if (target === "tab-install") setTab("install");
+      else if (target === "filter-loaded") setFilterLoadedOnly(true);
+      else if (target === "add-mcp-git") addMcpGitTool();
+      else if (target === "save-stack") saveStack();
+      else if (target === "launch-stack") launchStack();
+    });
+  });
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <h2 style={{ fontSize: 20, margin: 0 }}>Stack Builder</h2>
-          <p style={{ fontSize: 12, opacity: 0.5, margin: "4px 0 0" }}>Visual pipeline designer with real-time system analysis</p>
+          <p style={{ fontSize: 12, opacity: 0.5, margin: "4px 0 0" }}>Guided stack composer — HOOT walks you through Agent → Model → Tools → Review</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           {(["builder", "research", "install"] as const).map((t) => (
@@ -234,7 +444,36 @@ export default function StackBuilder() {
 
       {/* Builder Tab */}
       {tab === "builder" && (
-        <div style={{ display: "flex", height: "calc(100vh - 220px)", gap: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            {WIZARD_STEPS.map((step, i) => {
+              const active = wizardStep === step.id;
+              const done = (step.id === "agent" && hasAgent) || (step.id === "llm" && hasLlm) || (step.id === "tools" && nodes.some((n) => n.type === "tool")) || (step.id === "review" && hasAgent && hasLlm);
+              return (
+                <button
+                  key={step.id}
+                  type="button"
+                  onClick={() => setWizardStep(step.id)}
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: 999,
+                    border: `1px solid ${active ? "rgba(255,176,66,0.4)" : done ? "rgba(74,222,128,0.25)" : "rgba(255,255,255,0.08)"}`,
+                    background: active ? "rgba(255,176,66,0.12)" : done ? "rgba(74,222,128,0.06)" : "rgba(255,255,255,0.02)",
+                    color: active ? "#ffb042" : done ? "#86efac" : "#dadada",
+                    cursor: "pointer",
+                    fontSize: 12,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <span style={{ opacity: 0.5 }}>{i + 1}.</span> {step.label}
+                </button>
+              );
+            })}
+            <span style={{ fontSize: 11, opacity: 0.45, marginLeft: 4 }}>{WIZARD_STEPS.find((s) => s.id === wizardStep)?.hint}</span>
+          </div>
+        <div style={{ display: "flex", height: "calc(100vh - 280px)", gap: 16 }}>
           {/* Palette */}
           <div style={{ width: collapsed ? 48 : 200, flexShrink: 0, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 12, padding: collapsed ? "12px 8px" : 16, display: "flex", flexDirection: "column", gap: 8, transition: "width 0.3s" }}>
             <button onClick={() => setCollapsed(!collapsed)} style={{ background: "none", border: "none", color: "#dadada", cursor: "pointer", alignSelf: "flex-end", marginBottom: 8 }}>
@@ -258,15 +497,33 @@ export default function StackBuilder() {
               <button onClick={() => { setNodes([]); setSelected(null); }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.1)", color: "#ef4444", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}>
                 <Trash2 size={12} /> Clear
               </button>
-              <button onClick={() => alert("Save stacks coming in Phase 3")} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid rgba(255,176,66,0.3)", background: "rgba(255,176,66,0.1)", color: "#ffb042", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}>
-                <Save size={12} /> Save
+              <button onClick={saveStack} disabled={saving || nodes.length === 0} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid rgba(255,176,66,0.3)", background: "rgba(255,176,66,0.1)", color: "#ffb042", cursor: nodes.length && !saving ? "pointer" : "not-allowed", fontSize: 12, display: "flex", alignItems: "center", gap: 6, opacity: nodes.length && !saving ? 1 : 0.5 }}>
+                <Save size={12} /> {saving ? "Saving…" : "Save profile"}
               </button>
             </div>
             <div style={{ flex: 1, background: "rgba(255,255,255,0.01)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 12, padding: 20, overflow: "auto" }}>
               {nodes.length === 0 ? (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", opacity: 0.4, gap: 12 }}>
-                  <Plus size={32} />
-                  <span style={{ fontSize: 13 }}>Click a node type to start building</span>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 20, padding: 24 }}>
+                  <Sparkles size={36} color="#ffb042" style={{ opacity: 0.7 }} />
+                  <div style={{ textAlign: "center", maxWidth: 420 }}>
+                    <div style={{ fontSize: 16, fontWeight: 500, color: "#f5f5f5" }}>Start with a guided stack</div>
+                    <p style={{ fontSize: 13, opacity: 0.55, margin: "8px 0 0", lineHeight: 1.5 }}>Pick a quick-start template or follow the wizard steps above. HOOT suggests fixes based on what is actually installed.</p>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 12, width: "100%", maxWidth: 960 }}>
+                    {STACK_TEMPLATES.map((tpl) => (
+                      <TemplateCard
+                        key={tpl.id}
+                        template={tpl}
+                        expanded={expandedTemplate === tpl.id}
+                        onToggle={() => setExpandedTemplate((id) => (id === tpl.id ? null : tpl.id))}
+                        onApply={() => applyTemplate(tpl.id)}
+                      />
+                    ))}
+                    <button type="button" onClick={() => { addNode("agent"); setWizardStep("llm"); }} style={{ padding: "16px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", color: "#dadada", cursor: "pointer", textAlign: "left", minHeight: 120 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>Custom wizard</div>
+                      <div style={{ fontSize: 11, opacity: 0.65, marginTop: 4 }}>Agent first, then model — HOOT guides each step</div>
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -282,8 +539,8 @@ export default function StackBuilder() {
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 13, color: "#f5f5f5", fontWeight: 500 }}>{idx + 1}. {node.label}</div>
                           <div style={{ fontSize: 11, opacity: 0.5, marginTop: 2, fontFamily: "'GeistMono', monospace" }}>
-                            {node.type === "llm" && (LLM_OPTIONS.find((l) => l.id === node.config.model)?.name || node.config.model)}
-                            {node.type === "agent" && (AGENT_OPTIONS.find((a) => a.id === node.config.agent)?.name || node.config.agent)}
+                            {node.type === "llm" && (llmOptions.find((l) => l.id === node.config.model)?.name || node.config.model)}
+                            {node.type === "agent" && (agentOptions.find((a) => a.id === node.config.agent)?.name || node.config.agent)}
                             {node.type === "tool" && (node.config.command || "No command")}
                             {node.type === "processor" && (node.config.type || "Processor")}
                             {node.type === "output" && (node.config.format || "Text")}
@@ -331,9 +588,12 @@ export default function StackBuilder() {
                 {selectedNode.type === "llm" && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     <label style={{ fontSize: 11, opacity: 0.5 }}>Model</label>
-                    <select value={selectedNode.config.model} onChange={(e) => updateNode(selectedNode.id, { config: { ...selectedNode.config, model: e.target.value } })} style={{ padding: "8px 10px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(0,0,0,0.2)", color: "#f5f5f5", fontSize: 12 }}>
-                      {LLM_OPTIONS.map((l) => <option key={l.id} value={l.id}>{l.name} ({l.context.toLocaleString()} ctx)</option>)}
-                    </select>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <select value={selectedNode.config.model} onChange={(e) => updateNode(selectedNode.id, { config: { ...selectedNode.config, model: e.target.value } })} style={{ flex: 1, padding: "8px 10px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(0,0,0,0.2)", color: "#f5f5f5", fontSize: 12 }}>
+                        {visibleLlmOptions.map((l) => <option key={l.id} value={l.id}>{l.loaded ? "● " : ""}{l.name} ({l.context.toLocaleString()} ctx)</option>)}
+                      </select>
+                      <button type="button" onClick={() => setFilterLoadedOnly((v) => !v)} style={{ padding: "6px 8px", borderRadius: 6, border: `1px solid ${filterLoadedOnly ? "rgba(74,222,128,0.3)" : "rgba(255,255,255,0.08)"}`, background: filterLoadedOnly ? "rgba(74,222,128,0.1)" : "transparent", color: filterLoadedOnly ? "#4ade80" : "#aaa", cursor: "pointer", fontSize: 10 }} title="Show loaded models only">Loaded</button>
+                    </div>
                     <label style={{ fontSize: 11, opacity: 0.5 }}>Temperature: {selectedNode.config.temperature ?? 0.3}</label>
                     <input type="range" min={0} max={1} step={0.1} value={selectedNode.config.temperature ?? 0.3} onChange={(e) => updateNode(selectedNode.id, { config: { ...selectedNode.config, temperature: parseFloat(e.target.value) } })} style={{ accentColor: "#ffb042" }} />
                   </div>
@@ -342,7 +602,7 @@ export default function StackBuilder() {
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     <label style={{ fontSize: 11, opacity: 0.5 }}>Agent</label>
                     <select value={selectedNode.config.agent} onChange={(e) => updateNode(selectedNode.id, { config: { ...selectedNode.config, agent: e.target.value } })} style={{ padding: "8px 10px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(0,0,0,0.2)", color: "#f5f5f5", fontSize: 12 }}>
-                      {AGENT_OPTIONS.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                      {agentOptions.map((a) => <option key={a.id} value={a.id}>{a.present ? "● " : ""}{a.name}{a.present ? "" : " (not detected)"}</option>)}
                     </select>
                     <p style={{ fontSize: 10, opacity: 0.4, margin: "4px 0 0" }}>Not installed? Check the Install tab.</p>
                   </div>
@@ -361,21 +621,45 @@ export default function StackBuilder() {
             </button>
           </div>
         </div>
+        </div>
       )}
 
       {/* Research Tab */}
       {tab === "research" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <p style={{ fontSize: 12, opacity: 0.55, margin: 0 }}>Click a category — suggestions come from your scan, MCP catalog, and research brief.</p>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             {RESEARCH_CATEGORIES.map((cat) => {
               const Icon = cat.icon;
+              const active = researchCategory === cat.id;
               return (
-                <div key={cat.id} style={{ padding: 16, borderRadius: 12, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", minWidth: 160, display: "flex", alignItems: "center", gap: 10 }}>
+                <button key={cat.id} type="button" onClick={() => setResearchCategory(active ? null : cat.id)} style={{ padding: 16, borderRadius: 12, background: active ? `${cat.color}12` : "rgba(255,255,255,0.02)", border: `1px solid ${active ? `${cat.color}40` : "rgba(255,255,255,0.04)"}`, minWidth: 160, display: "flex", alignItems: "center", gap: 10, cursor: "pointer", color: "#f5f5f5" }}>
                   <Icon size={20} color={cat.color} />
-                  <span style={{ fontSize: 13, color: "#f5f5f5" }}>{cat.label}</span>
-                </div>
+                  <span style={{ fontSize: 13 }}>{cat.label}</span>
+                </button>
               );
             })}
+          </div>
+
+          <div style={{ padding: 20, borderRadius: 12, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
+            <h3 style={{ fontSize: 14, margin: "0 0 12px", color: "#f5f5f5" }}>Suggested next steps</h3>
+            {researchSuggestions.length === 0 ? (
+              <div style={{ opacity: 0.4, fontSize: 12 }}>Run a scan or refresh research to populate suggestions.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {researchSuggestions.map((item, i) => (
+                  <div key={i} style={{ padding: 12, borderRadius: 8, background: "rgba(0,0,0,0.15)", border: "1px solid rgba(255,255,255,0.04)", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+                    <div>
+                      <div style={{ fontSize: 13, color: "#f5f5f5" }}>{item.title}</div>
+                      <div style={{ fontSize: 11, opacity: 0.55, marginTop: 4 }}>{item.detail}</div>
+                    </div>
+                    {item.action && (
+                      <button type="button" onClick={item.action} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid rgba(255,176,66,0.3)", background: "rgba(255,176,66,0.1)", color: "#ffb042", cursor: "pointer", fontSize: 11, flexShrink: 0 }}>Add</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div style={{ padding: 20, borderRadius: 12, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
@@ -439,6 +723,79 @@ export default function StackBuilder() {
               <InstallCard key={tool.id} tool={tool} scan={scan} onCopy={copyText} copied={copied} installed />
             ))}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TemplateCard({
+  template,
+  expanded,
+  onToggle,
+  onApply,
+}: {
+  template: StackTemplate;
+  expanded: boolean;
+  onToggle: () => void;
+  onApply: () => void;
+}) {
+  const isGoogle = Boolean(template.googleNote);
+  const borderColor = isGoogle ? "rgba(96,165,250,0.3)" : "rgba(255,176,66,0.25)";
+  const bgColor = isGoogle ? "rgba(96,165,250,0.06)" : "rgba(255,176,66,0.06)";
+
+  return (
+    <div style={{ borderRadius: 12, border: `1px solid ${borderColor}`, background: bgColor, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <button type="button" onClick={onToggle} style={{ padding: "14px 16px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", color: "#f5f5f5", width: "100%" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 14, fontWeight: 600 }}>{template.name}</span>
+              <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 999, background: "rgba(0,0,0,0.25)", color: isGoogle ? "#93c5fd" : "#ffb042" }}>{template.tag}</span>
+            </div>
+            <div style={{ fontSize: 12, opacity: 0.7, marginTop: 6, lineHeight: 1.45 }}>{template.desc}</div>
+          </div>
+          <ChevronDown size={16} style={{ flexShrink: 0, transform: expanded ? "rotate(180deg)" : "none", transition: "transform 0.2s", opacity: 0.5 }} />
+        </div>
+      </button>
+
+      {expanded && (
+        <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 12, borderTop: `1px solid ${borderColor}` }}>
+          <p style={{ margin: "12px 0 0", fontSize: 12, lineHeight: 1.6, color: "#e5e5e5" }}>{template.explainer}</p>
+
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", opacity: 0.45, marginBottom: 6 }}>When to use</div>
+            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 11, lineHeight: 1.55, color: "#d4d4d4" }}>
+              {template.whenToUse.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </div>
+
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", opacity: 0.45, marginBottom: 6 }}>Requirements</div>
+            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 11, lineHeight: 1.55, color: "#d4d4d4" }}>
+              {template.requirements.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </div>
+
+          {template.setupSteps && (
+            <div>
+              <div style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", opacity: 0.45, marginBottom: 6 }}>Setup</div>
+              <ol style={{ margin: 0, paddingLeft: 18, fontSize: 11, lineHeight: 1.55, color: "#d4d4d4" }}>
+                {template.setupSteps.map((item) => <li key={item}>{item}</li>)}
+              </ol>
+            </div>
+          )}
+
+          {template.googleNote && (
+            <div style={{ padding: 10, borderRadius: 8, background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.2)", fontSize: 11, lineHeight: 1.55, color: "#93c5fd" }}>
+              <strong style={{ display: "block", marginBottom: 4, fontSize: 10, letterSpacing: "0.08em" }}>Google ecosystem note</strong>
+              {template.googleNote}
+            </div>
+          )}
+
+          <button type="button" onClick={onApply} style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${borderColor}`, background: "rgba(0,0,0,0.2)", color: isGoogle ? "#93c5fd" : "#ffb042", cursor: "pointer", fontSize: 12, fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            <Play size={12} /> Apply stack
+          </button>
         </div>
       )}
     </div>

@@ -1,3 +1,5 @@
+import { hootReportError, shouldAutoReport } from "./hoot-bus";
+
 const API_BASE = "";
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -5,7 +7,17 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (body !== undefined) opts.body = JSON.stringify(body);
   const res = await fetch(`${API_BASE}${path}`, opts);
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  if (!res.ok) {
+    const msg = String(data.error || `HTTP ${res.status}`);
+    if (shouldAutoReport(path, res.status)) {
+      hootReportError({
+        message: msg,
+        source: path.replace(/^\/api\//, ""),
+        fix: path.includes("/scan") ? "Check scanner.ps1 and PowerShell execution policy, then retry." : undefined,
+      });
+    }
+    throw new Error(msg);
+  }
   return data as T;
 }
 
@@ -16,6 +28,16 @@ export const api = {
   getProfile: (id: string) => request<any>("GET", `/api/profile/${encodeURIComponent(id)}`),
   createProfile: (data: any) => request<any>("POST", "/api/profiles/create", data),
   runScan: (repo?: string) => request<any>("GET", `/api/scan?repo=${encodeURIComponent(repo || "")}`),
+  getAgentRadar: (force?: boolean) =>
+    request<{
+      scanned_at: string;
+      processes: Array<{ pid: number; name: string; command: string; agent_id: string; agent_name: string; source: string }>;
+      agents: Array<{ id: string; name: string; count: number; dock: number; external: number; pids: number[] }>;
+      summary: { total: number; dock: number; external: number; agent_types: number };
+      dock_sessions?: number;
+      cached?: boolean;
+      note?: string;
+    }>("GET", `/api/agent-radar${force ? "?force=1" : ""}`),
   makePlan: (goal: string) => request<any>("POST", "/api/plan", { goal }),
   dryRun: (id: string) => request<any>("POST", `/api/launch/${encodeURIComponent(id)}`, { dryRun: true }),
   launch: (id: string, overrideReason?: string) => request<any>("POST", `/api/launch/${encodeURIComponent(id)}`, { overrideReason }),
@@ -31,7 +53,7 @@ export const api = {
   getActiveProject: () => request<any>("GET", "/api/active-project"),
   setActiveProject: (path: string) => request<void>("POST", "/api/active-project", { path }),
   analyze: (question?: string) => request<any>("POST", "/api/advisor/analyze", { question, useGemini: false }),
-  chat: (sessionId: string, text: string, opts?: { provider?: string; model?: string; apiKey?: string; customEndpoint?: string }) =>
+  chat: (sessionId: string, text: string, opts?: { provider?: string; model?: string; apiKey?: string; customEndpoint?: string; coachView?: string; pageContext?: Record<string, unknown> }) =>
     request<any>("POST", "/api/chat", { sessionId, text, ...opts }),
   clearChat: (sessionId: string) => request<void>("POST", "/api/chat/clear", { sessionId }),
   getTemplates: () => request<any>("GET", "/api/templates"),
@@ -39,9 +61,33 @@ export const api = {
   runResearch: () => request<any>("POST", "/api/research/run", {}),
   getUsage: () => request<any>("GET", "/api/usage"),
   getMcp: () => request<any>("GET", "/api/mcp"),
+  getSettings: () => request<any>("GET", "/api/settings"),
+  saveSettings: (settings: unknown) => request<any>("POST", "/api/settings", { settings }),
+  getKeys: () => request<{ keys: Array<{ name: string; provider: string; masked: string; source: string; updatedAt: string }>; count: number }>("GET", "/api/keys"),
+  saveKey: (name: string, value: string) => request<any>("POST", "/api/keys", { name, value }),
+  deleteKey: (name: string) => request<any>("POST", "/api/keys", { name, delete: true }),
+  syncKeys: () => request<{ ok: boolean; imported: number; keys: Array<Record<string, unknown>> }>("POST", "/api/keys/sync", {}),
   getPortfolioHealth: () => request<any>("GET", "/api/portfolio/health"),
   getSuggestions: () => request<any>("GET", "/api/suggestions"),
+  getModules: () => request<{ version: string; modules: Array<any>; auto_sync?: { enabled: boolean; interval_days: number } }>("GET", "/api/modules"),
+  getModule: (id: string) => request<any>("GET", `/api/modules/${encodeURIComponent(id)}`),
+  getModuleInstallPlan: (id: string) => request<any>("GET", `/api/modules/${encodeURIComponent(id)}/install-plan`),
+  setModuleEnabled: (id: string, enabled: boolean) =>
+    request<any>("POST", `/api/modules/${encodeURIComponent(id)}/enable`, { enabled }),
+  syncModule: (id: string) => request<{ ok: boolean; output?: string }>("POST", `/api/modules/${encodeURIComponent(id)}/sync`, {}),
+  installModule: (id: string, target: string) =>
+    request<any>("POST", `/api/modules/${encodeURIComponent(id)}/install`, { target }),
+  fullModuleSetup: (id: string) =>
+    request<any>("POST", `/api/modules/${encodeURIComponent(id)}/full-setup`, {}),
+  runModulesAutoSync: () => request<any>("POST", "/api/modules/auto-sync", {}),
+  setModuleSettings: (auto_sync: { enabled?: boolean; interval_days?: number }) =>
+    request<any>("POST", "/api/modules/settings", { auto_sync }),
+  getAgents: () => request<{ agents: Array<any> }>("GET", "/api/agents"),
   getSkills: () => request<{ skills: Array<any> }>("GET", "/api/skills"),
   getSkill: (id: string) => request<any>("GET", `/api/skills/${encodeURIComponent(id)}`),
   getSkillContent: (id: string) => request<{ content: string }>("GET", `/api/skills/${encodeURIComponent(id)}/content`),
+  getCoachHints: (view: string, pageContext?: Record<string, unknown>) =>
+    request<{ hints: Array<Record<string, unknown>>; view: string; guide?: Record<string, unknown>; orchestration?: Record<string, unknown> }>("POST", "/api/coach/hints", { view, pageContext: pageContext || {} }),
+  getCoachDocs: (view: string) =>
+    request<{ view: string; guide: Record<string, unknown>; orchestration: Record<string, unknown> }>("GET", `/api/coach/docs?view=${encodeURIComponent(view)}`),
 } as const;

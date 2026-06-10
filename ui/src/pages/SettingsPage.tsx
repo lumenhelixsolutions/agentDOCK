@@ -1,55 +1,135 @@
 import { useState, useEffect } from "react";
-import { Key, Save, CheckCircle, Database, Sparkles } from "lucide-react";
+import { Key, Save, CheckCircle, Database, Sparkles, Cpu, Zap, RefreshCw } from "lucide-react";
+import { api } from "../lib/api";
+import { useCoach } from "@/context/CoachContext";
 
-interface ApiKeyConfig {
+type VaultKeyRow = {
+  name: string;
   provider: string;
-  keyName: string;
-  keyValue: string;
-  endpoint?: string;
-}
+  masked: string;
+  source: string;
+  updatedAt: string;
+};
 
-const DEFAULT_KEYS: ApiKeyConfig[] = [
-  { provider: "gemini", keyName: "GEMINI_API_KEY", keyValue: "" },
-  { provider: "openai", keyName: "OPENAI_API_KEY", keyValue: "" },
-  { provider: "anthropic", keyName: "ANTHROPIC_API_KEY", keyValue: "" },
-  { provider: "openrouter", keyName: "OPENROUTER_API_KEY", keyValue: "" },
-  { provider: "moonshot", keyName: "MOONSHOT_API_KEY", keyValue: "" },
-  { provider: "groq", keyName: "GROQ_API_KEY", keyValue: "" },
+const KEY_DEFS = [
+  { provider: "gemini", keyName: "GEMINI_API_KEY" },
+  { provider: "openai", keyName: "OPENAI_API_KEY" },
+  { provider: "anthropic", keyName: "ANTHROPIC_API_KEY" },
+  { provider: "openrouter", keyName: "OPENROUTER_API_KEY" },
+  { provider: "moonshot", keyName: "MOONSHOT_API_KEY" },
+  { provider: "groq", keyName: "GROQ_API_KEY" },
+  { provider: "xai", keyName: "XAI_API_KEY" },
 ];
 
+interface LlamaCppSettings {
+  enabled: boolean;
+  binary: string;
+  modelPath: string;
+  host: string;
+  port: number;
+  contextSize: number;
+  nGpuLayers: number;
+  threads: number;
+  extraArgs: string;
+}
+
+interface ServerSettings {
+  localInference: {
+    preferredBackend: string;
+    llamacpp: LlamaCppSettings;
+  };
+  tokenEfficiency: { rtkRecommended: boolean };
+}
+
 export default function SettingsPage() {
-  const [keys, setKeys] = useState<ApiKeyConfig[]>([]);
+  const { setPageContext } = useCoach();
+  const [vaultKeys, setVaultKeys] = useState<VaultKeyRow[]>([]);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [modelProvider, setModelProvider] = useState("gemini");
   const [customEndpoint, setCustomEndpoint] = useState("");
+  const [serverSettings, setServerSettings] = useState<ServerSettings | null>(null);
+  const [scanHints, setScanHints] = useState<{ rtk?: { present?: boolean }; wsl?: { present?: boolean }; llamacpp?: { present?: boolean; server?: { reachable?: boolean } } } | null>(null);
 
-  useEffect(() => {
-    const stored = localStorage.getItem("agentdock_api_keys");
-    if (stored) {
-      setKeys(JSON.parse(stored));
-    } else {
-      setKeys(DEFAULT_KEYS);
-    }
-    setModelProvider(localStorage.getItem("agentdock_model_provider") || "gemini");
-    setCustomEndpoint(localStorage.getItem("agentdock_custom_endpoint") || "");
-  }, []);
-
-  const updateKey = (provider: string, value: string) => {
-    setKeys((prev) => prev.map((k) => (k.provider === provider ? { ...k, keyValue: value } : k)));
+  const loadKeys = () => {
+    api.getKeys().then((r) => setVaultKeys(r.keys || [])).catch(() => setVaultKeys([]));
   };
 
-  const save = () => {
-    localStorage.setItem("agentdock_api_keys", JSON.stringify(keys));
+  useEffect(() => {
+    setModelProvider(localStorage.getItem("agentdock_model_provider") || "gemini");
+    setCustomEndpoint(localStorage.getItem("agentdock_custom_endpoint") || "");
+    loadKeys();
+    api.getSettings().then((r) => {
+      setServerSettings(r.settings);
+      setScanHints(r.scanHints);
+      if (r.keys?.length) setVaultKeys(r.keys);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    setPageContext({
+      llamacppEnabled: Boolean(serverSettings?.localInference?.llamacpp?.enabled),
+      llamacppInterest: Boolean(scanHints?.llamacpp?.present || scanHints?.llamacpp?.server?.reachable),
+      vaultKeyCount: vaultKeys.length,
+    });
+  }, [serverSettings, scanHints, vaultKeys.length, setPageContext]);
+
+  const updateLlama = (patch: Partial<LlamaCppSettings>) => {
+    setServerSettings((prev) =>
+      prev
+        ? {
+            ...prev,
+            localInference: {
+              ...prev.localInference,
+              llamacpp: { ...prev.localInference.llamacpp, ...patch },
+            },
+          }
+        : prev
+    );
+  };
+
+  const syncFromScan = async () => {
+    setSyncing(true);
+    try {
+      const r = await api.syncKeys();
+      setVaultKeys((r.keys || []) as VaultKeyRow[]);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const save = async () => {
     localStorage.setItem("agentdock_model_provider", modelProvider);
     localStorage.setItem("agentdock_custom_endpoint", customEndpoint);
-    // Also set legacy keys for compatibility
-    const gemini = keys.find((k) => k.provider === "gemini");
-    if (gemini?.keyValue) localStorage.setItem("agentdock_gemini_key", gemini.keyValue);
+    for (const [name, value] of Object.entries(drafts)) {
+      if (value.trim()) await api.saveKey(name, value.trim());
+    }
+    setDrafts({});
+    loadKeys();
+    if (serverSettings) {
+      try {
+        await api.saveSettings(serverSettings);
+      } catch {
+        /* optional */
+      }
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const getMasked = (v: string) => (v ? v.slice(0, 4) + "•".repeat(v.length - 4) : "");
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "10px 14px",
+    borderRadius: 8,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    color: "#f5f5f5",
+    fontSize: 13,
+    fontFamily: "'GeistMono', monospace",
+  };
+
+  const rowFor = (keyName: string) => vaultKeys.find((k) => k.name === keyName);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24, maxWidth: 720 }}>
@@ -75,17 +155,16 @@ export default function SettingsPage() {
         </button>
       </div>
 
-      {/* Model Provider */}
       <div style={{ padding: 20, borderRadius: 12, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
           <Sparkles size={16} color="#ffb042" />
-          <h3 style={{ fontSize: 14, margin: 0, color: "#f5f5f5" }}>AI Coach Model</h3>
+          <h3 style={{ fontSize: 14, margin: 0, color: "#f5f5f5" }}>HOOT Model</h3>
         </div>
         <p style={{ fontSize: 12, opacity: 0.5, margin: "0 0 12px" }}>
-          Choose which model powers the AI assistant. If no key is provided, the rule-based advisor is used.
+          Coach uses keys from the local vault (auto-imported on scan). No key → screen-aware local coach.
         </p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {["gemini", "openai", "anthropic", "openrouter", "groq", "custom"].map((p) => (
+          {["gemini", "openai", "anthropic", "openrouter", "groq", "xai", "custom"].map((p) => (
             <button
               key={p}
               onClick={() => setModelProvider(p)}
@@ -110,96 +189,140 @@ export default function SettingsPage() {
             value={customEndpoint}
             onChange={(e) => setCustomEndpoint(e.target.value)}
             placeholder="https://api.openai.com/v1/chat/completions"
-            style={{
-              marginTop: 12,
-              width: "100%",
-              padding: "10px 14px",
-              borderRadius: 8,
-              border: "1px solid rgba(255,255,255,0.08)",
-              background: "rgba(255,255,255,0.03)",
-              color: "#f5f5f5",
-              fontSize: 13,
-              fontFamily: "'GeistMono', monospace",
-            }}
+            style={{ ...inputStyle, marginTop: 12 }}
           />
         )}
       </div>
 
-      {/* API Keys */}
+      {serverSettings && (
+        <div style={{ padding: 20, borderRadius: 12, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+            <Cpu size={16} color="#4ade80" />
+            <h3 style={{ fontSize: 14, margin: 0, color: "#f5f5f5" }}>Local Inference (llama.cpp)</h3>
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, marginBottom: 12 }}>
+            <input
+              type="checkbox"
+              checked={serverSettings.localInference.llamacpp.enabled}
+              onChange={(e) => updateLlama({ enabled: e.target.checked })}
+            />
+            Enable llama.cpp backend
+          </label>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {[
+              ["binary", "Binary (llama-server)", "text"],
+              ["modelPath", "GGUF model path", "text"],
+              ["host", "Host", "text"],
+              ["port", "Port", "number"],
+            ].map(([key, label, type]) => (
+              <div key={key} style={{ gridColumn: key === "modelPath" ? "1 / -1" : undefined }}>
+                <label style={{ fontSize: 11, opacity: 0.5, display: "block", marginBottom: 4 }}>{label}</label>
+                <input
+                  type={type}
+                  value={String((serverSettings.localInference.llamacpp as Record<string, unknown>)[key] ?? "")}
+                  onChange={(e) =>
+                    updateLlama({
+                      [key]: type === "number" ? Number(e.target.value) : e.target.value,
+                    } as Partial<LlamaCppSettings>)
+                  }
+                  style={inputStyle}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div style={{ padding: 20, borderRadius: 12, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-          <Key size={16} color="#ffb042" />
-          <h3 style={{ fontSize: 14, margin: 0, color: "#f5f5f5" }}>API Keys</h3>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Key size={16} color="#ffb042" />
+            <h3 style={{ fontSize: 14, margin: 0, color: "#f5f5f5" }}>API Keys (local vault)</h3>
+          </div>
+          <button
+            type="button"
+            onClick={syncFromScan}
+            disabled={syncing}
+            style={{
+              padding: "6px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)",
+              background: "rgba(255,255,255,0.03)", color: "#dadada", cursor: "pointer", fontSize: 11,
+              display: "flex", alignItems: "center", gap: 6, opacity: syncing ? 0.6 : 1,
+            }}
+          >
+            <RefreshCw size={12} />
+            {syncing ? "Syncing…" : "Pull from scan"}
+          </button>
         </div>
         <p style={{ fontSize: 12, opacity: 0.5, margin: "0 0 16px" }}>
-          Keys are stored locally in your browser. They are never sent to any server except the model provider you select.
+          Keys auto-import from process env and scanned <code>.env</code> files on every Readiness scan.
+          Stored in <code>state/key-vault.json</code> on your machine. UI shows last 3 characters only.
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {keys.map((k) => (
-            <div key={k.provider} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <span style={{ fontSize: 12, width: 120, textTransform: "uppercase", opacity: 0.6, letterSpacing: "0.05em" }}>{k.provider}</span>
-              <input
-                type="password"
-                value={k.keyValue}
-                onChange={(e) => updateKey(k.provider, e.target.value)}
-                placeholder={`Enter ${k.keyName}...`}
-                style={{
-                  flex: 1,
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  background: "rgba(255,255,255,0.03)",
-                  color: "#f5f5f5",
-                  fontSize: 13,
-                  fontFamily: "'GeistMono', monospace",
-                }}
-              />
-              {k.keyValue && (
-                <span style={{ fontSize: 11, color: "#4ade80", opacity: 0.7, fontFamily: "'GeistMono', monospace" }}>
-                  {getMasked(k.keyValue)}
-                </span>
-              )}
-            </div>
-          ))}
+          {KEY_DEFS.map((def) => {
+            const stored = rowFor(def.keyName);
+            return (
+              <div key={def.keyName} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 12, width: 100, textTransform: "uppercase", opacity: 0.6 }}>{def.provider}</span>
+                <input
+                  type="password"
+                  value={drafts[def.keyName] ?? ""}
+                  onChange={(e) => setDrafts((d) => ({ ...d, [def.keyName]: e.target.value }))}
+                  placeholder={stored ? `Stored ${stored.masked}` : `Enter ${def.keyName}…`}
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                {stored && !drafts[def.keyName] && (
+                  <span style={{ fontSize: 11, color: "#4ade80", fontFamily: "'GeistMono', monospace", minWidth: 72 }}>
+                    {stored.masked}
+                  </span>
+                )}
+                {stored && (
+                  <span style={{ fontSize: 10, opacity: 0.45, maxWidth: 120 }} title={stored.source}>
+                    {stored.source.startsWith("env-file") ? "from .env" : stored.source}
+                  </span>
+                )}
+              </div>
+            );
+          })}
         </div>
+        {vaultKeys.length > 0 && (
+          <p style={{ fontSize: 11, color: "#4ade80", margin: "12px 0 0" }}>
+            {vaultKeys.length} key{vaultKeys.length === 1 ? "" : "s"} in vault — used for coach, stack builder, and launches.
+          </p>
+        )}
       </div>
 
-      {/* Data */}
+      <div style={{ padding: 20, borderRadius: 12, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+          <Zap size={16} color="#fbbf24" />
+          <h3 style={{ fontSize: 14, margin: 0, color: "#f5f5f5" }}>Token Efficiency (RTK)</h3>
+        </div>
+        {scanHints && (
+          <p style={{ fontSize: 11, margin: 0, color: scanHints.rtk?.present ? "#4ade80" : "#fbbf24" }}>
+            RTK: {scanHints.rtk?.present ? "installed" : "not detected"}
+          </p>
+        )}
+      </div>
+
       <div style={{ padding: 20, borderRadius: 12, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
           <Database size={16} color="#ffb042" />
           <h3 style={{ fontSize: 14, margin: 0, color: "#f5f5f5" }}>Local Data</h3>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            onClick={() => { if (confirm("Clear all API keys?")) { localStorage.removeItem("agentdock_api_keys"); localStorage.removeItem("agentdock_gemini_key"); setKeys(DEFAULT_KEYS); } }}
-            style={{
-              padding: "8px 16px",
-              borderRadius: 8,
-              border: "1px solid rgba(239,68,68,0.3)",
-              background: "rgba(239,68,68,0.1)",
-              color: "#ef4444",
-              cursor: "pointer",
-              fontSize: 12,
-            }}
-          >
-            Clear API Keys
-          </button>
-          <button
-            onClick={() => { if (confirm("Clear chat history?")) localStorage.removeItem("agentdock_chat_history"); }}
-            style={{
-              padding: "8px 16px",
-              borderRadius: 8,
-              border: "1px solid rgba(255,255,255,0.1)",
-              background: "rgba(255,255,255,0.05)",
-              color: "#dadada",
-              cursor: "pointer",
-              fontSize: 12,
-            }}
-          >
-            Clear Chat History
-          </button>
-        </div>
+        <button
+          onClick={async () => {
+            if (!confirm("Clear all vault API keys?")) return;
+            for (const k of vaultKeys) await api.deleteKey(k.name);
+            setVaultKeys([]);
+            localStorage.removeItem("agentdock_api_keys");
+            localStorage.removeItem("agentdock_gemini_key");
+          }}
+          style={{
+            padding: "8px 16px", borderRadius: 8, border: "1px solid rgba(239,68,68,0.3)",
+            background: "rgba(239,68,68,0.1)", color: "#ef4444", cursor: "pointer", fontSize: 12,
+          }}
+        >
+          Clear API Keys
+        </button>
       </div>
     </div>
   );

@@ -7,7 +7,8 @@ import MemoryPage from "./pages/MemoryPage";
 import TerminalPage from "./pages/TerminalPage";
 import SettingsPage from "./pages/SettingsPage";
 import StackBuilder from "./pages/StackBuilder";
-import SkillsPage from "./pages/SkillsPage";
+import ModulesPage from "./pages/ModulesPage";
+import { Navigate } from "react-router-dom";
 import LaunchCenterPage from "./pages/LaunchCenterPage";
 
 export default function App() {
@@ -21,7 +22,8 @@ export default function App() {
         <Route path="/memory" element={<MemoryPage />} />
         <Route path="/scan" element={<ScanPage />} />
         <Route path="/builder" element={<StackBuilder />} />
-        <Route path="/skills" element={<SkillsPage />} />
+        <Route path="/modules" element={<ModulesPage />} />
+        <Route path="/skills" element={<Navigate to="/modules" replace />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
     </Routes>

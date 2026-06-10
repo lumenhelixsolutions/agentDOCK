@@ -1,6 +1,6 @@
-# AgentDock
+# HOOT — Local AI Command Center
 
-AgentDock is a local-only AI agent stack scanner, planner, terminal monitor, launcher, and memory system. It binds to `127.0.0.1` only, uses zero npm dependencies, and launches only commands embedded in approved Markdown profile files.
+HOOT is a local-only AI agent command center (engine package: `agentdock`). It scans your machine, plans agent stacks, monitors terminals, launches approved profiles, and learns from memory. It binds to `127.0.0.1` only, uses zero runtime npm dependencies, and launches only commands embedded in approved Markdown profile files.
 
 ## Quick Start
 
@@ -12,7 +12,7 @@ Open `http://127.0.0.1:7777` in your browser.
 
 ## Build & Test
 
-AgentDock has **zero runtime npm dependencies**. All tests use Node.js built-in modules.
+HOOT has **zero runtime npm dependencies**. All tests use Node.js built-in modules.
 
 ### Run All Tests
 
@@ -88,6 +88,32 @@ No linter is configured by design (zero dependencies). Follow the existing style
 - `state/` — JSON state (projects, stack usage, sessions).
 - `logs/` — Scan logs, launch logs, session transcripts.
 - `briefs/` — Auto-generated research briefs.
+
+## Integrations (Phase 1)
+
+| Integration | Location |
+|-------------|----------|
+| RTK token efficiency | `state/user-settings.json`, scanner `token_efficiency` |
+| MCP git catalog | `state/mcp-catalog.json`, `GET /api/mcp` |
+| llama.cpp settings | Settings UI, `GET/POST /api/settings`, `backend: llamacpp` profiles |
+| Docs | `D:\projects\docs/AI_OS_INTEGRATIONS.md` |
+
+Sample profiles: `local-safe-audit-llamacpp.md`, `compound-core-claude-rtk.md`
+
+## Chatbot / Coach UI
+
+Build or upgrade conversational UI with **[assistant-ui](https://github.com/assistant-ui/assistant-ui)** — portfolio standard.
+
+| Asset | Path |
+|-------|------|
+| Agent skill | `skills/chatbot-builder/SKILL.md` |
+| Human doc | `docs/CHATBOT_BUILDER.md` |
+| Portfolio standard | `D:\projects\docs\CHATBOT_STACK.md` |
+| AI OS context | `D:\projects\docs\AI_OS_ARCHITECTURE.md` |
+
+- UI packages live in `ui/` only (server stays zero runtime npm deps).
+- Coach calls existing `POST /api/chat` via an assistant-ui external-store runtime.
+- Launch commands from chat require UI approval before profile execution.
 
 ## Compound Engineering Integration
 
@@ -203,6 +229,23 @@ Reason: Model context too low
 
 Status values: `success`, `known-good`, `observed-run`, `blocked`, `failure`, `observed-failure`.
 
+### Project Brain (`.agentdock/project-brain/*`)
+
+Every repo that participates in the shared portfolio pipeline should maintain a canonical project-brain directory:
+
+- `.agentdock/project-brain/summary.md`
+- `.agentdock/project-brain/current-state.md`
+- `.agentdock/project-brain/graph.json`
+- `.agentdock/project-brain/wiki/index.md`
+- `.agentdock/project-brain/artifacts.json`
+
+Required coordination rules:
+- `current-state.md` is the authoritative repo-wide pipeline snapshot for concurrent agents.
+- `current-state.md` must include `Timestamp`, `Plan-Version`, `Milestone-Version`, and `Canonical-For-Project: true`.
+- `artifacts.json` and `graph.json` must mirror the same timestamp/version family in machine-readable form.
+- At session end, always try to refresh the repo's project-brain snapshot before stopping.
+- Versioning is project-wide, not agent-local: all agents working the same repo should converge on the same build-plan and milestone versions.
+
 ## Safety Model
 
 - **No arbitrary commands** — Only profile-defined PowerShell blocks are executed.
@@ -225,14 +268,32 @@ Status values: `success`, `known-good`, `observed-run`, `blocked`, `failure`, `o
 | Audit blocks a CE profile launch | Check `compatibility-rules.json` for model capability and CE compatibility rules. Use a frontend with full CE support (`claude` or `codex`) or select a lower-tier task. |
 | Sync script fails with timeout | The GitHub raw CDN may be slow. Retry or increase timeout in `scripts/sync-ce-skills.js` (`req.setTimeout(ms)`) or `scripts/sync-ce-skills.ps1` (`-TimeoutSec`). |
 
+## API Key Vault (local)
+
+AgentDock auto-imports API keys on every scan and at server startup:
+
+| Source | Harvested into |
+|--------|------------------|
+| Process / user / machine env | `state/key-vault.json` |
+| Scanned `.env` file paths | Same vault (values read server-side only) |
+| Settings UI manual entry | `POST /api/keys` |
+
+**Used for:** AI Coach (`chat.js`), profile evaluation, Stack Builder cloud checks, launch sessions (`createSession` injects vault env).
+
+**API:** `GET /api/keys` (masked only), `POST /api/keys`, `POST /api/keys/sync`
+
+**Display:** UI shows last 3 characters (`•••••••abc`). Full values never returned by API.
+
+**Session start checklist:** Read `AGENTS.md`, `docs/plans/` latest milestone, and `.agentdock/project-brain/current-state.md` if present before large changes.
+
 ## Environment Variables
 
 | Variable | Purpose |
 |----------|---------|
 | `AGENTDOCK_PORT` | Server port (default `7777`) |
 | `AGENTDOCK_DEBUG` | Include stack traces in 500 errors |
-| `GEMINI_API_KEY` | Gemini API key for AI features |
-| `GOOGLE_API_KEY` | Alternative Gemini API key |
+| `GEMINI_API_KEY` | Gemini API key — auto-imported to vault on scan/startup |
+| `GOOGLE_API_KEY` | Alternative Gemini API key — same vault |
 
 ## Contributing
 

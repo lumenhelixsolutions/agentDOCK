@@ -16,6 +16,23 @@
         "OLLAMA_MAX_LOADED_MODELS": "1"
       }
     },
+    "llamacpp": {
+      "verify_command": "llama-server",
+      "openai_compatible_path": "/v1",
+      "settings_file": "state/user-settings.json",
+      "recommended_defaults": {
+        "host": "127.0.0.1",
+        "port": 8081,
+        "contextSize": 8192,
+        "nGpuLayers": -1
+      }
+    },
+    "token_efficiency": {
+      "tool": "rtk",
+      "docs": "D:\\projects\\docs\\TOKEN_EFFICIENCY.md",
+      "wsl_recommended_on_windows": true,
+      "profile_tag": "token_efficiency: rtk"
+    },
     "env_scanning": {
       "values_redacted": true,
       "max_file_size_bytes": 1048576,

@@ -1,10 +1,10 @@
-# AgentDock v2.0
+# HOOT — Local AI Command Center
 
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)]()
 
-> Project-aware agent command center. Private local AI agent stack scanner, planner, Markdown memory core, research watch, monitored terminal, and launcher.
+> **HOOT** is your local AI command center — project-aware agent stack scanner, planner, Markdown memory core, research watch, monitored terminal, and launcher. (Technical package name remains `agentdock`.)
 
 ## Table of Contents
 
@@ -27,7 +27,7 @@
 - 🔍 **System Scan** — Detects installed AI agents, Ollama models, local backends, API keys, and hardware specs.
 - 🎯 **Goal Planner** — Ranks launch profiles by goal: privacy, speed, cost, heavy refactor, or safe audit.
 - 🚀 **Monitored Launch** — Runs profile PowerShell scripts in tracked child processes with live terminal output.
-- 💬 **AI Assistant** — Chat with AgentDock AI for stack recommendations, setup help, and app control.
+- 💬 **HOOT Coach** — Chat with HOOT for stack recommendations, setup help, and app control.
 - 🧠 **Memory System** — Auto-learns from successes/failures via `memory.md` and blocks repeatedly failing profiles.
 - 📁 **Project Registry** — Discovers local projects, reads Git status, detects `AGENTS.md`, and suggests stacks per project type.
 - 📚 **Research Watch** — Periodically pulls briefs from configured sources.

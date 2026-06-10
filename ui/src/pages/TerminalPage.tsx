@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { isPageVisible } from "@/lib/perf";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/Toast";
+import { useCoach } from "@/context/CoachContext";
 import {
   Activity,
   AlertTriangle,
@@ -35,6 +37,7 @@ export default function TerminalPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const toast = useToast();
+  const { setPageContext, setHootStatus } = useCoach();
   const handoffSession = new URLSearchParams(location.search).get("session");
   const handoffProfile = new URLSearchParams(location.search).get("profile");
 
@@ -60,8 +63,15 @@ export default function TerminalPage() {
 
   useEffect(() => {
     loadSessions(handoffSession);
-    const iv = setInterval(() => loadSessions(handoffSession), 2500);
-    return () => clearInterval(iv);
+    const iv = setInterval(() => {
+      if (isPageVisible()) loadSessions(handoffSession);
+    }, 2500);
+    const onVisible = () => loadSessions(handoffSession);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(iv);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [handoffSession]);
 
   useEffect(() => {
@@ -93,9 +103,14 @@ export default function TerminalPage() {
     };
 
     pollOutput();
-    intervalRef.current = setInterval(pollOutput, 1000);
+    intervalRef.current = setInterval(() => {
+      if (isPageVisible()) pollOutput();
+    }, 1000);
+    const onVisible = () => pollOutput();
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [activeId]);
 
@@ -109,6 +124,23 @@ export default function TerminalPage() {
   const runningCount = sessions.filter((s) => s.status === "running").length;
   const exitedCount = sessions.filter((s) => s.status === "exited").length;
   const errorCount = sessions.filter((s) => s.status === "error").length;
+
+  useEffect(() => {
+    setPageContext({
+      runningCount,
+      errorCount,
+      activeSessionId: activeId,
+      activeProfileId: activeSession?.profileId || null,
+      handoffProfile,
+    });
+    if (runningCount > 0) {
+      setHootStatus(`Watching ${runningCount} live session${runningCount === 1 ? "" : "s"}…`);
+    } else if (errorCount > 0) {
+      setHootStatus("A session hit an error.");
+    } else {
+      setHootStatus(null);
+    }
+  }, [runningCount, errorCount, activeId, activeSession?.profileId, handoffProfile, setPageContext, setHootStatus]);
 
   const sendInput = async () => {
     if (!activeId || !input.trim()) return;

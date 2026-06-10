@@ -132,11 +132,12 @@ describe('api', () => {
     assert.strictEqual(typeof json.text, 'string');
   });
 
-  it('GET /api/mcp returns configs array', async () => {
+  it('GET /api/mcp returns configs array and catalog', async () => {
     const res = await get('/api/mcp');
     assert.strictEqual(res.status, 200);
     const json = JSON.parse(res.body);
     assert.ok(Array.isArray(json.configs));
+    assert.ok(json.catalog?.servers?.length >= 1);
   });
 
   it('GET /api/portfolio/health returns items array', async () => {
@@ -160,5 +161,45 @@ describe('api', () => {
     assert.strictEqual(res.status, 200);
     const json = JSON.parse(res.body);
     assert.ok(Array.isArray(json.history));
+  });
+
+  it('POST /api/coach/hints returns view-aware hints', async () => {
+    const res = await post('/api/coach/hints', { view: '/builder', pageContext: { nodeCount: 0 } });
+    assert.strictEqual(res.status, 200);
+    const json = JSON.parse(res.body);
+    assert.strictEqual(json.view, '/builder');
+    assert.ok(Array.isArray(json.hints));
+    assert.ok(json.hints.length <= 3);
+    if (json.hints.length) {
+      assert.ok(typeof json.hints[0].message === 'string');
+      assert.ok(Array.isArray(json.hints[0].actions));
+    }
+  });
+
+  it('GET /api/coach/docs returns view guide', async () => {
+    const res = await get('/api/coach/docs?view=/profiles');
+    assert.strictEqual(res.status, 200);
+    const json = JSON.parse(res.body);
+    assert.strictEqual(json.guide.title, 'Profiles');
+    assert.ok(Array.isArray(json.guide.features));
+    assert.ok(json.orchestration.steps);
+  });
+
+  it('POST /api/coach/hints always includes view guide', async () => {
+    const res = await post('/api/coach/hints', { view: '/skills', pageContext: {} });
+    const json = JSON.parse(res.body);
+    assert.ok(json.hints.length > 0);
+    assert.ok(json.guide);
+    assert.ok(json.hints.some((h) => h.id && String(h.id).startsWith('guide-')));
+  });
+
+  it('POST /api/coach/hints uses launch pageContext', async () => {
+    const res = await post('/api/coach/hints', {
+      view: '/launch',
+      pageContext: { stagedProfileId: 'test-profile', hasAuditWarnings: false, recommendedCount: 2 },
+    });
+    assert.strictEqual(res.status, 200);
+    const json = JSON.parse(res.body);
+    assert.ok(json.hints.some((h) => h.id === 'launch-staged'));
   });
 });
