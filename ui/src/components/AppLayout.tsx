@@ -2,6 +2,7 @@ import { type ReactNode, useMemo, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import {
   BookOpen,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
   Compass,
@@ -39,7 +40,10 @@ const navGroups = [
   },
   {
     title: "Intelligence",
-    items: [{ label: "Memory", path: "/memory", icon: BookOpen, desc: "Captured evidence, notes, and outcomes" }],
+    items: [
+      { label: "Activity", path: "/activity", icon: CalendarDays, desc: "Session diary, radar history, telemetry" },
+      { label: "Memory", path: "/memory", icon: BookOpen, desc: "Captured evidence, notes, and outcomes" },
+    ],
   },
   {
     title: "Build + Configure",

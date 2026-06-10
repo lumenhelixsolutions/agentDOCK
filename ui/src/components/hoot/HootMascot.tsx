@@ -3,8 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useCoach } from "@/context/CoachContext";
 import CoachThread from "@/components/coach/CoachThread";
 import HootOwl from "./HootOwl";
-import HootMark from "../HootMark";
-import { BRAND, BRAND_COLORS } from "@/lib/brand";
+import { BRAND } from "@/lib/brand";
 import { Pin, PinOff, X, ChevronRight, Maximize2, Minimize2, GripHorizontal } from "lucide-react";
 
 const SESSION_ID = "hoot-" + Math.random().toString(36).slice(2, 8);
@@ -207,7 +206,6 @@ export default function HootMascot() {
               <GripHorizontal size={14} color="#aaa" />
             </div>
           )}
-          <HootOwl mood={hootMood} size="sm" onClick={() => setCoachOpen(true)} statusLine={hootStatus} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
               <span style={{ fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: tone.accent, fontWeight: 600 }}>
@@ -305,35 +303,17 @@ export default function HootMascot() {
         </div>
       )}
 
-      <div style={{ pointerEvents: "auto", display: "flex", alignItems: "flex-end", gap: 8 }}>
-        {!coachOpen && <HootOwl mood={hootMood} size="lg" onClick={() => setCoachOpen(true)} statusLine={hootStatus} />}
-        <button
-          type="button"
-          onClick={() => setCoachOpen(!coachOpen)}
-          title={`${BRAND.name} — ${BRAND.mascotTagline}`}
-          style={{
-            width: 58,
-            height: 58,
-            borderRadius: "50%",
-            background: coachOpen
-              ? "linear-gradient(160deg, rgba(18,18,22,0.98), rgba(8,8,10,0.95))"
-              : showBubble
-                ? `linear-gradient(145deg, ${tone.accent}, ${BRAND_COLORS.goldMid})`
-                : `linear-gradient(145deg, ${BRAND_COLORS.goldDark}, ${BRAND_COLORS.goldLight})`,
-            border: hootPinned ? `2px solid ${BRAND_COLORS.gold}` : showBubble ? `2px solid ${tone.accent}` : `1px solid rgba(255,176,66,0.28)`,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            boxShadow: hootPinned
-              ? `0 0 0 4px rgba(255,176,66,0.18), 0 10px 34px ${BRAND_COLORS.glow}`
-              : `0 10px 30px rgba(0,0,0,0.42)`,
-            overflow: "hidden",
-          }}
-        >
-          {coachOpen ? <X size={22} color={BRAND_COLORS.gold} /> : <HootMark size={34} showGlow={false} variant="favicon" />}
-        </button>
-      </div>
+      {!coachOpen && (
+        <div style={{ pointerEvents: "auto" }}>
+          <HootOwl
+            mood={hootMood}
+            size="lg"
+            onClick={() => setCoachOpen(true)}
+            statusLine={hootStatus}
+            showWordmark={false}
+          />
+        </div>
+      )}
       <style>{`@keyframes hootPop { from { opacity: 0; transform: translateY(8px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }`}</style>
     </div>
   );

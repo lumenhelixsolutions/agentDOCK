@@ -188,6 +188,25 @@ POST /api/research/run
 GET /api/research/latest
 ```
 
+### LAN access
+
+```bat
+set AGENTDOCK_LAN=1 && node server.js
+```
+
+Optional firewall (Windows): `netsh advfirewall firewall add rule name="HOOT LAN" dir=in action=allow protocol=TCP localport=7777`
+
+Generate a HOOT token in **Settings → Network** when exposing LAN. Localhost (`127.0.0.1`) always bypasses auth.
+
+### Activity
+
+```http
+GET /api/activity?from=2026-06-01&to=2026-06-10
+GET /api/activity/today
+POST /api/activity/emit
+POST /api/activity/diary
+```
+
 ### Token Burn
 
 ```http
@@ -312,6 +331,11 @@ If exposing through a reverse proxy, ensure:
 - Auto-blocks profiles after repeated failures on the same project.
 
 ## Changelog
+
+### v2.3.0 — LAN + Activity diary + mascot
+- `AGENTDOCK_LAN=1` binds on all interfaces; optional HOOT token for LAN clients.
+- Activity log (`/api/activity`), diary `.md` files, Activity page with calendar heatmap.
+- Single geometric HOOT mascot (green-glow eyes) — sidebar + animated coach.
 
 ### v2.2.0 — Token burn v1
 - `GET /api/token-burn` — local RTK prevention layer from scan + `rtk gain`.

@@ -31,10 +31,17 @@ const {
 const { createModuleManager } = require('./module-manager');
 const { runAgentRadar } = require('./agent-radar');
 const { buildTokenBurnReport, refreshRtkGain } = require('./token-burn');
+const { checkAuth, generateToken, hashToken, getAuthSettings, isAuthPublicPath } = require('./hoot-auth');
+const { createActivityLog } = require('./activity-log');
 
 const ROOT = __dirname;
-const HOST = '127.0.0.1';
+function resolveBindHost() {
+  if (process.env.AGENTDOCK_LAN === '1') return '0.0.0.0';
+  return process.env.AGENTDOCK_HOST || '127.0.0.1';
+}
+const HOST = resolveBindHost();
 const PORT = Number(process.env.AGENTDOCK_PORT || 7777);
+const LAN_MODE = HOST === '0.0.0.0' || process.env.AGENTDOCK_LAN === '1';
 
 const DIRS = {
   profiles: path.join(ROOT, 'profiles'),
@@ -57,7 +64,10 @@ const FILES = {
   mcpCatalog: path.join(DIRS.state, 'mcp-catalog.json'),
   userSettings: path.join(DIRS.state, 'user-settings.json'),
   modulesState: path.join(DIRS.state, 'modules-state.json'),
+  activityLog: path.join(DIRS.state, 'activity-log.json'),
+  userSession: path.join(DIRS.state, 'user-session.json'),
 };
+const DIARY_DIR = path.join(ROOT, 'diary');
 
 const DEFAULT_USER_SETTINGS = {
   version: 1,
@@ -68,7 +78,10 @@ const DEFAULT_USER_SETTINGS = {
   },
   tokenEfficiency: { rtkRecommended: true, rtkAgents: ['claude', 'codex', 'cursor', 'hermes'] },
   mcp: { enabledServers: ['git'] },
+  auth: { enabled: false, token_hash: null, created_at: null },
+  network: { lan_enabled: LAN_MODE },
 };
+const activityLog = createActivityLog({ stateFile: FILES.activityLog, diaryDir: DIARY_DIR, root: ROOT });
 const UI_DIST = path.join(ROOT, 'ui', 'dist');
 const SKILLS_DIR = path.join(ROOT, 'skills', 'compound-engineering');
 const SKILLS_CATALOG = path.join(SKILLS_DIR, 'skills-catalog.json');
@@ -97,12 +110,33 @@ function safeJoin(base, userPath) {
   return resolved;
 }
 
+function getLanUrls(port = PORT) {
+  const urls = [`http://127.0.0.1:${port}`];
+  if (!LAN_MODE) return urls;
+  for (const entries of Object.values(os.networkInterfaces())) {
+    for (const ent of entries || []) {
+      if (ent.family === 'IPv4' && !ent.internal) urls.push(`http://${ent.address}:${port}`);
+    }
+  }
+  return [...new Set(urls)];
+}
+
+function corsHeaders() {
+  if (!LAN_MODE) return {};
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-HOOT-Token',
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
+  };
+}
+
 function send(res, status, body, contentType = 'application/json') {
   const data = contentType === 'application/json' ? JSON.stringify(body, null, 2) : body;
   res.writeHead(status, {
     'Content-Type': contentType,
     'X-Content-Type-Options': 'nosniff',
     'Cache-Control': 'no-store',
+    ...corsHeaders(),
   });
   res.end(data);
 }
@@ -343,6 +377,8 @@ function loadUserSettings() {
     },
     tokenEfficiency: { ...DEFAULT_USER_SETTINGS.tokenEfficiency, ...(stored.tokenEfficiency || {}) },
     mcp: { ...DEFAULT_USER_SETTINGS.mcp, ...(stored.mcp || {}) },
+    auth: { ...DEFAULT_USER_SETTINGS.auth, ...(stored.auth || {}) },
+    network: { ...DEFAULT_USER_SETTINGS.network, ...(stored.network || {}), lan_enabled: LAN_MODE },
   };
 }
 
@@ -359,6 +395,8 @@ function saveUserSettings(partial) {
     },
     tokenEfficiency: { ...current.tokenEfficiency, ...(partial.tokenEfficiency || {}) },
     mcp: { ...current.mcp, ...(partial.mcp || {}) },
+    auth: { ...current.auth, ...(partial.auth || {}) },
+    network: { ...current.network, ...(partial.network || {}) },
   };
   writeJSON(FILES.userSettings, next);
   return next;
@@ -1206,6 +1244,9 @@ function createSession(profile, script, options = {}) {
   const child = spawn('powershell.exe', args, { cwd: ROOT, env: { ...process.env, ...getVaultEnvForLaunch(), ...moduleEnv, AGENTDOCK_SESSION_ID: id }, windowsHide: false });
   const sess = { id, profileId: profile.id, profileName: profile.name, pid: child.pid, status: 'running', startedAt, endedAt: null, exitCode: null, output: '', outputLimit: 1024 * 1024 * 2, scriptPath, dangerous: shouldWarnDanger(script) };
   sessions.set(id, sess);
+  try {
+    activityLog.recordLaunch({ id, profileId: profile.id, profileName: profile.name, project: activeProject });
+  } catch { /* non-fatal */ }
   const add = (prefix, data) => {
     const text = data.toString();
     sess.output += prefix ? `[${prefix}] ${text}` : text;
@@ -1218,6 +1259,18 @@ function createSession(profile, script, options = {}) {
     const log = `# AgentDock Launch Log\n\nSession: ${id}\nProfile: ${profile.id}\nStarted: ${startedAt}\nEnded: ${sess.endedAt}\nExitCode: ${code}\n\n## Output\n\n\`\`\`text\n${sess.output}\n\`\`\`\n`;
     fs.writeFileSync(path.join(DIRS.logs, `launch-${profile.id}-${id}.md`), log, 'utf8');
     writeSessionUsage({ id, profileId: profile.id, profileName: profile.name, startedAt, endedAt: sess.endedAt, exitCode: code, pid: sess.pid });
+    try {
+      activityLog.recordLaunchEnd({
+        id,
+        profileId: profile.id,
+        profileName: profile.name,
+        startedAt,
+        endedAt: sess.endedAt,
+        exitCode: code,
+        project: activeProject,
+      });
+      activityLog.writeDiary();
+    } catch { /* non-fatal */ }
     appendMemory({ title: `${profile.id} run`, profileId: profile.id, status: code === 0 ? 'observed-run' : 'observed-failure', observed: `exitCode=${code}`, reason: `Terminal-monitored AgentDock session ${id}` });
   });
   child.on('error', e => { sess.status = 'error'; sess.output += `\n[error] ${e.message}\n`; });
@@ -1325,9 +1378,55 @@ function serveStatic(req, res) {
 async function route(req, res) {
   const url = new URL(req.url, `http://${HOST}:${PORT}`);
   const pathName = url.pathname;
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, corsHeaders());
+    res.end();
+    return;
+  }
+
+  const settings = loadUserSettings();
+  const authResult = checkAuth(req, settings);
+  if (!authResult.ok && pathName.startsWith('/api/') && !isAuthPublicPath(pathName)) {
+    return send(res, 401, { error: 'Unauthorized', login_required: true });
+  }
+
   try {
     if (pathName === '/api/status' && req.method === 'GET') {
-      return send(res, 200, { ok: true, version: '2.0.0' });
+      const addr = __server.address();
+      const displayPort = addr && typeof addr === 'object' ? addr.port : PORT;
+      return send(res, 200, {
+        ok: true,
+        version: '2.3.0',
+        bind: { host: HOST, port: displayPort, lan: LAN_MODE },
+        urls: getLanUrls(displayPort),
+        auth: { enabled: getAuthSettings(settings).enabled },
+      });
+    }
+    if (pathName === '/api/auth/status' && req.method === 'GET') {
+      const auth = getAuthSettings(settings);
+      return send(res, 200, {
+        enabled: auth.enabled,
+        authenticated: authResult.ok,
+        loopback: authResult.reason === 'loopback',
+        lan: LAN_MODE,
+      });
+    }
+    if (pathName === '/api/auth/token' && req.method === 'POST') {
+      const body = await readBody(req);
+      const token = generateToken();
+      const saved = saveUserSettings({
+        auth: {
+          enabled: body.enabled !== false,
+          token_hash: hashToken(token),
+          created_at: new Date().toISOString(),
+        },
+      });
+      return send(res, 200, { ok: true, token, auth: getAuthSettings(saved) });
+    }
+    if (pathName === '/api/auth/token' && req.method === 'DELETE') {
+      const saved = saveUserSettings({ auth: { enabled: false, token_hash: null, created_at: null } });
+      return send(res, 200, { ok: true, auth: getAuthSettings(saved) });
     }
     if (pathName === '/api/scan' && req.method === 'GET') {
       const repo = url.searchParams.get('repo') || process.cwd();
@@ -1356,10 +1455,55 @@ async function route(req, res) {
       const dockPids = [...sessions.values()].filter((s) => s.status === 'running' && s.pid).map((s) => s.pid);
       const stale = !lastAgentRadar || Date.now() - lastAgentRadarAt > AGENT_RADAR_TTL_MS;
       if (force || stale) {
+        const prevRadar = lastAgentRadar;
         lastAgentRadar = await runAgentRadar({ dockPids });
         lastAgentRadarAt = Date.now();
+        try {
+          activityLog.diffRadarSnapshots(prevRadar, lastAgentRadar, { project: activeProject });
+        } catch { /* non-fatal */ }
       }
       return send(res, 200, { ...lastAgentRadar, dock_sessions: dockPids.length, cached: !force && !stale });
+    }
+    if (pathName === '/api/activity' && req.method === 'GET') {
+      const from = url.searchParams.get('from') || undefined;
+      const to = url.searchParams.get('to') || undefined;
+      const limit = Number(url.searchParams.get('limit') || 500);
+      return send(res, 200, activityLog.queryEvents({ from, to, limit }));
+    }
+    if (pathName === '/api/activity/today' && req.method === 'GET') {
+      return send(res, 200, activityLog.todaySummary());
+    }
+    if (pathName === '/api/activity/emit' && req.method === 'POST') {
+      const body = await readBody(req);
+      const entry = activityLog.appendEvent({
+        type: body.type || 'module.event',
+        agent: body.agent || null,
+        agent_name: body.agent_name || body.title || null,
+        source: body.source || 'module',
+        project: body.project || activeProject,
+        meta: body.meta || body,
+      });
+      return send(res, 200, { ok: true, event: entry });
+    }
+    if (pathName === '/api/activity/diary' && req.method === 'POST') {
+      const body = await readBody(req);
+      const file = activityLog.writeDiary(body.date);
+      return send(res, 200, { ok: true, file, markdown: activityLog.generateDiaryMarkdown(body.date) });
+    }
+    if (pathName === '/api/user-session' && req.method === 'GET') {
+      return send(res, 200, readJSON(FILES.userSession, { clients: [], last_active_at: null, last_project: activeProject }));
+    }
+    if (pathName === '/api/user-session' && req.method === 'PATCH') {
+      const body = await readBody(req);
+      const current = readJSON(FILES.userSession, { clients: [], last_active_at: null });
+      const next = {
+        ...current,
+        ...body,
+        last_active_at: new Date().toISOString(),
+        last_project: body.last_project ?? activeProject ?? current.last_project,
+      };
+      writeJSON(FILES.userSession, next);
+      return send(res, 200, next);
     }
     if (pathName === '/api/catalog' && req.method === 'GET') return send(res, 200, loadCatalog());
     if (pathName === '/api/modules' && req.method === 'GET') {
@@ -1781,7 +1925,11 @@ if (require.main === module) {
     .then(() => {
       const addr = __server.address();
       const displayPort = addr && typeof addr === 'object' ? addr.port : PORT;
-      console.log(`HOOT Local AI Command Center running at http://${HOST}:${displayPort}`);
+      const urls = getLanUrls(displayPort);
+      console.log(`HOOT Local AI Command Center running at ${urls.join(', ')}`);
+      if (LAN_MODE) {
+        console.log('LAN mode: other devices on your network can reach HOOT — enable token auth in Settings.');
+      }
       setTimeout(() => {
         moduleManager.maybeAutoSync(lastScan).then((r) => {
           if (r.ran) console.log(`Module auto-sync: ${JSON.stringify(r.results)}`);

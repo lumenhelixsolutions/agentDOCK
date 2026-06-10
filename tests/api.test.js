@@ -203,6 +203,23 @@ describe('api', () => {
     assert.ok(json.hints.some((h) => h.id === 'launch-staged'));
   });
 
+  it('GET /api/status returns bind info', async () => {
+    const res = await get('/api/status');
+    assert.strictEqual(res.status, 200);
+    const json = JSON.parse(res.body);
+    assert.strictEqual(json.ok, true);
+    assert.ok(Array.isArray(json.urls));
+    assert.ok(json.bind);
+  });
+
+  it('GET /api/activity/today returns summary', async () => {
+    const res = await get('/api/activity/today');
+    assert.strictEqual(res.status, 200);
+    const json = JSON.parse(res.body);
+    assert.ok(json.date);
+    assert.ok(Array.isArray(json.events));
+  });
+
   it('GET /api/token-burn returns burn report', async () => {
     const res = await get('/api/token-burn');
     assert.strictEqual(res.status, 200);

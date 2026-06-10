@@ -10,7 +10,8 @@ export type HootMood =
   | "reading"
   | "building"
   | "monitoring"
-  | "alert";
+  | "alert"
+  | "logging";
 
 export type PupilOffset = { lx: number; ly: number; rx: number; ry: number };
 
@@ -44,6 +45,7 @@ function earLine(mood: HootMood, frame: number): string {
     building: ["  /=#=\\  ", "  /\\+/\\  "],
     monitoring: [" |● ● ●| ", " |○ ○ ○| "],
     alert: ["  /! !\\  ", "  /!! !\\ "],
+    logging: [" |◉ ◉ ◉| ", " |○ ● ○| "],
   };
   const variants = ears[mood] || ears.idle!;
   return fit(variants[frame % variants.length]!);
@@ -62,6 +64,7 @@ function eyeLine(offset: PupilOffset, mood: HootMood, frame: number): string {
   else if (mood === "scanning") eyes = frame % 2 === 0 ? "( ◉ ◉ )" : `( ${pupilChar(offset.lx)} ${pupilChar(offset.rx)} )`;
   else if (mood === "launching") eyes = frame % 2 === 0 ? "( ◎ ◎ )" : `( ${pupilChar(offset.lx)} ${pupilChar(offset.rx)} )`;
   else if (mood === "talking") eyes = frame % 2 === 0 ? "( ◕ ◕ )" : `( ${pupilChar(offset.lx)} ${pupilChar(offset.rx)} )`;
+  else if (mood === "logging") eyes = frame % 4 === 0 ? "( ● ● )" : frame % 4 === 2 ? "( ◉ ◉ )" : `( ${pupilChar(offset.lx)} ${pupilChar(offset.rx)} )`;
   else if (mood === "idle" && frame % 12 === 0) eyes = "( - - )";
   return fit(eyes);
 }
@@ -80,6 +83,7 @@ function beakLine(mood: HootMood, frame: number): string {
     building: ["   +=     ", "   |+     "],
     monitoring: ["   --     ", "   ::     "],
     alert: ["   !!     ", "   !?     "],
+    logging: ["   ::     ", "   ..     "],
   };
   const variants = beaks[mood] || beaks.idle!;
   return fit(variants[frame % variants.length]!);
@@ -100,6 +104,7 @@ function statusCaption(mood: HootMood, frame: number, override?: string | null):
     building: [" +stack   ", " |pipe|  "],
     monitoring: [" [live]   ", " (watch) "],
     alert: [" !warn!   ", " check!  "],
+    logging: [" diary..  ", " logbook "],
   };
   const variants = caps[mood] || caps.idle;
   return fit(variants[frame % variants.length]!);
@@ -142,6 +147,7 @@ export function moodLabel(mood: HootMood): string {
     building: "building…",
     monitoring: "on watch",
     alert: "heads up!",
+    logging: "logging activity",
   };
   return labels[mood];
 }
@@ -160,13 +166,14 @@ export function moodColor(mood: HootMood): string {
     building: "#f59e0b",
     monitoring: "#34d399",
     alert: "#fb923c",
+    logging: "#34d399",
   };
   return colors[mood];
 }
 
 export function moodFrameInterval(mood: HootMood): number {
   if (mood === "idle" || mood === "peeking") return 800;
-  if (mood === "monitoring" || mood === "reading") return 500;
+  if (mood === "monitoring" || mood === "reading" || mood === "logging") return 500;
   if (mood === "alert" || mood === "launching") return 300;
   return 400;
 }
@@ -224,6 +231,8 @@ export function resolveHootMoodFromContext(ctx: HootMoodContext): HootMood {
     return "reading";
   }
 
+  if (path === "/activity") return "logging";
+
   if (path === "/memory" || path === "/profiles" || path === "/skills" || path === "/settings") return "reading";
 
   if (path === "/" && Number(pc.agentRadarTotal) > 0) return "monitoring";
@@ -244,6 +253,7 @@ export function hootStatusFromContext(ctx: HootMoodContext): string | null {
   const dock = Number(pc.agentRadarDock) || 0;
   if (pc.tokenBurnRisk === "high") return "High token burn risk — RTK missing";
   if (pc.tokenBurnRisk === "medium" && pc.tokenBurnSaved) return `RTK saved ~${pc.tokenBurnSaved}`;
+  if (ctx.pathname === "/activity" && Number(pc.activityToday) > 0) return `${pc.activityToday} events today`;
   if (ext > 0) return `${ext} agent${ext === 1 ? "" : "s"} outside HOOT`;
   if (total > 0 && ctx.pathname === "/") return `${total} running · ${dock} docked`;
   if (Number(pc.runningCount) > 0) return `${pc.runningCount} session(s) live`;

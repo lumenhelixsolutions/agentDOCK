@@ -86,6 +86,19 @@ const VIEW_GUIDES = {
     orchestration: 'After launch, watch output here. Report outcome so Memory learns.',
     nextActions: ['Report outcome when done', 'Stop runaway sessions', 'Return to Profiles for next task'],
   },
+  '/activity': {
+    title: 'Activity',
+    group: 'Intelligence',
+    summary: 'Session diary — radar history, HOOT launches, and daily telemetry rollup.',
+    features: [
+      'Calendar heatmap of agent activity (14 days)',
+      'Today timeline from agent radar diffs + launches',
+      'Write diary/YYYY-MM-DD.md for human-readable log',
+      'Shared across LAN devices via server state',
+    ],
+    orchestration: 'Review after long sessions. Radar auto-logs external vs docked agent time.',
+    nextActions: ['Write diary .md', 'Check external agent minutes', 'Open Readiness for live radar'],
+  },
   '/memory': {
     title: 'Memory',
     group: 'Intelligence',

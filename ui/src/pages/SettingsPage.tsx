@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Key, Save, CheckCircle, Database, Sparkles, Cpu, Zap, RefreshCw } from "lucide-react";
+import { Key, Save, CheckCircle, Database, Sparkles, Cpu, Zap, RefreshCw, Wifi, Shield } from "lucide-react";
 import { api } from "../lib/api";
 import { useCoach } from "@/context/CoachContext";
 
@@ -39,6 +39,8 @@ interface ServerSettings {
     llamacpp: LlamaCppSettings;
   };
   tokenEfficiency: { rtkRecommended: boolean };
+  auth?: { enabled: boolean; token_hash?: string | null; created_at?: string | null };
+  network?: { lan_enabled?: boolean };
 }
 
 export default function SettingsPage() {
@@ -51,6 +53,10 @@ export default function SettingsPage() {
   const [customEndpoint, setCustomEndpoint] = useState("");
   const [serverSettings, setServerSettings] = useState<ServerSettings | null>(null);
   const [scanHints, setScanHints] = useState<{ rtk?: { present?: boolean }; wsl?: { present?: boolean }; llamacpp?: { present?: boolean; server?: { reachable?: boolean } } } | null>(null);
+  const [status, setStatus] = useState<{ urls?: string[]; bind?: { lan: boolean; port: number } } | null>(null);
+  const [authStatus, setAuthStatus] = useState<{ enabled: boolean; authenticated: boolean } | null>(null);
+  const [newToken, setNewToken] = useState<string | null>(null);
+  const [tokenBusy, setTokenBusy] = useState(false);
 
   const loadKeys = () => {
     api.getKeys().then((r) => setVaultKeys(r.keys || [])).catch(() => setVaultKeys([]));
@@ -65,6 +71,8 @@ export default function SettingsPage() {
       setScanHints(r.scanHints);
       if (r.keys?.length) setVaultKeys(r.keys);
     }).catch(() => {});
+    api.getStatus().then(setStatus).catch(() => {});
+    api.getAuthStatus().then(setAuthStatus).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -287,6 +295,83 @@ export default function SettingsPage() {
         {vaultKeys.length > 0 && (
           <p style={{ fontSize: 11, color: "#4ade80", margin: "12px 0 0" }}>
             {vaultKeys.length} key{vaultKeys.length === 1 ? "" : "s"} in vault — used for coach, stack builder, and launches.
+          </p>
+        )}
+      </div>
+
+      <div style={{ padding: 20, borderRadius: 12, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+          <Wifi size={16} color="#93c5fd" />
+          <h3 style={{ fontSize: 14, margin: 0, color: "#f5f5f5" }}>Network (LAN)</h3>
+        </div>
+        <p style={{ fontSize: 12, opacity: 0.55, margin: "0 0 12px", lineHeight: 1.5 }}>
+          Start HOOT with <code>AGENTDOCK_LAN=1</code> to listen on your Wi‑Fi. Other devices open the LAN URL below.
+          Windows firewall may need port {status?.bind?.port || 7777} allowed.
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+          {(status?.urls || ["http://127.0.0.1:7777"]).map((url) => (
+            <div key={url} style={{ fontSize: 12, fontFamily: "'GeistMono', monospace", padding: "8px 10px", borderRadius: 8, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+              {url}
+              <button type="button" onClick={() => navigator.clipboard.writeText(url)} style={{ marginLeft: 10, fontSize: 10, opacity: 0.6, background: "none", border: "none", color: "#93c5fd", cursor: "pointer" }}>Copy</button>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <Shield size={14} color="#fbbf24" />
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+            <input
+              type="checkbox"
+              checked={Boolean(serverSettings?.auth?.enabled)}
+              onChange={(e) =>
+                setServerSettings((prev) =>
+                  prev ? { ...prev, auth: { ...prev.auth, enabled: e.target.checked, token_hash: prev.auth?.token_hash || null } } : prev
+                )
+              }
+            />
+            Require HOOT token on LAN (localhost always trusted)
+          </label>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            disabled={tokenBusy}
+            onClick={async () => {
+              setTokenBusy(true);
+              try {
+                const r = await api.generateAuthToken(serverSettings?.auth?.enabled !== false);
+                setNewToken(r.token);
+                setAuthStatus({ enabled: true, authenticated: true });
+                if (serverSettings) setServerSettings({ ...serverSettings, auth: { enabled: true, token_hash: "set", created_at: new Date().toISOString() } });
+              } finally {
+                setTokenBusy(false);
+              }
+            }}
+            style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid rgba(251,191,36,0.3)", background: "rgba(251,191,36,0.08)", color: "#fbbf24", cursor: "pointer", fontSize: 12 }}
+          >
+            {tokenBusy ? "Generating…" : "Generate / rotate token"}
+          </button>
+          <button
+            type="button"
+            onClick={async () => {
+              await api.clearAuthToken();
+              setNewToken(null);
+              setAuthStatus({ enabled: false, authenticated: true });
+              if (serverSettings) setServerSettings({ ...serverSettings, auth: { enabled: false, token_hash: null } });
+            }}
+            style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "#aaa", cursor: "pointer", fontSize: 12 }}
+          >
+            Disable auth
+          </button>
+        </div>
+        {newToken && (
+          <div style={{ marginTop: 12, padding: 12, borderRadius: 8, background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)", fontSize: 12 }}>
+            <div style={{ color: "#fbbf24", marginBottom: 6 }}>Copy this token now — it won’t be shown again:</div>
+            <code style={{ wordBreak: "break-all" }}>{newToken}</code>
+          </div>
+        )}
+        {authStatus && (
+          <p style={{ fontSize: 11, margin: "12px 0 0", opacity: 0.5 }}>
+            Auth: {authStatus.enabled ? "on" : "off"} · You: {authStatus.authenticated ? "authenticated" : "needs token"}
           </p>
         )}
       </div>

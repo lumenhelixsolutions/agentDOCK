@@ -1,14 +1,38 @@
 import { hootReportError, shouldAutoReport } from "./hoot-bus";
 
 const API_BASE = "";
+const TOKEN_KEY = "hoot_session_token";
+
+export function getHootToken(): string | null {
+  try {
+    return sessionStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setHootToken(token: string | null) {
+  try {
+    if (token) sessionStorage.setItem(TOKEN_KEY, token);
+    else sessionStorage.removeItem(TOKEN_KEY);
+  } catch { /* ignore */ }
+}
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const opts: RequestInit = { method, headers: { "Content-Type": "application/json" } };
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const token = getHootToken();
+  if (token) headers["X-HOOT-Token"] = token;
+  const opts: RequestInit = { method, headers };
   if (body !== undefined) opts.body = JSON.stringify(body);
   const res = await fetch(`${API_BASE}${path}`, opts);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const msg = String(data.error || `HTTP ${res.status}`);
+    const msg = String((data as { error?: string }).error || `HTTP ${res.status}`);
+    if (res.status === 401 && (data as { login_required?: boolean }).login_required) {
+      const err = new Error(msg) as Error & { loginRequired?: boolean };
+      err.loginRequired = true;
+      throw err;
+    }
     if (shouldAutoReport(path, res.status)) {
       hootReportError({
         message: msg,
@@ -22,6 +46,13 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 }
 
 export const api = {
+  getStatus: () => request<{ ok: boolean; version: string; bind?: { host: string; port: number; lan: boolean }; urls?: string[]; auth?: { enabled: boolean } }>("GET", "/api/status"),
+  getAuthStatus: () => request<{ enabled: boolean; authenticated: boolean; loopback: boolean; lan: boolean }>("GET", "/api/auth/status"),
+  generateAuthToken: (enabled = true) => request<{ ok: boolean; token: string }>("POST", "/api/auth/token", { enabled }),
+  clearAuthToken: () => request<{ ok: boolean }>("DELETE", "/api/auth/token"),
+  getActivity: (from?: string, to?: string) => request<any>("GET", `/api/activity${from || to ? `?${new URLSearchParams({ ...(from ? { from } : {}), ...(to ? { to } : {}) }).toString()}` : ""}`),
+  getActivityToday: () => request<any>("GET", "/api/activity/today"),
+  writeDiary: (date?: string) => request<any>("POST", "/api/activity/diary", { date }),
   getProfiles: () => request<Array<any>>("GET", "/api/profiles"),
   getProfileGroups: () => request<any>("GET", "/api/profiles/groups"),
   getProfileMatrix: () => request<any>("GET", "/api/profiles/matrix"),
