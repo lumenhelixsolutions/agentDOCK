@@ -3,41 +3,22 @@ const assert = require('node:assert');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { startTestServer, stopTestServer } = require('./helpers/test-server');
 
 const MEMORY_PATH = path.join(__dirname, '..', 'memory.md');
 let originalMemory = '';
 
 describe('api', () => {
   let server;
-  let port;
   let baseUrl;
 
   before(async () => {
     originalMemory = fs.existsSync(MEMORY_PATH) ? fs.readFileSync(MEMORY_PATH, 'utf8') : '';
-    process.env.AGENTDOCK_PORT = '0';
-    const mod = require('../server.js');
-    server = mod.__server;
-    if (!server) throw new Error('server.js did not export __server');
-    await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Server did not start in time')), 5000);
-      const check = () => {
-        const addr = server.address();
-        if (addr) {
-          clearTimeout(timeout);
-          port = addr.port;
-          baseUrl = `http://127.0.0.1:${port}`;
-          resolve();
-        } else {
-          setTimeout(check, 50);
-        }
-      };
-      check();
-    });
+    ({ server, baseUrl } = await startTestServer());
   });
 
   after(() => {
-    if (server) server.close();
-    delete require.cache[require.resolve('../server.js')];
+    stopTestServer(server);
     if (originalMemory) fs.writeFileSync(MEMORY_PATH, originalMemory, 'utf8');
   });
 

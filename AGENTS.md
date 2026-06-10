@@ -65,6 +65,10 @@ No linter is configured by design (zero dependencies). Follow the existing style
 | `profiles/*.md` | Launch profiles — frontmatter metadata + PowerShell `launch` blocks |
 | `memory.md` | Local learning layer — known successes, failures, work ethos, avoided loops |
 | `index.html` | Single-page dashboard — theming, keyboard shortcuts, responsive layout |
+| `compatibility-rules.json` | Stack evaluation rules — model capabilities, CE compatibility, task tiers |
+| `skills/compound-engineering/skills-catalog.json` | Compound Engineering skills registry |
+| `scripts/sync-ce-skills.js` | Node.js script to sync CE skills from GitHub |
+| `scripts/sync-ce-skills.ps1` | PowerShell script to sync CE skills from GitHub |
 
 ### Data Flow
 
@@ -84,6 +88,71 @@ No linter is configured by design (zero dependencies). Follow the existing style
 - `state/` — JSON state (projects, stack usage, sessions).
 - `logs/` — Scan logs, launch logs, session transcripts.
 - `briefs/` — Auto-generated research briefs.
+
+## Compound Engineering Integration
+
+AgentDock integrates the [Compound Engineering](https://github.com/EveryInc/compound-engineering-plugin) skill library as an available set of build, planning, and review capabilities.
+
+### Supported Frontends
+
+| Frontend | CE Support | Notes |
+|----------|-----------|-------|
+| `claude` | Full | All 9 core CE skills available |
+| `codex` | Full | All 9 core CE skills available |
+| `gemini` | Converter-backed | CE blocks converted to Gemini equivalents; may drift |
+| `opencode` | Converter-backed | CE blocks converted to OpenCode equivalents; may drift |
+| `kimi` | None | Not compatible with CE skill library |
+| `aider` | None | Not compatible with CE skill library |
+| `hermes` | None | Not compatible with CE skill library |
+
+### CE Workflow Profiles
+
+Eight CE workflow profiles are available for `claude` and `codex`:
+
+- **Core workflows:** `compound-core-claude.md`, `compound-core-codex.md` (brainstorm → plan → work → review)
+- **Strategy workflows:** `compound-strategy-claude.md`, `compound-strategy-codex.md` (architecture + performance tasks)
+- **Plan + Work workflows:** `compound-plan-work-claude.md`, `compound-plan-work-codex.md` (planning + execution)
+- **Compound review workflows:** `compound-review-compound-claude.md`, `compound-review-compound-codex.md` (code review + compound analysis)
+
+### Local Model Profiles
+
+Local Ollama profiles are provided for lightweight and advanced tasks:
+
+| Profile | Model | Best For | Tier |
+|---------|-------|----------|------|
+| `local-*-gemma4b.md` (×9) | `gemma:4b` | Light tasks (safe-audit, documentation) | `light` |
+| `local-code-assist-deepseek-6.7b.md` | `deepseek-coder:6.7b` | Standard coding tasks | `standard` |
+| `local-heavy-refactor-deepseek-16b.md` | `deepseek-coder-v2:16b` | Heavy refactor, architecture | `advanced` |
+| `local-reasoning-deepseek-r1-8b.md` | `deepseek-r1:8b` | Reasoning tasks | `standard` |
+| `local-reasoning-deepseek-r1-32b.md` | `deepseek-r1:32b` | Advanced reasoning | `advanced` |
+
+### Syncing CE Skills
+
+Run the sync script to download the latest CE skill definitions from GitHub:
+
+```bash
+# Node.js (cross-platform)
+node scripts/sync-ce-skills.js
+
+# PowerShell (Windows)
+.\scripts\sync-ce-skills.ps1
+```
+
+This populates `skills/compound-engineering/cache/` with the 9 core CE skills.
+
+### Audit System
+
+Before launching a profile, AgentDock audits it against `compatibility-rules.json`:
+
+- **Model capability check** — Verifies the model can handle the task tier (`light`/`standard`/`advanced`)
+- **CE compatibility check** — For CE workflows, verifies the frontend supports CE and has sufficient context
+- **Context check** — Warns if `required_context` exceeds the model's known limit
+- **Auto-suggestions** — Suggests up to 2 alternative profiles if the current one has warnings
+
+Audit results:
+- **Errors** block launch until resolved
+- **Warnings** require user confirmation before proceeding
+- **Suggestions** are informational and non-blocking
 
 ## File Conventions
 
@@ -152,6 +221,9 @@ Status values: `success`, `known-good`, `observed-run`, `blocked`, `failure`, `o
 | Gemini chat not responding | Set `GEMINI_API_KEY` or `GOOGLE_API_KEY` environment variable. Without it, the advisor falls back to rule-based output. |
 | Profiles not showing | Verify `profiles/` exists and contains `.md` files with valid frontmatter. Check `npm test` output. |
 | Sessions not appearing in terminal | Check browser console for network errors. Ensure the server is running on the expected port. |
+| CE skills not showing in UI | Run `node scripts/sync-ce-skills.js` to download skill definitions. Verify `skills/compound-engineering/cache/` exists and contains `.md` files. |
+| Audit blocks a CE profile launch | Check `compatibility-rules.json` for model capability and CE compatibility rules. Use a frontend with full CE support (`claude` or `codex`) or select a lower-tier task. |
+| Sync script fails with timeout | The GitHub raw CDN may be slow. Retry or increase timeout in `scripts/sync-ce-skills.js` (`req.setTimeout(ms)`) or `scripts/sync-ce-skills.ps1` (`-TimeoutSec`). |
 
 ## Environment Variables
 
@@ -168,4 +240,6 @@ Status values: `success`, `known-good`, `observed-run`, `blocked`, `failure`, `o
 - Update `tests/` when adding server-side logic.
 - Update `README.md` for user-facing changes.
 - Update `AGENTS.md` for architectural or workflow changes.
+- Update `compatibility-rules.json` when adding new models or changing task tiers.
+- Run `node scripts/sync-ce-skills.js` after CE plugin updates to refresh cached skills.
 - Run `npm test` before committing.

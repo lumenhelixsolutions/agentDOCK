@@ -1,41 +1,18 @@
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert');
 const http = require('http');
+const { startTestServer, stopTestServer } = require('./helpers/test-server');
 
 describe('server', () => {
   let server;
-  let port;
   let baseUrl;
 
   before(async () => {
-    process.env.AGENTDOCK_PORT = '0';
-    const mod = require('../server.js');
-    server = mod.__server;
-    if (!server) {
-      throw new Error('server.js did not export __server');
-    }
-    await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Server did not start in time')), 5000);
-      const check = () => {
-        const addr = server.address();
-        if (addr) {
-          clearTimeout(timeout);
-          port = addr.port;
-          baseUrl = `http://127.0.0.1:${port}`;
-          resolve();
-        } else {
-          setTimeout(check, 50);
-        }
-      };
-      check();
-    });
+    ({ server, baseUrl } = await startTestServer());
   });
 
   after(() => {
-    if (server) {
-      server.close();
-    }
-    delete require.cache[require.resolve('../server.js')];
+    stopTestServer(server);
   });
 
   function request(path) {

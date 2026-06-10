@@ -34,3 +34,4 @@ temp/
 !briefs/*.md
 !memory.md
 !research-sources.md
+.aider*

@@ -176,3 +176,26 @@ Profile: local-safe-audit
 Status: observed-failure
 Observed: exitCode=1
 Reason: Terminal-monitored AgentDock session s-2026-06-07T09-55-52-162Z-fe7804
+
+## Evidence: ce-plan skill self-integration
+Date: 2026-06-07T17:12:04Z
+Profile: compound-core-kimi
+Status: success
+Observed: Used `ce-plan` skill from `skills/compound-engineering/cache/ce-plan/SKILL.md` to create implementation plan for dashboard UI integration
+Reason: First CE skill usage logged in AgentDock memory. Plan written to `docs/plans/ce-dashboard-ui-integration.md` with 5 implementation units, dependencies, test scenarios, and risk mitigations.
+
+
+## Evidence: codex-patch-test run
+Date: 2026-06-08T00:16:46.925Z
+Profile: codex-patch-test
+Status: observed-run
+Observed: exitCode=0
+Reason: Terminal-monitored AgentDock session s-2026-06-08T00-16-46-054Z-f207d8
+
+
+## Evidence: cloud-architecture-codex run
+Date: 2026-06-10T00:51:03.282Z
+Profile: cloud-architecture-codex
+Status: observed-run
+Observed: exitCode=0
+Reason: Terminal-monitored AgentDock session s-2026-06-10T00-51-00-139Z-4a4478

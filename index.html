@@ -406,6 +406,49 @@
     @media (max-width: 900px) {
       .chat-window { width: calc(100vw - 32px); height: calc(100vh - 90px); bottom: 8px; right: 8px; }
     }
+    .app-header {
+      padding: 16px 24px 12px;
+      display: grid;
+      gap: 12px;
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(18px);
+      background: rgba(8,12,24,.72);
+    }
+    [data-theme="light"] .app-header { background: rgba(244,246,250,.8); }
+    .brand-row { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; }
+    .brand-title-row { display:flex; align-items:center; }
+    .eyebrow { font-size:11px; text-transform:uppercase; letter-spacing:.14em; color:var(--accent); margin-bottom:6px; font-weight:800; }
+    .header-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .topnav { display:flex; gap:8px; flex-wrap:wrap; }
+    .nav-btn {
+      padding: 8px 12px; border-radius: var(--radius-pill); border:1px solid var(--line);
+      background: rgba(255,255,255,.04); color: var(--muted); font-weight:700;
+    }
+    .nav-btn.active { color: var(--text); background: rgba(114,229,255,.16); border-color: rgba(114,229,255,.32); }
+    .app-main { padding: 16px 24px 32px; }
+    .view-section { display:block; }
+    .context-bar { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+    .context-item { display:flex; flex-direction:column; gap:4px; }
+    .context-label { color: var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.08em; }
+    .hero-grid { display:grid; grid-template-columns: 1.3fr .9fr; gap:14px; margin-bottom:14px; }
+    .hero-panel { min-height: 220px; }
+    .hero-copy { max-width: 65ch; }
+    .status-hero { min-height:220px; }
+    .dashboard-grid { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:14px; }
+    .evidence-grid { grid-template-columns: 1.2fr .9fr; }
+    .tools-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .section-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:10px; flex-wrap:wrap; }
+    .action-list, .stack-list { display:grid; gap:10px; }
+    .action-item, .stack-item {
+      border:1px solid var(--line); border-radius: 14px; padding: 12px; background: rgba(0,0,0,.12);
+    }
+    [data-theme="light"] .action-item, [data-theme="light"] .stack-item { background: rgba(0,0,0,.03); }
+    .action-title { font-weight:700; margin-bottom:4px; }
+    .project-card.is-active, .profile-card.is-selected { border-color: rgba(114,229,255,.35); box-shadow: 0 0 0 1px rgba(114,229,255,.18) inset; }
+    .launch-reason { border-left:3px solid rgba(114,229,255,.35); padding-left:10px; }
     @media (max-width: 640px) {
       header .row { width: 100%; justify-content: space-between; }
       header .row:last-child { margin-top: 4px; }
@@ -419,96 +462,195 @@
 <body>
 <a href="#main" class="skip-link">Skip to content</a>
 
-<header>
-  <div class="row" aria-label=" branding">
-    <h1>🤖 AgentDock</h1>
-    <span class="pill" style="margin-left:8px">2.0</span>
+<header class="app-header">
+  <div class="brand-row" aria-label="branding">
+    <div>
+      <div class="eyebrow">Local-first agent operations</div>
+      <div class="brand-title-row">
+        <h1>🤖 AgentDock</h1>
+        <span class="pill" style="margin-left:8px">2.0</span>
+      </div>
+    </div>
+    <div class="header-actions" role="toolbar" aria-label="Global controls">
+      <select id="projectSelect" class="project-select" onchange="changeProject(this.value)" aria-label="Select project">
+        <option value="">📁 Select project...</option>
+      </select>
+      <button class="primary smallbtn" onclick="runScan()" aria-label="Run system scan">🔍 Scan</button>
+      <button class="smallbtn" id="themeToggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle light or dark theme">🌓</button>
+      <button class="smallbtn" onclick="showShortcuts()" title="Keyboard shortcuts" aria-label="Show keyboard shortcuts">⌨️</button>
+    </div>
   </div>
-  <div class="row" role="toolbar" aria-label="Main controls">
-    <select id="projectSelect" class="project-select" onchange="changeProject(this.value)" aria-label="Select project">
-      <option value="">📁 Select project...</option>
-    </select>
-    <button id="modeEasy" class="mode-toggle active" onclick="setMode('easy')" aria-pressed="true">🟢 Easy</button>
-    <button id="modeAdvanced" class="mode-toggle" onclick="setMode('advanced')" aria-pressed="false">⚙️ Advanced</button>
-    <button class="primary smallbtn" onclick="runScan()" aria-label="Run system scan">🔍 Scan</button>
-    <button class="smallbtn" id="themeToggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle light or dark theme">🌓</button>
-    <button class="smallbtn" onclick="showShortcuts()" title="Keyboard shortcuts" aria-label="Show keyboard shortcuts">⌨️</button>
-  </div>
+  <nav class="topnav" aria-label="Primary">
+    <button id="nav-overview" class="nav-btn active" onclick="setView('overview')">Overview</button>
+    <button id="nav-projects" class="nav-btn" onclick="setView('projects')">Projects</button>
+    <button id="nav-profiles" class="nav-btn" onclick="setView('profiles')">Profiles</button>
+    <button id="nav-launch" class="nav-btn" onclick="setView('launch')">Launch Center</button>
+    <button id="nav-sessions" class="nav-btn" onclick="setView('sessions')">Sessions</button>
+    <button id="nav-evidence" class="nav-btn" onclick="setView('evidence')">Evidence</button>
+    <button id="nav-tools" class="nav-btn" onclick="setView('tools')">Tools</button>
+  </nav>
 </header>
 
-<main id="main">
-  <!-- EASY MODE -->
-  <div id="easyMode">
-    <div class="panel" id="easyProjectPanel" style="display:none">
-      <h2 id="easyProjectName">Project</h2>
-      <div class="row" id="easyGitStatus"></div>
-      <div class="row" style="margin-top:8px">
-        <button class="smallbtn" onclick="refreshGit()">🔄 Refresh Git</button>
-        <button class="smallbtn" onclick="loadAgentsMd()">📄 AGENTS.md</button>
-      </div>
-      <div id="agentsMdPanel" class="agents-md-panel" style="display:none;margin-top:8px"></div>
+<main id="main" class="app-main">
+  <section class="context-bar panel">
+    <div class="context-item">
+      <span class="context-label">Active project</span>
+      <strong id="contextProject">No project selected</strong>
     </div>
+    <div class="context-item">
+      <span class="context-label">System readiness</span>
+      <strong id="contextReadiness">Scan required</strong>
+    </div>
+    <div class="context-item">
+      <span class="context-label">Active sessions</span>
+      <strong id="contextSessions">0</strong>
+    </div>
+    <div class="context-item">
+      <span class="context-label">Recommended stack</span>
+      <strong id="contextRecommendation">Run plan</strong>
+    </div>
+  </section>
 
-    <div class="panel">
-      <h2>🚀 Quick Launch</h2>
-      <p class="small">One-click launch for common tasks on this project</p>
-      <div class="easy-grid" id="easyQuickLaunch">
-        <div class="easy-card" onclick="launchProfile('local-safe-audit')" tabindex="0" role="button" aria-label="Launch Safe Audit" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();launchProfile('local-safe-audit');}">
-          <div class="icon">🔒</div>
-          <div class="label">Safe Audit</div>
-          <div class="sub">Local, read-only</div>
-        </div>
-        <div class="easy-card" onclick="launchProfile('cloud-heavy-refactor-claude')" tabindex="0" role="button" aria-label="Launch Heavy Refactor" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();launchProfile('cloud-heavy-refactor-claude');}">
-          <div class="icon">🔨</div>
-          <div class="label">Heavy Refactor</div>
-          <div class="sub">Claude cloud</div>
-        </div>
-        <div class="easy-card" onclick="launchProfile('cloud-patch-test-codex')" tabindex="0" role="button" aria-label="Launch Quick Patch" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();launchProfile('cloud-patch-test-codex');}">
-          <div class="icon">🩹</div>
-          <div class="label">Quick Patch</div>
-          <div class="sub">Codex cloud</div>
-        </div>
-        <div class="easy-card" onclick="launchProfile('hybrid-bug-hunt-aider')" tabindex="0" role="button" aria-label="Launch Bug Hunt" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();launchProfile('hybrid-bug-hunt-aider');}">
-          <div class="icon">🐛</div>
-          <div class="label">Bug Hunt</div>
-          <div class="sub">Aider hybrid</div>
+  <section id="view-overview" class="view-section">
+    <div class="hero-grid">
+      <div class="panel hero-panel">
+        <div class="eyebrow">Mission control</div>
+        <h2 id="overviewProjectTitle">Choose a project to begin</h2>
+        <p id="overviewProjectSubtitle" class="hero-copy">AgentDock is strongest when it can ground launches, audits, and recovery around a specific repository.</p>
+        <div id="overviewProjectMeta" class="row" style="margin-top:10px"></div>
+        <div class="row" style="margin-top:12px">
+          <button class="primary" onclick="runScan()">Run readiness scan</button>
+          <button onclick="setView('profiles')">Review profiles</button>
+          <button onclick="setView('sessions')">Open sessions</button>
         </div>
       </div>
-    </div>
-
-    <div class="panel" id="easyMissingTools" style="display:none">
-      <h2>📥 Install Missing Tools</h2>
-      <div id="easyInstallList"></div>
-    </div>
-
-    <div class="panel">
-      <h2>💬 Need Help?</h2>
-      <p class="small">Click the 🤖 button bottom-right to chat with the AI assistant. It can launch agents, switch projects, and troubleshoot issues.</p>
-      <div class="row" style="margin-top:10px">
-        <button class="primary bigbtn" onclick="toggleChat()" style="flex:1">🤖 Open AI Assistant</button>
+      <div class="panel status-hero">
+        <div class="eyebrow">System verdict</div>
+        <div id="readinessBadgeRow" class="row" style="margin-bottom:10px"></div>
+        <div id="readinessSummary" class="small">Run a scan to detect local models, agent tools, and environment readiness.</div>
+        <div id="readinessChecks" class="stack-list" style="margin-top:12px"></div>
       </div>
     </div>
-  </div>
 
-  <!-- ADVANCED MODE -->
-  <div id="advancedMode" class="hidden">
+    <div class="dashboard-grid">
+      <div class="panel">
+        <div class="section-head">
+          <div>
+            <div class="eyebrow">Next actions</div>
+            <h2>Recommended next moves</h2>
+          </div>
+        </div>
+        <div id="overviewNextActions" class="action-list"></div>
+      </div>
+
+      <div class="panel">
+        <div class="section-head">
+          <div>
+            <div class="eyebrow">Suggested launches</div>
+            <h2>Best fits right now</h2>
+          </div>
+          <button class="smallbtn" onclick="setView('launch')">Open Launch Center</button>
+        </div>
+        <div id="overviewRecommendations" class="grid"></div>
+      </div>
+
+      <div class="panel">
+        <div class="section-head">
+          <div>
+            <div class="eyebrow">Recent activity</div>
+            <h2>Session snapshot</h2>
+          </div>
+        </div>
+        <div id="overviewSessions" class="stack-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-projects" class="view-section hidden">
     <div class="panel" id="projectPanel" style="display:none">
-      <h2>Active Project</h2>
-      <div id="projectInfo" class="kv"></div>
-      <div class="row" style="margin-top:8px">
-        <button class="smallbtn" onclick="refreshGit()">Refresh Git</button>
-        <button class="smallbtn" onclick="loadAgentsMd()">AGENTS.md</button>
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">Active project</div>
+          <h2>Project command center</h2>
+        </div>
+        <div class="row">
+          <button class="smallbtn" onclick="refreshGit()">Refresh Git</button>
+          <button class="smallbtn" onclick="loadAgentsMd()">AGENTS.md</button>
+        </div>
       </div>
+      <div id="projectInfo" class="kv"></div>
       <div id="agentsMdPanelAdvanced" class="agents-md-panel" style="display:none;margin-top:8px"></div>
     </div>
 
     <div class="panel">
-      <h2>Quick Launch Templates</h2>
-      <div id="templates" class="row"></div>
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">All known repos</div>
+          <h2>Projects</h2>
+        </div>
+      </div>
+      <div id="projectCards" class="grid"></div>
+    </div>
+  </section>
+
+  <section id="view-profiles" class="view-section hidden">
+    <div class="panel">
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">Curated stack library</div>
+          <h2>Profiles <span id="profileCount" class="pill"></span></h2>
+        </div>
+        <div class="row">
+          <select id="profileModeFilter" onchange="renderProfiles()" aria-label="Filter by mode">
+            <option value="all">All modes</option>
+            <option value="local">Local</option>
+            <option value="cloud">Cloud</option>
+            <option value="hybrid">Hybrid</option>
+          </select>
+          <select id="profileTaskFilter" onchange="renderProfiles()" aria-label="Filter by task">
+            <option value="all">All tasks</option>
+            <option value="audit">Audit</option>
+            <option value="heavy">Heavy refactor</option>
+            <option value="performance">Performance</option>
+            <option value="documentation">Documentation</option>
+            <option value="bug">Bug hunt</option>
+            <option value="review">Code review</option>
+          </select>
+          <button class="smallbtn" onclick="makePlan()">Refresh recommendations</button>
+        </div>
+      </div>
+      <div id="recommendedProfiles" class="grid" style="margin-bottom:14px"></div>
+      <div id="profiles" class="grid"></div>
+    </div>
+  </section>
+
+  <section id="view-launch" class="view-section hidden">
+    <div class="hero-grid">
+      <div class="panel hero-panel">
+        <div class="eyebrow">Launch review</div>
+        <h2 id="launchTitle">Select a profile to review</h2>
+        <p id="launchSubtitle" class="hero-copy">Use the profile catalog or plan recommendations to choose a launch. This surface explains why the stack fits, what could block it, and what the launch script will do.</p>
+        <div id="launchProfileMeta" class="row" style="margin-top:10px"></div>
+        <div class="row" style="margin-top:12px">
+          <button class="primary" id="launchPrimaryBtn" onclick="launchSelectedProfile()" disabled>Launch selected profile</button>
+          <button id="launchPreviewBtn" onclick="previewSelectedProfile()" disabled>Preview script</button>
+          <button onclick="setView('profiles')">Choose different profile</button>
+        </div>
+      </div>
+      <div class="panel status-hero">
+        <div class="eyebrow">Audit explainability</div>
+        <div id="launchAuditSummary" class="small">No profile selected yet.</div>
+        <div id="launchReasons" class="stack-list" style="margin-top:12px"></div>
+      </div>
     </div>
 
     <div class="panel">
-      <h2>Goal Planner</h2>
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">Recommendation engine</div>
+          <h2>Plan from current intent</h2>
+        </div>
+      </div>
       <div class="row">
         <select id="goal" aria-label="Planning goal">
           <option value="privacy">Maximum Privacy</option>
@@ -522,14 +664,38 @@
       <div id="plan" class="grid" style="margin-top:12px"></div>
     </div>
 
+    <div class="split">
+      <div class="panel">
+        <h2>Launch templates</h2>
+        <div id="templates" class="row"></div>
+      </div>
+      <div class="panel">
+        <h2>Preview / launch output</h2>
+        <pre id="logText" class="terminal" style="height:220px"></pre>
+        <div id="troubleshootPanel" class="troubleshoot-box" style="display:none;margin-top:10px">
+          <b>⚠️ Launch troubleshooting</b>
+          <div id="troubleshootText" class="small"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-sessions" class="view-section hidden">
     <div class="panel wide">
-      <h2>Managed Terminal</h2>
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">Operator control room</div>
+          <h2>Managed sessions</h2>
+        </div>
+        <div class="row">
+          <button onclick="loadSessions()">Refresh</button>
+          <button class="danger" onclick="stopSelectedSession()">Stop</button>
+        </div>
+      </div>
       <p class="small">Monitored output from launched agent sessions.</p>
       <div class="session-tabs" id="sessionTabs" role="tablist" aria-label="Session tabs"></div>
       <div class="row">
         <select id="sessionSelect" onchange="selectSession(this.value)" aria-label="Select session"></select>
-        <button onclick="loadSessions()">Refresh</button>
-        <button class="danger" onclick="stopSelectedSession()">Stop</button>
       </div>
       <div id="terminal" class="terminal" role="log" aria-live="polite" aria-label="Terminal output">No session yet. Launch a profile to start monitoring.</div>
       <div class="terminal-input"><input id="terminalInput" placeholder="Send input to session..." onkeydown="if(event.key==='Enter') sendInput()" aria-label="Terminal input"/><button onclick="sendInput()">Send</button></div>
@@ -542,60 +708,62 @@
           <button class="outcome-btn" onclick="reportOutcome('aborted')">Aborted</button>
         </div>
       </div>
-      <div id="troubleshootPanel" class="troubleshoot-box" style="display:none">
-        <b>⚠️ Launch Troubleshooting</b>
-        <div id="troubleshootText" class="small"></div>
+    </div>
+  </section>
+
+  <section id="view-evidence" class="view-section hidden">
+    <div class="dashboard-grid evidence-grid">
+      <div class="panel">
+        <div class="section-head">
+          <div>
+            <div class="eyebrow">Learning layer</div>
+            <h2>Memory</h2>
+          </div>
+          <div class="row"><button class="smallbtn" onclick="saveMemory()">Save</button><button class="smallbtn" onclick="loadMemory()">Reload</button></div>
+        </div>
+        <textarea id="memory" class="mono" style="width:100%;min-height:260px;background:rgba(0,0,0,.2);border:1px solid var(--line);border-radius:12px;padding:8px;color:var(--text);font:inherit;font-size:12px" aria-label="Memory markdown"></textarea>
+      </div>
+      <div class="panel">
+        <div class="section-head">
+          <div>
+            <div class="eyebrow">Operational history</div>
+            <h2>Logs</h2>
+          </div>
+        </div>
+        <div id="logs" class="row"></div>
+        <pre id="evidenceLogText" class="terminal" style="height:260px"></pre>
       </div>
     </div>
+  </section>
 
-    <div class="panel">
-      <h2>Profiles <span id="profileCount" class="pill"></span></h2>
-      <div id="profiles" class="grid"></div>
-    </div>
-
-    <div class="panel">
-      <h2>Missing Tools — Install Guides</h2>
-      <div id="installGuides"></div>
-    </div>
-
-    <div class="panel">
-      <h2>Local Models</h2>
-      <div id="localModelsPanel">Run a scan to detect local models.</div>
-    </div>
-
-    <div class="panel">
-      <h2>Research Brief</h2>
-      <pre id="brief" class="terminal" style="height:200px"></pre>
-    </div>
-
-    <div class="split">
+  <section id="view-tools" class="view-section hidden">
+    <div class="dashboard-grid tools-grid">
       <div class="panel">
-        <h2>System Snapshot</h2>
+        <div class="section-head"><div><div class="eyebrow">Readiness data</div><h2>System snapshot</h2></div></div>
         <div id="scanSummary" class="kv"><div>Status</div><div>Not scanned yet.</div></div>
       </div>
       <div class="panel">
-        <h2>Coder Tools</h2>
+        <div class="section-head"><div><div class="eyebrow">Installed agents</div><h2>Coder tools</h2></div></div>
         <div id="coders"></div>
       </div>
+      <div class="panel">
+        <div class="section-head"><div><div class="eyebrow">Missing dependencies</div><h2>Install guides</h2></div></div>
+        <div id="installGuides"></div>
+      </div>
+      <div class="panel">
+        <div class="section-head"><div><div class="eyebrow">Local inference</div><h2>Local models</h2></div></div>
+        <div id="localModelsPanel">Run a scan to detect local models.</div>
+      </div>
+      <div class="panel">
+        <div class="section-head"><div><div class="eyebrow">Environment inventory</div><h2>.env / model-key scan</h2></div></div>
+        <div id="envFiles">Run a scan to inspect .env files.</div>
+      </div>
+      <div class="panel">
+        <div class="section-head"><div><div class="eyebrow">Research watch</div><h2>Research brief</h2></div><div class="row"><button class="smallbtn" onclick="runResearch()">Run research</button></div></div>
+        <pre id="brief" class="terminal" style="height:220px"></pre>
+      </div>
     </div>
-
-    <div class="panel">
-      <h2>.env / Model-Key Scan</h2>
-      <div id="envFiles">Run a scan to inspect .env files.</div>
-    </div>
-
-    <div class="panel">
-      <h2>Memory</h2>
-      <textarea id="memory" class="mono" style="width:100%;min-height:100px;background:rgba(0,0,0,.2);border:1px solid var(--line);border-radius:12px;padding:8px;color:var(--text);font:inherit;font-size:12px" aria-label="Memory markdown"></textarea>
-      <div class="row"><button class="smallbtn" onclick="saveMemory()">Save</button><button class="smallbtn" onclick="loadMemory()">Reload</button></div>
-    </div>
-
-    <div class="panel">
-      <h2>Logs</h2>
-      <div id="logs" class="row"></div>
-      <pre id="logText" class="terminal" style="height:180px"></pre>
-    </div>
-  </div>
+  </section>
 </main>
 
 <!-- Toast -->
@@ -620,8 +788,8 @@
         <tr><td><kbd>Ctrl</kbd> <kbd>.</kbd></td><td>Toggle theme</td></tr>
         <tr><td><kbd>Esc</kbd></td><td>Close chat or modal</td></tr>
         <tr><td><kbd>Ctrl</kbd> <kbd>Enter</kbd></td><td>Send chat message</td></tr>
-        <tr><td><kbd>Ctrl</kbd> <kbd>1</kbd></td><td>Switch to Easy mode</td></tr>
-        <tr><td><kbd>Ctrl</kbd> <kbd>2</kbd></td><td>Switch to Advanced mode</td></tr>
+        <tr><td><kbd>Ctrl</kbd> <kbd>1</kbd></td><td>Go to Overview</td></tr>
+        <tr><td><kbd>Ctrl</kbd> <kbd>2</kbd></td><td>Go to Sessions</td></tr>
         <tr><td><kbd>Ctrl</kbd> <kbd>S</kbd></td><td>Run system scan</td></tr>
       </tbody>
     </table>
@@ -645,7 +813,7 @@
 
 <script>
 let scan=null, profiles=[], plan=null, catalog=null, currentSession=null, cursor=0, pollTimer=null;
-let projects=[], activeProject=null, sessionCursors={}, advMode='easy';
+let projects=[], activeProject=null, sessionCursors={}, advMode='easy', currentView='overview', sessions=[], selectedProfileId=null, launchPreviewProfileId=null;
 const CHAT_SESSION = 'user-' + Math.random().toString(36).slice(2, 8);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -717,23 +885,31 @@ document.addEventListener('keydown', e => {
     case '/': e.preventDefault(); showShortcuts(); break;
     case '.': e.preventDefault(); toggleTheme(); break;
     case 'enter': e.preventDefault(); sendChat(); break;
-    case '1': e.preventDefault(); setMode('easy'); break;
-    case '2': e.preventDefault(); setMode('advanced'); break;
+    case '1': e.preventDefault(); navigateFromShortcut(1); break;
+    case '2': e.preventDefault(); navigateFromShortcut(2); break;
     case 's': e.preventDefault(); runScan(); break;
   }
 });
 
-// ===== MODE TOGGLE =====
+// ===== VIEW ROUTING =====
 function setMode(mode){
-  advMode = mode;
-  const easyBtn = document.getElementById('modeEasy');
-  const advBtn = document.getElementById('modeAdvanced');
-  easyBtn.className = 'mode-toggle ' + (mode === 'easy' ? 'active' : '');
-  easyBtn.setAttribute('aria-pressed', mode === 'easy');
-  advBtn.className = 'mode-toggle ' + (mode === 'advanced' ? 'active' : '');
-  advBtn.setAttribute('aria-pressed', mode === 'advanced');
-  document.getElementById('easyMode').classList.toggle('hidden', mode !== 'easy');
-  document.getElementById('advancedMode').classList.toggle('hidden', mode !== 'advanced');
+  if (mode === 'easy') return setView('overview');
+  if (mode === 'advanced') return setView('tools');
+}
+function setView(view){
+  currentView = view;
+  const views = ['overview','projects','profiles','launch','sessions','evidence','tools'];
+  for (const name of views) {
+    const section = document.getElementById('view-' + name);
+    const nav = document.getElementById('nav-' + name);
+    if (section) section.classList.toggle('hidden', name !== view);
+    if (nav) nav.classList.toggle('active', name === view);
+  }
+  if (view === 'sessions' && currentSession) selectSession(currentSession);
+}
+function navigateFromShortcut(slot){
+  if (slot === 1) return setView('overview');
+  if (slot === 2) return setView('sessions');
 }
 
 // ===== AI CHAT =====
@@ -802,9 +978,129 @@ async function loadProjects(){
   activeProject = data.active;
   renderProjectSelect();
   renderProjectPanel();
-  renderEasyProject();
+  renderProjectCards();
+  renderOverview();
   renderInstallGuides();
+  renderContextBar();
 }
+function getActiveProject(){
+  return projects.find(x => x.path === activeProject) || null;
+}
+function summarizeReadiness(){
+  if (!scan) return { verdict: 'Scan required', badge: 'UNKNOWN', detail: 'Run a scan to detect tools, models, and environment readiness.', missing: [] };
+  const ollama = !!scan.tools?.ollama?.present;
+  const coderCount = (scan.coders || []).length;
+  const installedCoders = (scan.coders || []).filter(c => c.detection?.present).length;
+  const localBackends = (scan.local_models?.backends || []).filter(b => b.present).length;
+  const missing = [];
+  if (!ollama) missing.push('Ollama missing');
+  if (installedCoders === 0) missing.push('No agent CLI detected');
+  const badge = missing.length ? (installedCoders ? 'DEGRADED' : 'BLOCKED') : 'READY';
+  const verdict = missing.length ? (badge === 'BLOCKED' ? 'Action needed' : 'Needs attention') : 'Ready to operate';
+  const detail = `${installedCoders}/${coderCount || installedCoders} agent tools detected · ${localBackends} local backends ready`;
+  return { verdict, badge, detail, missing };
+}
+function getSuggestedProfiles(limit=3){
+  const fromPlan = (plan?.recommended || []).slice(0, limit);
+  if (fromPlan.length) return fromPlan;
+  return profiles.slice(0, limit);
+}
+function renderContextBar(){
+  const readiness = summarizeReadiness();
+  const active = getActiveProject();
+  document.getElementById('contextProject').textContent = active ? `${active.name} (${active.type})` : 'No project selected';
+  document.getElementById('contextReadiness').textContent = readiness.verdict;
+  document.getElementById('contextSessions').textContent = String((sessions || []).filter(s => s.status === 'running').length);
+  const suggestion = getSuggestedProfiles(1)[0];
+  document.getElementById('contextRecommendation').textContent = suggestion ? suggestion.name : 'Run plan';
+}
+function renderOverview(){
+  const active = getActiveProject();
+  const readiness = summarizeReadiness();
+  document.getElementById('overviewProjectTitle').textContent = active ? `${active.name} command center` : 'Choose a project to begin';
+  document.getElementById('overviewProjectSubtitle').textContent = active ? `Operate ${active.type} work with curated launches, stronger audit reasoning, and tracked session recovery.` : 'AgentDock is strongest when it can ground launches, audits, and recovery around a specific repository.';
+  const meta = document.getElementById('overviewProjectMeta');
+  if (active) {
+    const git = active.git || {};
+    meta.innerHTML = `<span class="pill">${esc(active.type)}</span><span class="pill">${esc(git.branch || 'no branch')}</span><span class="pill">${git.clean ? 'git clean' : `dirty ${git.uncommitted || 0}`}</span><span class="pill">${active.hasAgentsMd ? 'AGENTS.md ready' : 'AGENTS.md missing'}</span>`;
+  } else meta.innerHTML = '<span class="pill">No active repo</span>';
+  document.getElementById('readinessBadgeRow').innerHTML = `<span class="status ${readiness.badge}">${readiness.badge}</span>`;
+  document.getElementById('readinessSummary').textContent = readiness.detail;
+  const rows = [];
+  rows.push(`<div class="stack-item"><b>System verdict</b><div class="small">${esc(readiness.verdict)}</div></div>`);
+  for (const item of readiness.missing || []) rows.push(`<div class="stack-item"><b>Attention</b><div class="small">${esc(item)}</div></div>`);
+  if (!(readiness.missing || []).length) rows.push('<div class="stack-item"><b>Ready</b><div class="small">No obvious blockers from the latest scan.</div></div>');
+  document.getElementById('readinessChecks').innerHTML = rows.join('');
+  const items = [];
+  if (!scan) items.push({title:'Run the first scan', body:'Detect local models, agent CLIs, environment hints, and system capability.', cta:'Run scan', onclick:'runScan()'});
+  if (!active) items.push({title:'Choose an active project', body:'Recommendations, launch context, and recovery logic work best when tied to a repo.', cta:'Open Projects', onclick:"setView('projects')"});
+  if (scan && !plan) items.push({title:'Generate recommendations', body:'Build a ranked launch plan for the current goal and machine readiness.', cta:'Open Launch Center', onclick:"setView('launch')"});
+  if ((sessions || []).some(s => s.status === 'running')) items.push({title:'Continue active session', body:'A launch is already in flight. Open the control room to monitor, stop, or respond.', cta:'Open Sessions', onclick:"setView('sessions')"});
+  if (!items.length) items.push({title:'Review the profile catalog', body:'You are ready to compare profiles, preview launch scripts, or continue prior operator work.', cta:'Open Profiles', onclick:"setView('profiles')"});
+  document.getElementById('overviewNextActions').innerHTML = items.map(item => `<div class="action-item"><div class="action-title">${esc(item.title)}</div><div class="small">${esc(item.body)}</div><div class="row" style="margin-top:8px"><button class="smallbtn primary" onclick="${item.onclick}">${esc(item.cta)}</button></div></div>`).join('');
+  document.getElementById('overviewRecommendations').innerHTML = getSuggestedProfiles(3).map(p => profileCard(p, p, {compact:true})).join('') || '<div class="card"><div class="small">Run a plan to see grounded recommendations.</div></div>';
+  document.getElementById('overviewSessions').innerHTML = (sessions || []).length ? sessions.slice(0,4).map(s => `<div class="stack-item"><b>${esc(s.profileName)}</b><div class="small">${esc(s.status)}</div></div>`).join('') : '<div class="stack-item"><b>No recent sessions</b><div class="small">Launch a profile and AgentDock will track terminal output, outcomes, and recovery context here.</div></div>';
+  renderContextBar();
+}
+function renderProjectCards(){
+  const el = document.getElementById('projectCards');
+  if (!el) return;
+  el.innerHTML = projects.map(p => {
+    const git = p.git || {};
+    const activeCls = p.path === activeProject ? ' project-card is-active' : ' project-card';
+    return `<div class="card${activeCls}"><div class="row" style="justify-content:space-between"><h3>${esc(p.name)}</h3><span class="pill">${esc(p.type)}</span></div><div class="small mono">${esc(p.path)}</div><div class="row" style="margin-top:8px"><span class="pill">${esc(git.branch || 'no branch')}</span><span class="pill">${git.present ? (git.clean ? 'git clean' : `dirty ${git.uncommitted || 0}`) : 'no repo'}</span><span class="pill">${p.hasAgentsMd ? 'AGENTS.md' : 'no AGENTS.md'}</span></div><div class="row" style="margin-top:10px"><button class="smallbtn primary" onclick="changeProject('${esc(p.path)}')">${p.path === activeProject ? 'Active' : 'Activate'}</button><button class="smallbtn" onclick="setView('overview')">Overview</button></div></div>`;
+  }).join('') || '<div class="card"><div class="small">No projects discovered yet.</div></div>';
+}
+function selectProfile(id, opts={}){
+  selectedProfileId = id;
+  renderProfiles();
+  renderLaunchCenter();
+  if (opts.switchView !== false) setView('launch');
+}
+function getSelectedProfile(){
+  return profiles.find(p => p.id === selectedProfileId) || getSuggestedProfiles(1)[0] || null;
+}
+function renderLaunchCenter(){
+  const profile = getSelectedProfile();
+  const title = document.getElementById('launchTitle');
+  const subtitle = document.getElementById('launchSubtitle');
+  const meta = document.getElementById('launchProfileMeta');
+  const summary = document.getElementById('launchAuditSummary');
+  const reasons = document.getElementById('launchReasons');
+  const launchBtn = document.getElementById('launchPrimaryBtn');
+  const previewBtn = document.getElementById('launchPreviewBtn');
+  if (!profile) {
+    title.textContent = 'Select a profile to review';
+    subtitle.textContent = 'Use the profile catalog or plan recommendations to choose a launch. This surface explains why the stack fits, what could block it, and what the launch script will do.';
+    meta.innerHTML = '';
+    summary.textContent = 'No profile selected yet.';
+    reasons.innerHTML = '';
+    launchBtn.disabled = true;
+    previewBtn.disabled = true;
+    return;
+  }
+  const recommended = (plan?.recommended || []).find(p => p.id === profile.id) || profile;
+  const state = recommended.state || profile.meta?.status || 'UNKNOWN';
+  const auditReasons = recommended.reasons || [];
+  title.textContent = profile.name;
+  subtitle.textContent = profile.meta?.description || profile.meta?.model || 'Profile ready for review.';
+  meta.innerHTML = `<span class="pill">${esc(profile.meta?.frontend || '?')}</span><span class="pill">${esc(profile.meta?.backend || '?')}</span><span class="pill">${esc(profile.meta?.mode || '?')}</span><span class="status ${esc(state)}">${esc(state)}</span>`;
+  summary.textContent = state === 'BLOCKED' ? 'This stack has blockers that require override or a different route.' : state === 'DEGRADED' ? 'This stack is usable but carries warnings you should review before launch.' : 'This stack is currently the cleanest fit from the data AgentDock has.';
+  reasons.innerHTML = (auditReasons.length ? auditReasons : ['No detailed blockers or warnings surfaced from the latest evaluation.']).map(r => `<div class="launch-reason"><div class="small">${esc(r)}</div></div>`).join('');
+  launchBtn.disabled = false;
+  previewBtn.disabled = false;
+}
+async function previewSelectedProfile(){
+  const profile = getSelectedProfile();
+  if (!profile) return;
+  await dryRun(profile.id);
+}
+async function launchSelectedProfile(){
+  const profile = getSelectedProfile();
+  if (!profile) return;
+  await launchProfile(profile.id);
+}
+
 function renderProjectSelect(){
   const sel = document.getElementById('projectSelect');
   sel.innerHTML = '<option value="">📁 Select project…</option>' + projects.map(p => `<option value="${esc(p.path)}" ${p.path === activeProject ? 'selected' : ''}>${esc(p.name)} ${p.type !== 'generic' ? '(' + p.type + ')' : ''}</option>`).join('');
@@ -831,17 +1127,7 @@ function renderProjectPanel(){
   const gitClass = g.clean ? 'git-ok' : g.hasRemote ? 'git-warn' : 'git-bad';
   document.getElementById('projectInfo').innerHTML = `<div>Name</div><div>${esc(p.name)}</div><div>Path</div><div class="mono">${esc(p.path)}</div><div>Type</div><div>${esc(p.type)}</div><div>Git</div><div class="${gitClass}">${g.present ? (g.clean ? 'clean' : 'dirty ' + g.uncommitted) : 'no repo'}</div><div>Branch</div><div>${esc(g.branch || 'N/A')}</div><div>Remote</div><div>${g.hasRemote ? 'connected' : 'none'}</div>${g.ahead || g.behind ? `<div>Sync</div><div>${g.ahead ? '+' + g.ahead : ''}${g.behind ? '-' + g.behind : ''}</div>` : ''}`;
 }
-function renderEasyProject(){
-  const panel = document.getElementById('easyProjectPanel');
-  if (!activeProject) { panel.style.display = 'none'; return; }
-  const p = projects.find(x => x.path === activeProject);
-  if (!p) { panel.style.display = 'none'; return; }
-  panel.style.display = '';
-  document.getElementById('easyProjectName').textContent = p.name + ' (' + p.type + ')';
-  const g = p.git || {};
-  const status = g.clean ? '✅ Clean' : g.hasRemote ? '⚠️ Dirty (' + g.uncommitted + ')' : '🚨 No remote';
-  document.getElementById('easyGitStatus').innerHTML = `<span class="pill">${esc(g.branch || 'no branch')}</span><span class="pill">${esc(status)}</span>`;
-}
+function renderEasyProject(){ return; }
 async function refreshGit(){
   if (!activeProject) return;
   toast('Refreshing git…');
@@ -857,6 +1143,7 @@ async function loadAgentsMd(){
     const txt = data.present ? data.text : 'No AGENTS.md';
     if (p1) { p1.textContent = txt; p1.style.display = 'block'; }
     if (p2) { p2.textContent = txt; p2.style.display = 'block'; }
+    renderOverview();
   } catch (e) { toast('Failed to load AGENTS.md', 'error'); }
 }
 
@@ -974,9 +1261,22 @@ async function loadCatalog(){
 }
 function renderProfiles(){
   const el = document.getElementById('profiles');
-  if (el) el.innerHTML = profiles.map(p => profileCard(p)).join('');
+  if (!el) return;
+  const modeFilter = document.getElementById('profileModeFilter')?.value || 'all';
+  const taskFilter = document.getElementById('profileTaskFilter')?.value || 'all';
+  const filtered = profiles.filter(p => {
+    const meta = p.meta || {};
+    const hay = [meta.task_mode, meta.goal, p.id, p.name, meta.description].join(' ').toLowerCase();
+    const modeOk = modeFilter === 'all' || (meta.mode || '').toLowerCase() === modeFilter;
+    const taskOk = taskFilter === 'all' || hay.includes(taskFilter);
+    return modeOk && taskOk;
+  });
+  const recommended = getSuggestedProfiles(3);
+  const recEl = document.getElementById('recommendedProfiles');
+  if (recEl) recEl.innerHTML = recommended.map(p => profileCard(p, (plan?.recommended || []).find(x => x.id === p.id) || p, {compact:true})).join('') || '<div class="card"><div class="small">Run a plan to see recommended stacks for the current machine and project.</div></div>';;
+  el.innerHTML = filtered.map(p => profileCard(p, (plan?.recommended || []).find(x => x.id === p.id) || p)).join('') || '<div class="card"><div class="small">No profiles match the active filters.</div></div>';;
 }
-function profileCard(p, evalInfo={}){
+function profileCard(p, evalInfo={}, opts={}){
   const meta = p.meta || {};
   const id = p.id;
   const state = evalInfo.state || meta.status || 'UNKNOWN';
@@ -987,7 +1287,9 @@ function profileCard(p, evalInfo={}){
     badges += `<span class="pill" style="color:${stats.successRate >= 80 ? 'var(--good)' : stats.successRate >= 40 ? 'var(--warn)' : 'var(--bad)'}">${stats.successRate}% success</span>`;
     if (stats.lastOutcome === 'failure') badges += `<span class="pill" style="color:var(--bad)">last failed</span>`;
   }
-  return `<div class="card"><div class="row" style="justify-content:space-between"><h3>${esc(p.name)}</h3><span class="status ${esc(state)}">${esc(state)}</span></div><div><span class="pill">${esc(meta.frontend || '?')}</span><span class="pill">${esc(meta.backend || '?')}</span><span class="pill">${esc(meta.mode || '?')}</span>${badges}</div><p class="small">${esc(meta.description || meta.model || '')}</p>${reasons.length ? `<details><summary class="small">Reasons</summary><ul class="small">${reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul></details>` : ''}<div class="row"><button class="smallbtn" onclick="dryRun('${esc(id)}')">Preview</button><button class="smallbtn primary" onclick="launchProfile('${esc(id)}')">Launch</button><button class="smallbtn danger" onclick="blockProfile('${esc(id)}')">Block</button></div></div>`;
+  const selectedCls = id === selectedProfileId ? ' profile-card is-selected' : ' profile-card';
+  const buttonLabel = opts.compact ? 'Review' : 'Review in Launch Center';
+  return `<div class="card${selectedCls}"><div class="row" style="justify-content:space-between"><h3>${esc(p.name)}</h3><span class="status ${esc(state)}">${esc(state)}</span></div><div><span class="pill">${esc(meta.frontend || '?')}</span><span class="pill">${esc(meta.backend || '?')}</span><span class="pill">${esc(meta.mode || '?')}</span>${badges}</div><p class="small">${esc(meta.description || meta.model || '')}</p>${reasons.length ? `<details><summary class="small">Audit reasons</summary><ul class="small">${reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul></details>` : ''}<div class="row"><button class="smallbtn" onclick="selectProfile('${esc(id)}')">${buttonLabel}</button><button class="smallbtn" onclick="dryRun('${esc(id)}')">Preview</button><button class="smallbtn primary" onclick="launchProfile('${esc(id)}')">Launch</button><button class="smallbtn danger" onclick="blockProfile('${esc(id)}')">Block</button></div></div>`;
 }
 async function makePlan(){
   const goal = document.getElementById('goal').value;
@@ -995,8 +1297,12 @@ async function makePlan(){
   try {
     plan = await api('/api/plan', { method: 'POST', body: JSON.stringify({ goal }) });
     const el = document.getElementById('plan');
-    if (el) el.innerHTML = plan.recommended.map(p => profileCard(p, p)).join('') + (plan.blocked.length ? `<div class="card"><h3>Blocked</h3>${plan.blocked.map(p => `<p class="small"><b>${esc(p.name)}</b><br>${esc((p.reasons || []).join('; '))}</p>`).join('')}</div>` : '');
+    if (el) el.innerHTML = plan.recommended.map(p => profileCard(p, p, {compact:true})).join('') + (plan.blocked.length ? `<div class="card"><h3>Blocked alternatives</h3>${plan.blocked.map(p => `<p class="small"><b>${esc(p.name)}</b><br>${esc((p.reasons || []).join('; '))}</p>`).join('')}</div>` : '');
     renderCoders(plan.suggestions);
+    renderProfiles();
+    renderOverview();
+    renderLaunchCenter();
+    renderContextBar();
     loadTemplates();
   } catch (e) { toast('Failed to build plan', 'error'); }
   finally { setLoading(false); }
@@ -1027,8 +1333,12 @@ async function dryRun(id){
   setLoading(true, 'Generating preview…');
   try {
     const data = await api('/api/launch/' + encodeURIComponent(id), { method: 'POST', body: JSON.stringify({ dryRun: true }) });
-    const el = document.getElementById('logText');
+    const el = document.getElementById('logText') || document.getElementById('evidenceLogText');
     if (el) el.textContent = (data.dangerous ? 'WARNING: dangerous patterns.\n\n' : '') + 'Project: ' + (data.project || 'none') + '\n\n' + data.script;
+    launchPreviewProfileId = id;
+    selectedProfileId = id;
+    renderLaunchCenter();
+    setView('launch');
     toast('Preview loaded.');
   } catch (e) { toast('Preview failed: ' + e.message, 'error'); }
   finally { setLoading(false); }
@@ -1036,6 +1346,8 @@ async function dryRun(id){
 async function launchProfile(id){
   let body = {};
   try {
+    selectedProfileId = id;
+    renderLaunchCenter();
     let data = await api('/api/launch/' + encodeURIComponent(id), { method: 'POST', body: JSON.stringify(body) });
     if (data.blocked) {
       const reason = prompt(data.message + '\n\nOverride reason:');
@@ -1050,6 +1362,9 @@ async function launchProfile(id){
       document.getElementById('troubleshootPanel').style.display = 'none';
       await loadSessions();
       selectSession(currentSession);
+      renderOverview();
+      renderContextBar();
+      setView('sessions');
       toast('Launched!');
       reportEvent('profileLaunched', { profileId: id });
     } else { toast(data.launched ? 'Launched.' : 'Not launched.'); }
@@ -1058,7 +1373,7 @@ async function launchProfile(id){
 function showTroubleshoot(msg){
   const tp = document.getElementById('troubleshootPanel');
   const tt = document.getElementById('troubleshootText');
-  if (tp && tt) { tp.style.display = 'block'; tt.textContent = msg; toast(msg, 'error'); }
+  if (tp && tt) { tp.style.display = 'block'; tt.textContent = msg; setView('launch'); toast(msg, 'error'); }
 }
 async function blockProfile(id){
   const reason = prompt('Reason for blocking?');
@@ -1068,6 +1383,7 @@ async function blockProfile(id){
     toast('Blocked.');
     await loadMemory();
     await makePlan();
+    renderLaunchCenter();
   } catch (e) { toast('Failed to block', 'error'); }
 }
 async function reportOutcome(outcome){
@@ -1119,7 +1435,7 @@ async function loadLogs(){
 async function loadLog(name){
   try {
     const data = await api('/api/log/' + encodeURIComponent(name));
-    const el = document.getElementById('logText');
+    const el = document.getElementById('evidenceLogText') || document.getElementById('logText');
     if (el) el.textContent = data.text;
   } catch (e) { toast('Failed to load log', 'error'); }
 }
@@ -1127,10 +1443,13 @@ async function loadLog(name){
 async function loadSessions(){
   try {
     const data = await api('/api/sessions');
+    sessions = data.sessions || [];
     renderSessionTabs(data.sessions);
     const sel = document.getElementById('sessionSelect');
     if (sel) sel.innerHTML = data.sessions.map(s => `<option value="${esc(s.id)}" ${s.id === currentSession ? 'selected' : ''}>${esc(s.profileName)} · ${esc(s.status)}</option>`).join('');
     if (!currentSession && data.sessions[0]) selectSession(data.sessions[0].id);
+    renderOverview();
+    renderContextBar();
   } catch (e) { toast('Failed to load sessions', 'error'); }
 }
 function renderSessionTabs(sessList){
@@ -1167,11 +1486,14 @@ async function pollTerminal(){
 async function loadSessionsNoSelect(){
   try {
     const data = await api('/api/sessions');
+    sessions = data.sessions || [];
     renderSessionTabs(data.sessions);
     const sel = document.getElementById('sessionSelect');
     if (!sel) return;
     const old = sel.value || currentSession;
     sel.innerHTML = data.sessions.map(s => `<option value="${esc(s.id)}" ${s.id === old ? 'selected' : ''}>${esc(s.profileName)} · ${esc(s.status)}</option>`).join('');
+    renderOverview();
+    renderContextBar();
   } catch (e) {}
 }
 async function sendInput(){
@@ -1192,7 +1514,8 @@ async function stopSelectedSession(){
 
 // Init
 addChatMsg('Hello! I am your AgentDock AI assistant. I can launch agents, switch projects, run scans, and help you choose the right stack. What are we working on today?', 'ai');
-loadProjects(); loadProfiles(); loadCatalog(); loadMemory(); loadBrief(); loadLogs(); loadSessions(); loadTemplates();
+setView('overview');
+loadProjects(); loadProfiles(); loadCatalog(); loadMemory(); loadBrief(); loadLogs(); loadSessions(); loadTemplates(); renderContextBar(); renderLaunchCenter();
 </script>
 </body>
 </html>

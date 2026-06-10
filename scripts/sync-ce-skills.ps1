@@ -21,6 +21,7 @@ foreach ($skill in $skills) {
     Write-Host "Synced $skill"
   } catch {
     Write-Host "Failed to sync ${skill}: $_"
+    $global:LASTEXITCODE = 1
   }
 }
 Write-Host "Done."

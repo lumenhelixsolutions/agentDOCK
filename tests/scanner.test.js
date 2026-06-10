@@ -5,8 +5,10 @@ const path = require('path');
 const { parseOllamaPsRaw, normalizeLoadedModels } = require('../server.js');
 
 const SCAN_LOG_DIR = path.join(__dirname, '..', 'logs');
+const FIXTURE_PATH = path.join(__dirname, 'fixtures', 'scan-sample.json');
 
 function findScanFixture() {
+  if (fs.existsSync(FIXTURE_PATH)) return FIXTURE_PATH;
   if (!fs.existsSync(SCAN_LOG_DIR)) return null;
   const files = fs.readdirSync(SCAN_LOG_DIR).filter(f => f.startsWith('scan-') && f.endsWith('.json')).sort();
   return files.length ? path.join(SCAN_LOG_DIR, files[files.length - 1]) : null;

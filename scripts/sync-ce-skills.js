@@ -18,12 +18,14 @@ const SKILLS = [
 
 function fetch(url) {
   return new Promise((resolve, reject) => {
-    https.get(url, { headers: { 'User-Agent': 'AgentDock/1.1' }, timeout: 15000 }, (res) => {
+    const req = https.get(url, { headers: { 'User-Agent': 'AgentDock/1.1' } }, (res) => {
       if (res.statusCode !== 200) return reject(new Error(`HTTP ${res.statusCode}`));
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => resolve(data));
-    }).on('error', reject).on('timeout', () => reject(new Error('timeout')));
+      const chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    });
+    req.setTimeout(15000, () => { req.destroy(); reject(new Error('timeout')); });
+    req.on('error', reject);
   });
 }
 

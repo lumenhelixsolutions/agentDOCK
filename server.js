@@ -191,8 +191,16 @@ function getProjectDir(dirPath) {
   } catch { return { hasGit: false, hasPackageJson: false, hasAgentsMd: false, hasReadme: false, type: 'unknown', subdirs: [] }; }
 }
 
+function getProjectRoots() {
+  const env = process.env.AGENTDOCK_PROJECTS_ROOT;
+  if (env) {
+    return env.split(path.delimiter).map(r => r.trim()).filter(Boolean);
+  }
+  return ['D:/projects', 'C:/projects'];
+}
+
 function discoverProjects() {
-  const roots = ['D:/projects', 'C:/projects'];
+  const roots = getProjectRoots();
   const found = [];
   for (const root of roots) {
     if (!fs.existsSync(root)) continue;
@@ -226,7 +234,7 @@ function readGitStatus(repoPath) {
   if (!fs.existsSync(path.join(repoPath, '.git'))) return result;
   try {
     const { execSync } = require('child_process');
-    const opts = { cwd: repoPath, encoding: 'utf8', timeout: 5000, windowsHide: true };
+    const opts = { cwd: repoPath, encoding: 'utf8', timeout: 5000, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] };
     const inside = execSync('git rev-parse --is-inside-work-tree', opts).trim();
     if (inside !== 'true') return result;
     result.present = true;
@@ -1130,7 +1138,14 @@ async function route(req, res) {
       return send(res, 200, skill);
     }
     if (pathName === '/api/suggestions' && req.method === 'GET') return send(res, 200, { suggestions: buildSuggestions(lastScan) });
-    if (pathName === '/api/profiles' && req.method === 'GET') return send(res, 200, listProfiles());
+    if (pathName === '/api/profiles' && req.method === 'GET') {
+      const profiles = listProfiles();
+      const enriched = profiles.map(p => {
+        const audit = auditProfile(p, profiles);
+        return { ...p, ce_compatible: audit.errors.length === 0 && Boolean(p.meta?.ce_version) };
+      });
+      return send(res, 200, enriched);
+    }
     if (pathName === '/api/profiles/create' && req.method === 'POST') {
       const body = await readBody(req);
       try { return send(res, 200, createProfile(body)); }
@@ -1186,7 +1201,7 @@ async function route(req, res) {
         return send(res, 200, { auditBlocked: true, errors: audit.errors, profile: p.id });
       }
 
-      if (body.dryRun) return send(res, 200, { profile: p.id, script, dangerous: shouldWarnDanger(script), project: activeProject, audit: { warnings: audit.warnings, suggestions: audit.suggestions } });
+      if (body.dryRun) return send(res, 200, { profile: p.id, script, dangerous: shouldWarnDanger(script), project: activeProject, audit: { warnings: audit.warnings, errors: audit.errors, suggestions: audit.suggestions, taskMode: audit.taskMode } });
 
       // Return audit warnings alongside launch confirmation
       if (audit.warnings.length > 0 && !body.overrideReason) {
@@ -1355,12 +1370,39 @@ async function route(req, res) {
 }
 
 const __server = http.createServer(route);
-__server.listen(PORT, HOST, () => {
-  console.log(`AgentDock running at http://${HOST}:${PORT}`);
-});
-__server.on('error', (err) => {
-  console.error(`AgentDock server error: ${err.message}`);
-});
+
+function startServer(port = PORT, host = HOST) {
+  return new Promise((resolve, reject) => {
+    if (__server.listening) {
+      resolve(__server);
+      return;
+    }
+    const onError = (err) => {
+      __server.removeListener('listening', onListening);
+      reject(err);
+    };
+    const onListening = () => {
+      __server.removeListener('error', onError);
+      resolve(__server);
+    };
+    __server.once('error', onError);
+    __server.once('listening', onListening);
+    __server.listen(port, host);
+  });
+}
+
+if (require.main === module) {
+  startServer(PORT, HOST)
+    .then(() => {
+      const addr = __server.address();
+      const displayPort = addr && typeof addr === 'object' ? addr.port : PORT;
+      console.log(`AgentDock running at http://${HOST}:${displayPort}`);
+    })
+    .catch((err) => {
+      console.error(`AgentDock server error: ${err.message}`);
+      process.exitCode = 1;
+    });
+}
 
 module.exports = {
   parseFrontmatter,
@@ -1369,4 +1411,5 @@ module.exports = {
   memoryBlocks,
   auditProfile,
   __server,
+  startServer,
 };

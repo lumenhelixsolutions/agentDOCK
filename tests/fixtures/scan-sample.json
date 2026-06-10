@@ -1,0 +1,9 @@
+{
+  "env": {
+    "OPENAI_API_KEY": { "present": false, "value": null }
+  },
+  "coders": [],
+  "tools": {},
+  "system": { "os": "linux" },
+  "hardware": { "ram_gb": 16, "cpu": "test-cpu" }
+}
