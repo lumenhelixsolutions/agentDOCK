@@ -51,6 +51,8 @@ If you have bookmarks or docs pointing at “AgentDock”, read them as HOOT —
 - 🧠 **Memory System** — Auto-learns from successes/failures via `memory.md` and blocks repeatedly failing profiles.
 - 📁 **Project Registry** — Discovers local projects, reads Git status, detects `AGENTS.md`, and suggests stacks per project type.
 - 📚 **Research Watch** — Periodically pulls briefs from configured sources.
+- 🔥 **Token Burn Prevention** — RTK risk panel on Overview and Readiness; ingest `rtk gain` savings locally.
+- 📡 **Agent Radar** — System-wide scan for running coding agents (docked vs external).
 - 🌗 **Dark / Light Theme** — Toggle between dark and light UI modes.
 - ⌨️ **Keyboard Shortcuts** — Full keyboard navigation support.
 
@@ -186,6 +188,24 @@ POST /api/research/run
 GET /api/research/latest
 ```
 
+### Token Burn
+
+```http
+GET /api/token-burn
+GET /api/token-burn?refresh=1
+```
+
+Returns RTK prevention report: risk level, shell-heavy agents, RTK-tagged profiles, recommendations, and optional `rtk gain --all --format json` data. Pass `refresh=1` to re-run `rtk gain` when RTK is installed (requires a prior scan).
+
+### Agent Radar
+
+```http
+GET /api/agent-radar
+GET /api/agent-radar?force=1
+```
+
+Returns running coding-agent processes (Claude, Codex, Cursor, etc.) with docked vs external counts. Cached ~20s; `force=1` bypasses cache.
+
 ### Other
 
 ```http
@@ -292,6 +312,11 @@ If exposing through a reverse proxy, ensure:
 - Auto-blocks profiles after repeated failures on the same project.
 
 ## Changelog
+
+### v2.2.0 — Token burn v1
+- `GET /api/token-burn` — local RTK prevention layer from scan + `rtk gain`.
+- Token burn panel on Overview and Readiness; HOOT coach hints and high-risk alerts.
+- Agent radar API documented alongside burn module.
 
 ### v2.1.0 — HOOT rebrand
 - User-facing rebrand from AgentDock to **HOOT — Local AI Command Center**.

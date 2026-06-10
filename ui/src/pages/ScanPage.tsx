@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import { useCoach } from "@/context/CoachContext";
-import { Scan, Cpu, HardDrive, Microchip, Radar } from "lucide-react";
+import { Scan, Cpu, HardDrive, Microchip, Radar, Flame } from "lucide-react";
 import { BRAND } from "@/lib/brand";
+import TokenBurnPanel, { type TokenBurnReport } from "@/components/TokenBurnPanel";
 
 type AgentRadar = Awaited<ReturnType<typeof api.getAgentRadar>>;
 
@@ -10,9 +11,34 @@ export default function ScanPage() {
   const [scan, setScan] = useState<Record<string, unknown> | null>(null);
   const [radar, setRadar] = useState<AgentRadar | null>(null);
   const [radarLoading, setRadarLoading] = useState(false);
+  const [tokenBurn, setTokenBurn] = useState<TokenBurnReport | null>(null);
+  const [burnLoading, setBurnLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { pageContext, setPageContext, registerActionHandler, setHootMood, setHootStatus, reportError } = useCoach();
+
+  const refreshBurn = async (forceRtk = false) => {
+    setBurnLoading(true);
+    setPageContext({ burnLoading: true });
+    try {
+      const data = await api.getTokenBurn(forceRtk);
+      setTokenBurn(data);
+      setPageContext({
+        tokenBurnRisk: data.risk?.level,
+        tokenBurnSaved: data.formatted?.total_saved,
+        rtkPresent: data.prevention?.rtk?.present,
+      });
+    } catch (e) {
+      reportError({
+        message: e instanceof Error ? e.message : String(e),
+        source: "token burn",
+        fix: "Ensure the server is running and a system scan has completed.",
+      });
+    } finally {
+      setBurnLoading(false);
+      setPageContext({ burnLoading: false });
+    }
+  };
 
   const refreshRadar = async (force = true) => {
     setRadarLoading(true);
@@ -42,6 +68,7 @@ export default function ScanPage() {
 
   useEffect(() => {
     refreshRadar(false);
+    refreshBurn(false);
   }, []);
 
   useEffect(() => {
@@ -77,6 +104,8 @@ export default function ScanPage() {
     try {
       const s = await api.runScan();
       setScan(s);
+      const rtkPresent = Boolean((s as any)?.tools?.rtk?.present);
+      await refreshBurn(rtkPresent);
       setHootMood("celebrating", { ttl: 2500 });
       setHootStatus(null);
     } catch (e) {
@@ -98,6 +127,7 @@ export default function ScanPage() {
     return registerActionHandler((target) => {
       if (target === "scan-run") run();
       if (target === "radar-refresh") refreshRadar(true);
+      if (target === "token-burn-refresh") refreshBurn(true);
     });
   });
 
@@ -135,6 +165,16 @@ export default function ScanPage() {
       </div>
 
       {error && <div style={{ padding: 16, borderRadius: 8, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#ef4444", fontSize: 13 }}>{error}</div>}
+
+      <Section title="Token burn prevention">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <p style={{ margin: 0, fontSize: 12, opacity: 0.65, lineHeight: 1.5, display: "flex", alignItems: "center", gap: 8 }}>
+            <Flame size={14} color="#fb923c" />
+            RTK prevention layer — risk assessment and savings from <code style={{ opacity: 0.85 }}>rtk gain</code>.
+          </p>
+        </div>
+        <TokenBurnPanel data={tokenBurn} loading={burnLoading} onRefresh={() => refreshBurn(true)} compact />
+      </Section>
 
       <Section title="Agent Radar — running processes">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>

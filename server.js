@@ -30,6 +30,7 @@ const {
 } = require('./key-vault');
 const { createModuleManager } = require('./module-manager');
 const { runAgentRadar } = require('./agent-radar');
+const { buildTokenBurnReport, refreshRtkGain } = require('./token-burn');
 
 const ROOT = __dirname;
 const HOST = '127.0.0.1';
@@ -1332,6 +1333,24 @@ async function route(req, res) {
       const repo = url.searchParams.get('repo') || process.cwd();
       return send(res, 200, await runScanner(repo));
     }
+    if (pathName === '/api/token-burn' && req.method === 'GET') {
+      const refresh = url.searchParams.get('refresh') === '1';
+      let gainOverride = null;
+      let refreshMeta = null;
+      if (refresh && lastScan?.tools?.rtk?.present) {
+        refreshMeta = await refreshRtkGain();
+        if (refreshMeta.ok) gainOverride = refreshMeta.gain;
+      }
+      const profiles = listProfiles();
+      const settings = loadUserSettings();
+      const report = buildTokenBurnReport({
+        scan: lastScan,
+        profiles,
+        settings,
+        gainOverride,
+      });
+      return send(res, 200, { ...report, refresh: refreshMeta });
+    }
     if (pathName === '/api/agent-radar' && req.method === 'GET') {
       const force = url.searchParams.get('force') === '1';
       const dockPids = [...sessions.values()].filter((s) => s.status === 'running' && s.pid).map((s) => s.pid);
@@ -1710,6 +1729,8 @@ async function route(req, res) {
       });
       const sessionList = [...sessions.values()].map(publicSession);
       const portfolio = { items: buildPortfolioHealth() };
+      const settings = loadUserSettings();
+      const tokenBurn = buildTokenBurnReport({ scan: lastScan, profiles, settings });
       const hints = buildCoachHints({
         view,
         pageContext,
@@ -1718,6 +1739,7 @@ async function route(req, res) {
         sessions: sessionList,
         portfolio,
         agentRadar: lastAgentRadar,
+        tokenBurn,
       });
       const guide = getViewGuide(view);
       return send(res, 200, { hints, view, guide, orchestration: ORCHESTRATION_LOOP });

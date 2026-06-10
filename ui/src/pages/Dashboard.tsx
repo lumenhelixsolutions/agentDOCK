@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ChevronRight,
   CircleDot,
+  Flame,
   FolderKanban,
   GitBranch,
   Layers3,
@@ -23,6 +24,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/Toast";
 import { useCoach } from "@/context/CoachContext";
 import { BRAND } from "@/lib/brand";
+import TokenBurnPanel, { type TokenBurnReport } from "@/components/TokenBurnPanel";
 
 const statusTone: Record<string, { color: string; bg: string; border: string; label: string }> = {
   READY: { color: "#86efac", bg: "rgba(74,222,128,0.08)", border: "rgba(74,222,128,0.18)", label: "Ready" },
@@ -40,10 +42,12 @@ export default function Dashboard() {
   const [portfolio, setPortfolio] = useState<any>(null);
   const [research, setResearch] = useState<any>(null);
   const [memory, setMemory] = useState("");
+  const [tokenBurn, setTokenBurn] = useState<TokenBurnReport | null>(null);
+  const [burnLoading, setBurnLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [switchingProject, setSwitchingProject] = useState(false);
   const toast = useToast();
-  const { setPageContext, pageContext } = useCoach();
+  const { setPageContext, pageContext, registerActionHandler } = useCoach();
 
   useEffect(() => {
     let mounted = true;
@@ -56,8 +60,9 @@ export default function Dashboard() {
       api.getPortfolioHealth().catch(() => null),
       api.getResearch().catch(() => null),
       api.getMemory().catch(() => ({ text: "" })),
+      api.getTokenBurn().catch(() => null),
     ])
-      .then(([profileData, projectData, activeData, scanData, usageData, portfolioData, researchData, memoryData]) => {
+      .then(([profileData, projectData, activeData, scanData, usageData, portfolioData, researchData, memoryData, burnData]) => {
         if (!mounted) return;
         setProfiles(profileData || []);
         setProjects(projectData?.projects || []);
@@ -67,6 +72,7 @@ export default function Dashboard() {
         setPortfolio(portfolioData);
         setResearch(researchData);
         setMemory(memoryData?.text || "");
+        setTokenBurn(burnData);
         setLoading(false);
       })
       .catch(() => {
@@ -111,14 +117,40 @@ export default function Dashboard() {
     return item?.issues || [];
   }, [portfolio, activeProject]);
 
+  const refreshBurn = async () => {
+    setBurnLoading(true);
+    try {
+      const data = await api.getTokenBurn(true);
+      setTokenBurn(data);
+      setPageContext({
+        tokenBurnRisk: data.risk?.level,
+        tokenBurnSaved: data.formatted?.total_saved,
+        rtkPresent: data.prevention?.rtk?.present,
+      });
+    } catch {
+      toast.showToast("Failed to refresh token burn stats", "error");
+    } finally {
+      setBurnLoading(false);
+    }
+  };
+
   useEffect(() => {
     setPageContext({
       scanPresent: Boolean(scan),
       readyCount: profileCounts.READY,
       blockedCount: profileCounts.BLOCKED,
       portfolioIssues: activeIssues.length,
+      tokenBurnRisk: tokenBurn?.risk?.level,
+      tokenBurnSaved: tokenBurn?.formatted?.total_saved,
+      rtkPresent: tokenBurn?.prevention?.rtk?.present,
     });
-  }, [scan, profileCounts, activeIssues.length, setPageContext]);
+  }, [scan, profileCounts, activeIssues.length, tokenBurn, setPageContext]);
+
+  useEffect(() => {
+    return registerActionHandler((target) => {
+      if (target === "token-burn-refresh") refreshBurn();
+    });
+  });
 
   const readiness = useMemo(() => {
     if (!scan) {
@@ -177,8 +209,17 @@ export default function Dashboard() {
         note: radarExt > 0 ? `${radarExt} external · ${radarDock} docked` : `${radarDock} docked · HOOT monitoring`,
       });
     }
+    if (tokenBurn) {
+      items.push({
+        label: "Token burn",
+        value: tokenBurn.formatted.total_saved || tokenBurn.risk.level,
+        note: tokenBurn.prevention.rtk.present
+          ? `RTK on · ${tokenBurn.formatted.avg_savings_pct || "awaiting gain data"}`
+          : `RTK missing · ${tokenBurn.risk.level} risk`,
+      });
+    }
     return items;
-  }, [scan, projects, activeProject, readiness, profileCounts, profiles.length, activeIssues, pageContext]);
+  }, [scan, projects, activeProject, readiness, profileCounts, profiles.length, activeIssues, pageContext, tokenBurn]);
 
   const recommendedActions = useMemo(() => {
     const actions: Array<{ title: string; body: string; to: string; icon: any }> = [];
@@ -186,6 +227,14 @@ export default function Dashboard() {
     if (!activeProject) actions.push({ title: "Choose an active project", body: "HOOT works best when the home screen, memory, and launches are tied to a repo.", to: "/launch", icon: FolderKanban });
     if (activeProject && !activeProject.hasAgentsMd) actions.push({ title: "Add AGENTS.md context", body: "Document architecture and workflow so the first autonomous run is grounded.", to: "/memory", icon: BookOpen });
     if (readiness.state !== "READY") actions.push({ title: "Resolve readiness gaps", body: "Review scan results and settings to clear blockers or missing pieces.", to: "/settings", icon: Wrench });
+    if (tokenBurn?.risk?.level === "high") {
+      actions.unshift({
+        title: "Reduce token burn",
+        body: "RTK is missing while shell-heavy agents are active — install prevention before long sessions.",
+        to: "/scan",
+        icon: Flame,
+      });
+    }
     if (Number(pageContext.agentRadarExternal) > 0) {
       actions.unshift({
         title: "Review external agents",
@@ -196,7 +245,7 @@ export default function Dashboard() {
     }
     if (actions.length === 0) actions.push({ title: "Open Launch Center", body: "Your system looks ready. Review profiles and continue with a guided launch.", to: "/launch", icon: PlayCircle });
     return actions.slice(0, 4);
-  }, [scan, activeProject, readiness.state, pageContext.agentRadarExternal]);
+  }, [scan, activeProject, readiness.state, pageContext.agentRadarExternal, tokenBurn?.risk?.level]);
 
   const suggestedProfiles = useMemo(() => {
     return profiles
@@ -370,6 +419,10 @@ export default function Dashboard() {
           </div>
         </Panel>
       </div>
+
+      <Panel title="Token burn prevention" subtitle="RTK · shell output savings" icon={Flame}>
+        <TokenBurnPanel data={tokenBurn} loading={burnLoading} onRefresh={refreshBurn} />
+      </Panel>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
         <Panel title="Recommended next actions" subtitle="Do this next" icon={PlayCircle}>

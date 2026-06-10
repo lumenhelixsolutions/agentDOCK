@@ -8,7 +8,7 @@ function push(hints, hint) {
   hints.push({ id: hint.id, priority: hint.priority || 50, tone: hint.tone || 'tip', message: hint.message, actions: hint.actions || [] });
 }
 
-function buildCoachHints({ view = '/', pageContext = {}, scan = null, profiles = [], sessions = [], portfolio = null, agentRadar = null }) {
+function buildCoachHints({ view = '/', pageContext = {}, scan = null, profiles = [], sessions = [], portfolio = null, agentRadar = null, tokenBurn = null }) {
   const hints = [];
   const readyProfiles = profiles.filter(p => p.evaluation?.state === 'READY' || p.state === 'READY');
   const blockedProfiles = profiles.filter(p => p.evaluation?.state === 'BLOCKED' || p.state === 'BLOCKED');
@@ -16,6 +16,40 @@ function buildCoachHints({ view = '/', pageContext = {}, scan = null, profiles =
   const ollamaOk = scan?.tools?.ollama?.present;
   const rtkOk = scan?.tools?.rtk?.present;
   const wslOk = scan?.tools?.wsl?.present;
+  const burnRisk = tokenBurn?.risk?.level || pageContext.tokenBurnRisk || 'low';
+  const burnSaved = tokenBurn?.formatted?.total_saved || pageContext.tokenBurnSaved || null;
+  const rtkPresent = tokenBurn?.prevention?.rtk?.present ?? scan?.tools?.rtk?.present ?? false;
+
+  if (burnRisk === 'high') {
+    push(hints, {
+      id: 'burn-rtk-high',
+      priority: 88,
+      tone: 'warning',
+      message: `Token burn risk is high — RTK is not installed but you have shell-heavy agents or ${tokenBurn?.rtk_profiles?.length || 0} RTK-tagged profile(s). Install RTK in WSL before long sessions.`,
+      actions: [
+        { label: 'Token burn', type: 'navigate', target: '/scan' },
+        { label: 'Settings', type: 'navigate', target: '/settings' },
+        { label: 'Ask HOOT', type: 'chat', prompt: 'Help me install RTK in WSL for HOOT token burn prevention.' },
+      ],
+    });
+  } else if (burnRisk === 'medium' && !rtkPresent) {
+    push(hints, {
+      id: 'burn-rtk-medium',
+      priority: 74,
+      tone: 'tip',
+      message: 'Shell output from coding agents can burn context tokens. RTK compresses git/test/eslint output before it hits the LLM.',
+      actions: [{ label: 'View burn panel', type: 'navigate', target: '/scan' }, { label: 'Why RTK?', type: 'chat', prompt: 'Explain RTK token savings for my HOOT setup.' }],
+    });
+  } else if (burnSaved && burnRisk === 'low' && (view === '/' || view === '/scan')) {
+    push(hints, {
+      id: 'burn-rtk-savings',
+      priority: 52,
+      tone: 'celebration',
+      message: `RTK has prevented ~${burnSaved} tokens from reaching your agents (${tokenBurn?.formatted?.avg_savings_pct || '?'} avg savings).`,
+      actions: [{ label: 'Refresh stats', type: 'action', target: 'token-burn-refresh' }],
+    });
+  }
+
   const radarExternal = agentRadar?.summary?.external || Number(pageContext.agentRadarExternal) || 0;
   const radarTotal = agentRadar?.summary?.total || Number(pageContext.agentRadarTotal) || 0;
   const radarDock = agentRadar?.summary?.dock || Number(pageContext.agentRadarDock) || 0;
@@ -64,6 +98,17 @@ function buildCoachHints({ view = '/', pageContext = {}, scan = null, profiles =
   if (view === '/scan') {
     if (!scan && !pageContext.scanLoaded) {
       push(hints, { id: 'scan-run', priority: 92, tone: 'tip', message: 'Tap Run Scan — I will map agents, models, and env keys for the rest of the app.', actions: [{ label: 'Run scan', type: 'action', target: 'scan-run' }] });
+    }
+    if (burnRisk !== 'low' || burnSaved) {
+      push(hints, {
+        id: 'scan-token-burn',
+        priority: 76,
+        tone: burnRisk === 'high' ? 'warning' : 'tip',
+        message: burnSaved
+          ? `Token burn: RTK saved ~${burnSaved} · risk ${burnRisk}`
+          : `Token burn risk: ${burnRisk} — ${tokenBurn?.risk?.reasons?.[0] || 'check RTK status'}`,
+        actions: [{ label: 'Refresh burn', type: 'action', target: 'token-burn-refresh' }, { label: 'Settings', type: 'navigate', target: '/settings' }],
+      });
     }
     if (radarTotal > 0) {
       push(hints, {

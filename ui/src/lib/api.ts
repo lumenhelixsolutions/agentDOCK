@@ -28,6 +28,7 @@ export const api = {
   getProfile: (id: string) => request<any>("GET", `/api/profile/${encodeURIComponent(id)}`),
   createProfile: (data: any) => request<any>("POST", "/api/profiles/create", data),
   runScan: (repo?: string) => request<any>("GET", `/api/scan?repo=${encodeURIComponent(repo || "")}`),
+  getTokenBurn: (refresh?: boolean) => request<any>("GET", `/api/token-burn${refresh ? "?refresh=1" : ""}`),
   getAgentRadar: (force?: boolean) =>
     request<{
       scanned_at: string;

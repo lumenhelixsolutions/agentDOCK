@@ -202,4 +202,15 @@ describe('api', () => {
     const json = JSON.parse(res.body);
     assert.ok(json.hints.some((h) => h.id === 'launch-staged'));
   });
+
+  it('GET /api/token-burn returns burn report', async () => {
+    const res = await get('/api/token-burn');
+    assert.strictEqual(res.status, 200);
+    const json = JSON.parse(res.body);
+    assert.strictEqual(json.version, 1);
+    assert.ok(['low', 'medium', 'high'].includes(json.risk?.level));
+    assert.ok(json.prevention?.rtk);
+    assert.ok(Array.isArray(json.recommendations));
+    assert.ok(json.gain);
+  });
 });

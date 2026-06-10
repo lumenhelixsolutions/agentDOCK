@@ -192,6 +192,8 @@ export function resolveHootMoodFromContext(ctx: HootMoodContext): HootMood {
   if (pc.scanning || pc.scanLoading) return "scanning";
   if (pc.launching) return "launching";
 
+  if (pc.tokenBurnRisk === "high") return "alert";
+
   const externalAgents = Number(pc.agentRadarExternal) || 0;
   const dockAgents = Number(pc.agentRadarDock) || 0;
   if (externalAgents > 0) return "monitoring";
@@ -211,7 +213,9 @@ export function resolveHootMoodFromContext(ctx: HootMoodContext): HootMood {
   if (path === "/scan") {
     if (pc.radarLoading) return "scanning";
     if (pc.scanLoaded === false && pc.scanLoading) return "scanning";
+    if (pc.burnLoading) return "scanning";
     if (Number(pc.agentRadarTotal) > 0) return "monitoring";
+    if (pc.tokenBurnRisk === "medium") return "alert";
     return pc.scanLoaded ? "peeking" : "idle";
   }
 
@@ -223,6 +227,7 @@ export function resolveHootMoodFromContext(ctx: HootMoodContext): HootMood {
   if (path === "/memory" || path === "/profiles" || path === "/skills" || path === "/settings") return "reading";
 
   if (path === "/" && Number(pc.agentRadarTotal) > 0) return "monitoring";
+  if (path === "/" && pc.tokenBurnRisk === "high") return "alert";
 
   if (ctx.topHintTone === "warning") return "alert";
   if (ctx.topHintTone === "celebration") return "celebrating";
@@ -237,6 +242,8 @@ export function hootStatusFromContext(ctx: HootMoodContext): string | null {
   const ext = Number(pc.agentRadarExternal) || 0;
   const total = Number(pc.agentRadarTotal) || 0;
   const dock = Number(pc.agentRadarDock) || 0;
+  if (pc.tokenBurnRisk === "high") return "High token burn risk — RTK missing";
+  if (pc.tokenBurnRisk === "medium" && pc.tokenBurnSaved) return `RTK saved ~${pc.tokenBurnSaved}`;
   if (ext > 0) return `${ext} agent${ext === 1 ? "" : "s"} outside HOOT`;
   if (total > 0 && ctx.pathname === "/") return `${total} running · ${dock} docked`;
   if (Number(pc.runningCount) > 0) return `${pc.runningCount} session(s) live`;
