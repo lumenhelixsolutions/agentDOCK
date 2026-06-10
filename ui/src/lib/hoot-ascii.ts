@@ -16,14 +16,20 @@ export type HootMood =
 export type PupilOffset = { lx: number; ly: number; rx: number; ry: number };
 
 const WIDTH = 11;
+const BRAND_WIDTH = 19;
 const PUPIL_CHARS = ["·", "o", "O", "●"] as const;
+const EYE_GLOW_CHARS = new Set(["●", "o", "O", "·", "◎", "◉", "◔", "◕", "×", "-", "!", "^", "○", "◠", "◡", "◎", "◕"]);
 
-function fit(line: string): string {
-  if (line.length === WIDTH) return line;
-  if (line.length > WIDTH) return line.slice(0, WIDTH);
-  const pad = WIDTH - line.length;
+function fit(line: string, width = WIDTH): string {
+  if (line.length === width) return line;
+  if (line.length > width) return line.slice(0, width);
+  const pad = width - line.length;
   const left = Math.floor(pad / 2);
-  return " ".repeat(left) + line + " ".repeat(WIDTH - line.length - left);
+  return " ".repeat(left) + line + " ".repeat(width - line.length - left);
+}
+
+function brandFit(line: string): string {
+  return fit(line, BRAND_WIDTH);
 }
 
 function pupilChar(offset: number): string {
@@ -119,18 +125,113 @@ export function computePupilOffset(mouseX: number, mouseY: number, anchorX: numb
   return { lx: nx, ly: ny, rx: nx, ry: ny };
 }
 
+function crownLine(mood: HootMood, frame: number): string {
+  const crowns: Partial<Record<HootMood, string[]>> = {
+    idle: ["   /\\_/\\   ", "   /\\_/\\   "],
+    scanning: ["  >scan<   ", "  [~~~~]   "],
+    monitoring: ["  |● ● ●|  ", "  |○ ○ ○|  "],
+    logging: ["  |◉ ◉ ◉|  ", "  |○ ● ○|  "],
+    error: ["   /x x\\   ", "   /X X\\   "],
+    celebrating: ["   \\^ ^/   ", "   \\♪ ♪/   "],
+    launching: ["   />>\\    ", "   />>>\\   "],
+    alert: ["   /! !\\   ", "   /!! !\\  "],
+  };
+  const variants = crowns[mood] || crowns.idle!;
+  return brandFit(variants[frame % variants.length]!);
+}
+
+function feetLine(frame: number): string {
+  return brandFit(frame % 2 === 0 ? "   (:)_(.)   " : "   (:)_(.:)   ");
+}
+
+function scanBarLine(mood: HootMood, frame: number): string | null {
+  if (mood !== "scanning" && mood !== "monitoring" && mood !== "logging") return null;
+  const pos = frame % 8;
+  const bar = ".".repeat(pos) + "=>" + ".".repeat(7 - pos);
+  return brandFit(`  [${bar}]  `);
+}
+
+export function renderCompactLines(
+  mood: HootMood,
+  offset: PupilOffset,
+  frame: number,
+  statusOverride?: string | null,
+): string[] {
+  return [
+    earLine(mood, frame),
+    eyeLine(offset, mood, frame),
+    beakLine(mood, frame),
+    statusCaption(mood, frame, statusOverride),
+  ];
+}
+
+function brandEyeLine(offset: PupilOffset, mood: HootMood, frame: number): string {
+  const compact = eyeLine(offset, mood, frame).trim();
+  const match = compact.match(/^\(\s*(.+?)\s*\)$/);
+  const inner = match ? match[1]! : `${pupilChar(offset.lx)} ${pupilChar(offset.rx)}`;
+  return brandFit(`  ( ${inner} )  `);
+}
+
+function brandBeakLine(mood: HootMood, frame: number): string {
+  const compact = beakLine(mood, frame).trim();
+  return brandFit(compact.length > 1 ? `     ${compact}     ` : "       ▽       ");
+}
+
+export function renderBrandLines(mood: HootMood, offset: PupilOffset, frame: number): string[] {
+  const lines = [
+    crownLine(mood, frame),
+    brandEyeLine(offset, mood, frame),
+    brandBeakLine(mood, frame),
+    brandFit("     |___|     "),
+    feetLine(frame),
+    brandFit("      HOOT     "),
+    brandFit(" LOCAL AI CMD  "),
+  ];
+
+  const scan = scanBarLine(mood, frame);
+  if (scan) lines.splice(3, 0, scan);
+
+  return lines;
+}
+
 export function renderOwl(
   mood: HootMood,
   offset: PupilOffset,
   frame: number,
   statusOverride?: string | null,
 ): string {
-  return [
-    earLine(mood, frame),
-    eyeLine(offset, mood, frame),
-    beakLine(mood, frame),
-    statusCaption(mood, frame, statusOverride),
-  ].join("\n");
+  return renderCompactLines(mood, offset, frame, statusOverride).join("\n");
+}
+
+export function isEyeGlowChar(ch: string): boolean {
+  return EYE_GLOW_CHARS.has(ch);
+}
+
+export function eyeGlowColor(mood: HootMood): string {
+  const map: Partial<Record<HootMood, string>> = {
+    idle: "#7CFF7C",
+    monitoring: "#7CFF7C",
+    logging: "#7CFF7C",
+    scanning: "#60a5fa",
+    alert: "#fb923c",
+    error: "#f87171",
+    celebrating: "#7CFF7C",
+    launching: "#4ade80",
+    thinking: "#a78bfa",
+    building: "#f59e0b",
+    reading: "#93c5fd",
+    talking: "#ffb042",
+    peeking: "#fcd34d",
+  };
+  return map[mood] || moodColor(mood);
+}
+
+export function asciiMotionClass(mood: HootMood): string {
+  if (mood === "celebrating") return "hoot-ascii--celebrate";
+  if (mood === "error") return "hoot-ascii--shake";
+  if (mood === "launching") return "hoot-ascii--lift";
+  if (mood === "scanning" || mood === "monitoring" || mood === "logging") return "hoot-ascii--pulse";
+  return "hoot-ascii--idle";
 }
 
 export function moodLabel(mood: HootMood): string {

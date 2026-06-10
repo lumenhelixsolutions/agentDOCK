@@ -1,14 +1,19 @@
-import type { CSSProperties } from "react";
-import type { HootMood } from "./hoot-ascii";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  asciiMotionClass,
+  computePupilOffset,
+  eyeGlowColor,
+  isEyeGlowChar,
+  moodColor,
+  moodFrameInterval,
+  renderBrandLines,
+  renderCompactLines,
+  type HootMood,
+  type PupilOffset,
+} from "./hoot-ascii";
 
-/** User artwork — cropped from uploads for pixel-faithful display */
-export const HOOT_BRAND_SRC = "/hoot-brand.png";
-export const HOOT_OWL_SRC = "/hoot-owl-mark.png";
-export const HOOT_WORDMARK_SRC = "/hoot-wordmark.png";
-
-const BRAND_ASPECT = 704 / 501;
-const OWL_ASPECT = 737 / 1024;
-const WORDMARK_ASPECT = 249 / 501;
+const LINE_COLOR = "#E8D5A3";
+const DIM_COLOR = "rgba(232,213,163,0.55)";
 
 export type HootLogoProps = {
   mood: HootMood;
@@ -16,130 +21,161 @@ export type HootLogoProps = {
   showWordmark?: boolean;
   showSubtitle?: boolean;
   frame?: number;
+  statusLine?: string | null;
   onClick?: () => void;
   className?: string;
+  trackMouse?: boolean;
 };
 
-function moodMotion(mood: HootMood, frame: number): CSSProperties {
-  const breathe =
-    mood === "idle" || mood === "monitoring" || mood === "logging" || mood === "scanning";
-  const style: CSSProperties = {};
+const ZERO_OFFSET: PupilOffset = { lx: 0, ly: 0, rx: 0, ry: 0 };
 
-  if (breathe) {
-    style.opacity = 0.94 + Math.sin(frame * 0.28) * 0.06;
-  }
+function colorizeLine(line: string, mood: HootMood, frame: number, isWordmarkLine: boolean): ReactNode[] {
+  const glow = eyeGlowColor(mood);
+  const pulse = 0.75 + Math.sin(frame * 0.4) * 0.25;
+  let inEyes = false;
 
-  if (mood === "celebrating") {
-    style.transform = `scale(${1 + Math.sin(frame * 0.7) * 0.035})`;
-  } else if (mood === "error") {
-    style.transform = `translateX(${Math.sin(frame * 1.4) * 1.5}px)`;
-  } else if (mood === "launching") {
-    style.transform = `translateY(${Math.sin(frame * 0.9) * -2}px)`;
-  }
+  return line.split("").map((ch, i) => {
+    if (ch === "(") inEyes = true;
+    const isEye = inEyes && isEyeGlowChar(ch);
+    if (ch === ")") inEyes = false;
 
-  return style;
+    let color = LINE_COLOR;
+    let shadow: string | undefined;
+    let weight: number | undefined;
+
+    if (isEye) {
+      color = glow;
+      shadow = `0 0 ${6 + pulse * 6}px ${glow}, 0 0 2px #FFF176`;
+      weight = 600;
+    } else if (isWordmarkLine) {
+      color = LINE_COLOR;
+      weight = 700;
+    } else if (ch === "~" || ch === "=" || ch === ">") {
+      color = glow;
+    } else if (ch === " ") {
+      color = "transparent";
+    } else if (/[|_\\/\\^]/.test(ch)) {
+      color = DIM_COLOR;
+    }
+
+    return (
+      <span
+        key={`${i}-${ch}`}
+        style={{
+          color: ch === " " ? "transparent" : color,
+          textShadow: shadow,
+          fontWeight: weight,
+        }}
+      >
+        {ch === " " ? "\u00a0" : ch}
+      </span>
+    );
+  });
 }
 
-function ImgButton({
-  src,
-  alt,
-  width,
-  height,
+function AsciiBlock({
+  lines,
   mood,
   frame,
-  onClick,
-  className,
+  fontSize,
+  wordmarkStart,
 }: {
-  src: string;
-  alt: string;
-  width: number;
-  height: number;
+  lines: string[];
   mood: HootMood;
   frame: number;
-  onClick?: () => void;
-  className?: string;
+  fontSize: number;
+  wordmarkStart: number;
 }) {
-  const Tag = onClick ? "button" : "div";
-
   return (
-    <Tag
-      type={onClick ? "button" : undefined}
-      onClick={onClick}
-      className={className}
-      style={{
-        padding: 0,
-        border: "none",
-        background: "transparent",
-        cursor: onClick ? "pointer" : "default",
-        display: "block",
-        lineHeight: 0,
-        ...moodMotion(mood, frame),
-      }}
-      aria-label={onClick ? "HOOT" : undefined}
-    >
-      <img
-        src={src}
-        alt={alt}
-        width={width}
-        height={height}
-        style={{ display: "block", width, height: "auto" }}
-        draggable={false}
-      />
-    </Tag>
+    <>
+      {lines.map((line, row) => (
+        <div key={row} className="hoot-ascii-line" aria-hidden={row >= wordmarkStart}>
+          {colorizeLine(line, mood, frame, row >= wordmarkStart)}
+        </div>
+      ))}
+    </>
   );
 }
 
-/** Renders uploaded HOOT artwork — no SVG redraw, no eye overlays */
+/** ASCII HOOT logo — frame sprites, per-char eye glow, optional mouse tracking */
 export default function HootLogo({
   mood,
   size = 72,
   showWordmark = false,
-  showSubtitle = false,
-  frame = 0,
+  frame: frameProp,
+  statusLine,
   onClick,
   className,
+  trackMouse = true,
 }: HootLogoProps) {
-  if (showWordmark) {
-    return (
-      <ImgButton
-        src={HOOT_BRAND_SRC}
-        alt="HOOT Local AI Command Center"
-        width={size}
-        height={Math.round(size * BRAND_ASPECT)}
-        mood={mood}
-        frame={frame}
-        onClick={onClick}
-        className={className}
-      />
-    );
-  }
+  const ref = useRef<HTMLButtonElement | HTMLDivElement>(null);
+  const [frameInternal, setFrameInternal] = useState(0);
+  const [offset, setOffset] = useState<PupilOffset>(ZERO_OFFSET);
 
-  if (showSubtitle) {
-    const w = size * 1.4;
-    return (
-      <ImgButton
-        src={HOOT_WORDMARK_SRC}
-        alt="HOOT Local AI Command Center"
-        width={w}
-        height={Math.round(w * WORDMARK_ASPECT)}
-        mood={mood}
-        frame={frame}
-        onClick={onClick}
-        className={className}
-      />
-    );
-  }
+  const frame = frameProp ?? frameInternal;
+  const lines = showWordmark
+    ? renderBrandLines(mood, offset, frame)
+    : renderCompactLines(mood, offset, frame, statusLine);
+
+  const lineCount = lines.length;
+  const fontSize = showWordmark ? size / (lineCount + 1) : size / 5.5;
+  const wordmarkStart = showWordmark ? lineCount - 2 : lineCount;
+
+  useEffect(() => {
+    if (frameProp !== undefined) return;
+    const id = setInterval(() => setFrameInternal((f) => f + 1), moodFrameInterval(mood));
+    return () => clearInterval(id);
+  }, [frameProp, mood]);
+
+  const onMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!trackMouse || !ref.current) return;
+      const rect = ref.current.getBoundingClientRect();
+      setOffset(
+        computePupilOffset(e.clientX, e.clientY, rect.left + rect.width / 2, rect.top + rect.height * 0.35),
+      );
+    },
+    [trackMouse],
+  );
+
+  const onMouseLeave = useCallback(() => setOffset(ZERO_OFFSET), []);
+
+  const style: CSSProperties = {
+    margin: 0,
+    padding: showWordmark ? "10px 12px" : "4px 6px",
+    border: "none",
+    background: showWordmark ? "rgba(18,18,18,0.92)" : "transparent",
+    borderRadius: showWordmark ? 12 : 8,
+    cursor: onClick ? "pointer" : "default",
+    fontFamily: "'Fira Code', 'Cascadia Mono', 'Consolas', monospace",
+    fontSize,
+    lineHeight: 1.15,
+    letterSpacing: "0.02em",
+    color: moodColor(mood),
+    textAlign: "center",
+    position: "relative",
+    overflow: "hidden",
+    boxShadow: showWordmark ? "inset 0 0 0 1px rgba(232,213,163,0.08)" : undefined,
+  };
+
+  const motionClass = asciiMotionClass(mood);
+  const Tag = onClick ? "button" : "div";
 
   return (
-    <ImgButton
-      src={HOOT_OWL_SRC}
-      alt="HOOT"
-      width={size}
-      height={Math.round(size * OWL_ASPECT)}
-      mood={mood}
-      frame={frame}
+    <Tag
+      ref={ref as never}
+      type={onClick ? "button" : undefined}
       onClick={onClick}
-      className={className}
-    />
+      onMouseMove={onMouseMove}
+      onMouseLeave={onMouseLeave}
+      className={[className, "hoot-ascii", motionClass].filter(Boolean).join(" ")}
+      style={style}
+      aria-label="HOOT"
+    >
+      {(mood === "scanning" || mood === "monitoring" || mood === "logging") && !showWordmark && (
+        <span className="hoot-ascii-scan" aria-hidden />
+      )}
+      <AsciiBlock lines={lines} mood={mood} frame={frame} fontSize={fontSize} wordmarkStart={wordmarkStart} />
+    </Tag>
   );
 }

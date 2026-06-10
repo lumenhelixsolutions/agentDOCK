@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import HootLogo from "@/lib/hoot-logo";
+import { moodFrameInterval } from "@/lib/hoot-ascii";
 import { setHootToken } from "@/lib/api";
 import { BRAND_COLORS } from "@/lib/brand";
 
@@ -7,6 +8,12 @@ export default function HootUnlock({ onUnlocked }: { onUnlocked: () => void }) {
   const [token, setToken] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [frame, setFrame] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setFrame((f) => f + 1), moodFrameInterval("monitoring"));
+    return () => clearInterval(id);
+  }, []);
 
   const submit = async () => {
     setLoading(true);
@@ -55,7 +62,7 @@ export default function HootUnlock({ onUnlocked }: { onUnlocked: () => void }) {
           gap: 18,
         }}
       >
-        <HootLogo mood="monitoring" size={240} frame={0} showWordmark />
+        <HootLogo mood="monitoring" size={220} frame={frame} showWordmark trackMouse={false} />
         <p style={{ margin: 0, fontSize: 13, opacity: 0.65, lineHeight: 1.5, textAlign: "center" }}>
           LAN access requires your HOOT token. Localhost on the host PC does not need this.
         </p>

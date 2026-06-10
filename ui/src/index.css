@@ -65,4 +65,66 @@
   .hoot-brand-glow {
     box-shadow: 0 10px 28px rgba(255, 176, 66, 0.22);
   }
+
+  /* ASCII logo — modern terminal-style motion */
+  .hoot-ascii {
+    user-select: none;
+    white-space: pre;
+  }
+
+  .hoot-ascii-line {
+    display: block;
+  }
+
+  .hoot-ascii--idle {
+    animation: hootAsciiBreathe 4s ease-in-out infinite;
+  }
+
+  .hoot-ascii--pulse {
+    animation: hootAsciiBreathe 2.2s ease-in-out infinite;
+  }
+
+  .hoot-ascii--celebrate {
+    animation: hootAsciiCelebrate 0.6s ease-in-out infinite;
+  }
+
+  .hoot-ascii--shake {
+    animation: hootAsciiShake 0.35s linear infinite;
+  }
+
+  .hoot-ascii--lift {
+    animation: hootAsciiLift 0.5s ease-in-out infinite;
+  }
+
+  .hoot-ascii-scan {
+    position: absolute;
+    left: 8%;
+    right: 8%;
+    top: 38%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(124, 255, 124, 0.45), transparent);
+    animation: hootScan 2.4s linear infinite;
+    pointer-events: none;
+  }
+
+  @keyframes hootAsciiBreathe {
+    0%, 100% { opacity: 0.92; }
+    50% { opacity: 1; }
+  }
+
+  @keyframes hootAsciiCelebrate {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.04); }
+  }
+
+  @keyframes hootAsciiShake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-2px); }
+    75% { transform: translateX(2px); }
+  }
+
+  @keyframes hootAsciiLift {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+  }
 }
