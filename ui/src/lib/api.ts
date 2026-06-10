@@ -11,6 +11,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 export const api = {
   getProfiles: () => request<Array<any>>("GET", "/api/profiles"),
+  getProfileGroups: () => request<any>("GET", "/api/profiles/groups"),
+  getProfileMatrix: () => request<any>("GET", "/api/profiles/matrix"),
   getProfile: (id: string) => request<any>("GET", `/api/profile/${encodeURIComponent(id)}`),
   createProfile: (data: any) => request<any>("POST", "/api/profiles/create", data),
   runScan: (repo?: string) => request<any>("GET", `/api/scan?repo=${encodeURIComponent(repo || "")}`),

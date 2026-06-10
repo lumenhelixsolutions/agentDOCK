@@ -544,11 +544,39 @@ function recordSessionOutcome(sessionId, outcome, notes) {
 function getProfileStats(profileId) {
   const usage = readJSON(FILES.usage, { launches: [], outcomes: [] });
   const outcomes = (usage.outcomes || []).filter(o => o.profileId === profileId);
-  const total = outcomes.length;
-  if (!total) return { total, successRate: null, lastOutcome: null };
-  const successes = outcomes.filter(o => o.outcome === 'success').length;
-  const last = outcomes[outcomes.length - 1];
-  return { total, successRate: Math.round((successes / total) * 100), lastOutcome: last.outcome };
+  const launches = (usage.launches || []).filter(l => l.profileId === profileId);
+  const total = outcomes.length || launches.length;
+  if (!total) return { total: 0, successRate: null, lastOutcome: null, launchCount: 0 };
+  if (outcomes.length) {
+    const successes = outcomes.filter(o => o.outcome === 'success').length;
+    const last = outcomes[outcomes.length - 1];
+    return { total, successRate: Math.round((successes / total) * 100), lastOutcome: last.outcome, launchCount: launches.length };
+  }
+  const successes = launches.filter(l => l.exitCode === 0).length;
+  const last = launches[launches.length - 1];
+  return {
+    total: launches.length,
+    successRate: Math.round((successes / launches.length) * 100),
+    lastOutcome: last.exitCode === 0 ? 'success' : 'failure',
+    launchCount: launches.length,
+  };
+}
+
+function buildProfileTelemetry(profileId) {
+  const usage = readJSON(FILES.usage, { launches: [], outcomes: [] });
+  const launches = (usage.launches || []).filter(l => l.profileId === profileId);
+  const stats = getProfileStats(profileId);
+  const lastLaunch = launches[launches.length - 1] || null;
+  const successCount = launches.filter(l => l.exitCode === 0).length;
+  return {
+    launchCount: launches.length,
+    successCount,
+    successRate: launches.length ? Math.round((successCount / launches.length) * 100) : stats.successRate,
+    lastLaunchAt: lastLaunch?.startedAt || null,
+    lastExitCode: lastLaunch?.exitCode ?? null,
+    outcomeCount: stats.total,
+    lastOutcome: stats.lastOutcome,
+  };
 }
 
 function searchSessions(query) {
@@ -1140,9 +1168,20 @@ async function route(req, res) {
     if (pathName === '/api/suggestions' && req.method === 'GET') return send(res, 200, { suggestions: buildSuggestions(lastScan) });
     if (pathName === '/api/profiles' && req.method === 'GET') {
       const profiles = listProfiles();
+      const memory = readMemory();
       const enriched = profiles.map(p => {
+        const ev = evaluateProfile(p, lastScan, memory);
         const audit = auditProfile(p, profiles);
-        return { ...p, ce_compatible: audit.errors.length === 0 && Boolean(p.meta?.ce_version) };
+        return {
+          ...p,
+          state: ev.state,
+          score: ev.score,
+          reasons: ev.reasons,
+          stats: ev.stats,
+          taskMode: detectTaskMode(p),
+          telemetry: buildProfileTelemetry(p.id),
+          ce_compatible: audit.errors.length === 0 && Boolean(p.meta?.ce_version),
+        };
       });
       return send(res, 200, enriched);
     }
