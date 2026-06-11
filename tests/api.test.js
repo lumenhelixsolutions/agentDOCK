@@ -372,6 +372,15 @@ describe('api', () => {
     assert.ok(json.json?.target_directory);
   });
 
+  it('GET /api/telemetry returns HOOT ai_status paths', async () => {
+    const res = await get('/api/telemetry');
+    assert.strictEqual(res.status, 200);
+    const json = JSON.parse(res.body);
+    assert.ok(json.kernel);
+    assert.ok(json.kernel.includes('ai_status.json'));
+    assert.ok(json.telemetry?.providers || json.telemetry?.matrix_line);
+  });
+
   it('POST /api/plan bypass_cooldown includes cooldown registry', async () => {
     const res = await post('/api/plan', { goal: 'bypass_cooldown' });
     assert.strictEqual(res.status, 200);

@@ -1,6 +1,6 @@
 # HOOT Hybrid Workspace & Cooldown Monitor — Integration Plan
 
-> **Shipped** — Full A–D implemented 2026-06-11. Hermes telemetry bridge at `C:/web/hermes-data/telemetry/ai_status.json`.
+> **Shipped** — Full A–D implemented 2026-06-11. HOOT-native telemetry at `state/ai_status.json` (optional mirror via workspace data root).
 
 **Date:** 2026-06-11  
 **Source concept:** All-in-One Hybrid Workspace & Cooldown Monitor (multi-provider rotation, token efficiency, handoff packets)  
@@ -330,4 +330,4 @@ Reply with one of:
 
 ---
 
-*Shipped Full A–D. Hermes telemetry: `telemetry-bridge.js` syncs HOOT registry ↔ `C:/web/hermes-data/telemetry/ai_status.json`.*
+*Shipped Full A–D. HOOT telemetry: `telemetry-bridge.js` exports registry → `state/ai_status.json`; mirrors to `<data-root>/telemetry/ai_status.json` when workspace roots are set.*

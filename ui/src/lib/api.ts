@@ -186,6 +186,10 @@ export const api = {
   generateHandoff: (body?: { next_action?: string; write_snapshot?: boolean }) =>
     request<{ markdown: string; json: Record<string, unknown>; copied_at: string; snapshot_path?: string | null }>("POST", "/api/handoff/generate", body || {}),
   getHandoffLatest: () => request<{ markdown?: string; empty?: boolean }>("GET", "/api/handoff/latest"),
+  getTelemetry: () =>
+    request<{ file: string | null; kernel: string; mirror: string | null; telemetry: Record<string, unknown> }>("GET", "/api/telemetry"),
+  syncTelemetry: (importFromDisk?: boolean) =>
+    request<{ ok: boolean; direction: string; telemetry?: Record<string, unknown>; files?: Record<string, unknown> }>("POST", "/api/telemetry/sync", { import: importFromDisk }),
   sessionBootstrap: (body: {
     cooldowns?: Array<{ provider: string; status?: string; cooldown_until?: string | null; preset?: string }>;
     current_session_provider?: string | null;

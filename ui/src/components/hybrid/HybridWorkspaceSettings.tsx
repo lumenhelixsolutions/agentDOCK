@@ -7,6 +7,7 @@ const PROVIDERS = ["claude", "chatgpt", "gemini", "kimi", "ollama", "llamacpp"];
 export default function HybridWorkspaceSettings() {
   const [registry, setRegistry] = useState<any>(null);
   const [roots, setRoots] = useState<any>(null);
+  const [telemetry, setTelemetry] = useState<{ kernel?: string; mirror?: string | null; file?: string | null } | null>(null);
   const [sessionProvider, setSessionProvider] = useState("");
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -14,6 +15,7 @@ export default function HybridWorkspaceSettings() {
   const load = () => {
     api.getProviderCooldown().then(setRegistry).catch(() => setRegistry(null));
     api.getWorkspaceRoots().then(setRoots).catch(() => setRoots(null));
+    api.getTelemetry().then((r) => setTelemetry({ kernel: r.kernel, mirror: r.mirror, file: r.file })).catch(() => setTelemetry(null));
   };
 
   useEffect(() => {
@@ -59,7 +61,8 @@ export default function HybridWorkspaceSettings() {
           <h3 style={{ fontSize: 14, margin: 0, color: "#f5f5f5" }}>Provider cooldowns</h3>
         </div>
         <p style={{ fontSize: 12, opacity: 0.55, margin: "0 0 12px", lineHeight: 1.5 }}>
-          Manual quota rotation — mark cloud providers on cooldown when you hit message limits.
+          HOOT kernel tracks cooldowns in <code>state/provider-cooldown.json</code> and exports <code>state/ai_status.json</code>
+          {telemetry?.mirror ? ` (mirror: ${telemetry.mirror})` : ""}. Auto-handoff writes <code>auto_handoff.md</code> on cooldown.
         </p>
         <div style={{ display: "grid", gap: 8 }}>
           {PROVIDERS.map((id) => {

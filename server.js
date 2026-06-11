@@ -60,7 +60,14 @@ const {
   writeInboundDraft,
 } = require('./handoff-packet');
 const { gitSnapshot } = require('./coach-mcp');
-const { syncTelemetryToDisk, importTelemetryFromDisk } = require('./telemetry-bridge');
+const {
+  syncTelemetryToDisk,
+  importTelemetryFromDisk,
+  readTelemetryFromDisk,
+  telemetryTargets,
+  hootToTelemetry,
+  kernelTelemetryFile,
+} = require('./telemetry-bridge');
 
 const ROOT = __dirname;
 function resolveBindHost() {
@@ -98,6 +105,7 @@ const FILES = {
   providerCooldown: path.join(DIRS.state, 'provider-cooldown.json'),
   workspaceRoots: path.join(DIRS.state, 'workspace-roots.json'),
   handoffLatest: path.join(DIRS.state, 'handoff-latest.json'),
+  aiStatus: path.join(DIRS.state, 'ai_status.json'),
 };
 const DIARY_DIR = path.join(ROOT, 'diary');
 
@@ -118,6 +126,10 @@ const DEFAULT_USER_SETTINGS = {
     mcp_git: true,
     mcp_filesystem: true,
     audit_log: true,
+  },
+  hybrid_workspace: {
+    auto_handoff_on_cooldown: true,
+    mirror_telemetry_to_data_root: true,
   },
 };
 const activityLog = createActivityLog({ stateFile: FILES.activityLog, diaryDir: DIARY_DIR, root: ROOT });
@@ -455,6 +467,7 @@ function loadUserSettings() {
     network: { ...DEFAULT_USER_SETTINGS.network, ...(stored.network || {}), lan_enabled: LAN_MODE },
     hoot_brain: { ...DEFAULT_USER_SETTINGS.hoot_brain, ...(stored.hoot_brain || {}) },
     operator_policy: { ...DEFAULT_USER_SETTINGS.operator_policy, ...(stored.operator_policy || {}) },
+    hybrid_workspace: { ...DEFAULT_USER_SETTINGS.hybrid_workspace, ...(stored.hybrid_workspace || {}) },
   };
 }
 
@@ -475,6 +488,7 @@ function saveUserSettings(partial) {
     network: { ...current.network, ...(partial.network || {}) },
     hoot_brain: { ...current.hoot_brain, ...(partial.hoot_brain || {}) },
     operator_policy: { ...current.operator_policy, ...(partial.operator_policy || {}) },
+    hybrid_workspace: { ...current.hybrid_workspace, ...(partial.hybrid_workspace || {}) },
   };
   writeJSON(FILES.userSettings, next);
   return next;
@@ -748,6 +762,37 @@ function getHybridWorkspaceContext(scan = lastScan) {
     terse: buildTerseContext(rootsState),
     active_root_path: getActiveRootPath(rootsState, activeProject),
   };
+}
+
+function telemetryCtx() {
+  return { scan: lastScan, hootRoot: ROOT, activeProject };
+}
+
+async function maybeAutoHandoffOnCooldown(body, settings) {
+  if (!settings?.hybrid_workspace?.auto_handoff_on_cooldown) return null;
+  const enteringCooldown = body.preset || body.status === 'cooldown';
+  if (!enteringCooldown || !body.provider) return null;
+  try {
+    const rootsState = loadRoots(activeProject);
+    const registry = enrichCooldownRegistry(loadCooldownState(), { scan: lastScan });
+    const proj = activeProject ? readProjectRegistry().projects.find((p) => path.normalize(p.path || '') === path.normalize(activeProject)) : null;
+    const packet = await generateHandoffPacket({
+      activeProject,
+      rootsState,
+      registry,
+      gitSnapshotFn: gitSnapshot,
+      activityData: activityLog.load(),
+      memoryText: readMemory(),
+      nextAction: `Provider ${body.provider} on cooldown — switch to an ACTIVE provider from HOOT matrix.`,
+      projectName: proj?.name || (activeProject ? path.basename(activeProject) : null),
+      sessionProvider: registry.current_session_provider,
+    });
+    if (activeProject) writeHandoffSnapshot(activeProject, packet.markdown);
+    writeJSON(FILES.handoffLatest, { ...packet, project: activeProject, trigger: 'cooldown' });
+    return packet;
+  } catch {
+    return null;
+  }
 }
 
 function buildHybridFns() {
@@ -1646,7 +1691,13 @@ async function route(req, res) {
         portfolio: { items: buildPortfolioHealthFromRegistry(registry) },
         activeProject: { active, project: activeProj },
         tokenBurn,
-        hybridWorkspace: getHybridWorkspaceContext(scan),
+        hybridWorkspace: {
+          ...getHybridWorkspaceContext(scan),
+          telemetry: {
+            kernel: kernelTelemetryFile(ROOT),
+            mirror: telemetryTargets(ROOT, activeProject).mirror,
+          },
+        },
       });
     }
     if (pathName === '/api/providers/cooldown' && req.method === 'GET') {
@@ -1665,19 +1716,30 @@ async function route(req, res) {
         state.current_session_provider = body.current_session_provider || null;
         state = saveCooldownState(state);
       }
-      try { syncTelemetryToDisk({ scan: lastScan }); } catch { /* optional */ }
-      return send(res, 200, enrichCooldownRegistry(state, { scan: lastScan }));
+      try { syncTelemetryToDisk(telemetryCtx()); } catch { /* optional */ }
+      const autoHandoff = await maybeAutoHandoffOnCooldown(body, settings);
+      return send(res, 200, { ...enrichCooldownRegistry(state, { scan: lastScan }), auto_handoff: autoHandoff ? { ok: true, copied_at: autoHandoff.copied_at } : null });
+    }
+    if (pathName === '/api/telemetry' && req.method === 'GET') {
+      const { file, data } = readTelemetryFromDisk(ROOT, activeProject);
+      const targets = telemetryTargets(ROOT, activeProject);
+      return send(res, 200, {
+        file,
+        kernel: targets.kernel,
+        mirror: targets.mirror,
+        telemetry: data || hootToTelemetry(loadCooldownState(), telemetryCtx()),
+      });
     }
     if (pathName === '/api/telemetry/sync' && req.method === 'POST') {
       const body = await readBody(req);
       if (body.import) {
-        const imported = importTelemetryFromDisk();
+        const imported = importTelemetryFromDisk(telemetryCtx());
         if (!imported.ok) return send(res, 400, imported);
-        try { syncTelemetryToDisk({ scan: lastScan }); } catch { /* optional */ }
+        try { syncTelemetryToDisk(telemetryCtx()); } catch { /* optional */ }
         return send(res, 200, { ok: true, direction: 'import', registry: enrichCooldownRegistry(imported.state, { scan: lastScan }) });
       }
-      const payload = syncTelemetryToDisk({ scan: lastScan });
-      return send(res, 200, { ok: true, direction: 'export', telemetry: payload });
+      const payload = syncTelemetryToDisk(telemetryCtx());
+      return send(res, 200, { ok: true, direction: 'export', telemetry: payload, files: telemetryTargets(ROOT, activeProject) });
     }
     if (pathName === '/api/workspace/roots' && req.method === 'GET') {
       const rootsState = loadRoots(activeProject);
@@ -2422,6 +2484,9 @@ if (require.main === module) {
       setTimeout(() => {
         runScanner(process.cwd()).catch(() => {});
       }, 5000);
+      try {
+        syncTelemetryToDisk(telemetryCtx());
+      } catch { /* optional */ }
     })
     .catch((err) => {
       console.error(`AgentDock server error: ${err.message}`);
