@@ -15,6 +15,7 @@ const StackBuilder = lazy(() => import("./pages/StackBuilder"));
 const ModulesPage = lazy(() => import("./pages/ModulesPage"));
 const ActivityPage = lazy(() => import("./pages/ActivityPage"));
 const LaunchCenterPage = lazy(() => import("./pages/LaunchCenterPage"));
+const CommandDeckPage = lazy(() => import("./pages/CommandDeckPage"));
 
 export default function App() {
   const [authReady, setAuthReady] = useState(false);
@@ -48,6 +49,7 @@ export default function App() {
         />
         <Route path="/profiles" element={<Suspense fallback={<PageShell />}><ProfilesPage /></Suspense>} />
         <Route path="/launch" element={<Suspense fallback={<PageShell />}><LaunchCenterPage /></Suspense>} />
+        <Route path="/deck" element={<Suspense fallback={<PageShell />}><CommandDeckPage /></Suspense>} />
         <Route path="/terminal" element={<Suspense fallback={<PageShell />}><TerminalPage /></Suspense>} />
         <Route path="/memory" element={<Suspense fallback={<PageShell />}><MemoryPage /></Suspense>} />
         <Route path="/activity" element={<Suspense fallback={<PageShell />}><ActivityPage /></Suspense>} />

@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Command,
   Compass,
+  Gauge,
   Layers3,
   Menu,
   PanelLeft,
@@ -30,6 +31,7 @@ import HootWordmark from "./HootWordmark";
 import { BRAND } from "@/lib/brand";
 import HelpTooltip from "./HelpTooltip";
 import ViewGuideBar from "./ViewGuideBar";
+import CooldownStrip from "./deck/CooldownStrip";
 import { ToastProvider } from "./Toast";
 import { getViewDoc } from "@/lib/app-docs";
 import { toggleTheme } from "@/lib/theme";
@@ -46,6 +48,7 @@ const navGroups = [
       { label: "Profiles", path: "/profiles", icon: Layers3, desc: "Operational roles, audit posture, and fit" },
       { label: "Sessions", path: "/terminal", icon: TerminalSquare, desc: "Live terminals, launches, and continuity" },
       { label: "Launch Center", path: "/launch", icon: PlayCircle, desc: "Stage, validate, and launch execution" },
+      { label: "Command Deck", path: "/deck", icon: Gauge, desc: "Live cooldown gauges, context radar, save-state handoffs" },
     ],
   },
   {
@@ -239,6 +242,7 @@ export default function AppLayout() {
               </div>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-2 md:flex-row md:items-center md:gap-3">
+              <CooldownStrip />
               <button
                 onClick={() => setPaletteOpen(true)}
                 aria-label="Open command palette"

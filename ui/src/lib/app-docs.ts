@@ -98,6 +98,20 @@ export const VIEW_DOCS: Record<string, ViewDoc> = {
     orchestration: "Review after sessions to see what HOOT logged.",
     tips: ["HOOT switches to logging mood on this view"],
   },
+  "/deck": {
+    title: "Command Deck",
+    group: "Command Center",
+    summary: "Live cooldown monitor — provider gauges, recovery timeline, workspace context radar, and save-state handoffs.",
+    features: [
+      "Radial countdown gauges per provider with quick cooldown presets",
+      "Next-8-hours recovery timeline (unlocks + daily resets)",
+      "Context radar: files touched in your workspace roots + token cost",
+      "One-click auto_handoff.md save-state generator",
+      "Pop-out always-on-top floating monitor (Chromium PiP)",
+    ],
+    orchestration: "Check before switching providers. Mark cooldowns when you hit a limit; generate a save-state before the handoff.",
+    tips: ["The top-bar strip shows the deck everywhere", "Copy the matrix line into your next AI's first message"],
+  },
   "/settings": {
     title: "Settings",
     group: "Build + Configure",

@@ -1,132 +1,125 @@
-import { useCallback, useEffect, useState } from "react";
-import { Copy, RefreshCw, Timer } from "lucide-react";
-import { api } from "@/lib/api";
-import { Panel, Badge, WidgetError } from "@/components/dashboard/primitives";
+import { useEffect, useState } from "react";
+import { Copy, RefreshCw, Timer, Check } from "lucide-react";
+import { Panel, LinkCard, WidgetError } from "@/components/dashboard/primitives";
+import { useCooldownRegistry } from "@/hooks/useCooldownRegistry";
+import {
+  PROVIDER_ORDER,
+  STATE_COLORS,
+  formatClock,
+  gaugeState,
+  limitsLine,
+  liveRemaining,
+  liveRemainingFraction,
+} from "@/lib/cooldown";
+import GaugeRing from "@/components/deck/GaugeRing";
 
-type ProviderRow = {
-  label: string;
-  status: string;
-  effective_status?: string;
-  cooldown_until?: string | null;
-  eta?: string | null;
-  cooldown_label?: string | null;
-};
-
-const PROVIDER_ORDER = ["claude", "chatgpt", "gemini", "kimi", "ollama", "llamacpp"];
-
-function statusTone(status?: string) {
-  if (status === "active" || status === "local") return "READY";
-  if (status === "cooldown") return "BLOCKED";
-  return "UNKNOWN";
-}
-
+/** Dashboard widget: compact mini-gauge strip for the Cooldown Command Deck. */
 export default function ProviderMatrixWidget({
   onRegistryChange,
 }: {
   onRegistryChange?: (matrixLine: string) => void;
 }) {
-  const [registry, setRegistry] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [failed, setFailed] = useState(false);
+  const { registry, loading, failed, nowMs, reload, patch } = useCooldownRegistry(30000);
+  const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setFailed(false);
-    try {
-      const data = await api.getProviderCooldown();
-      setRegistry(data);
-      onRegistryChange?.(data.matrix_line || "");
-    } catch {
-      setFailed(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [onRegistryChange]);
-
   useEffect(() => {
-    load();
-  }, [load]);
+    if (registry) onRegistryChange?.(registry.matrix_line || "");
+  }, [registry, onRegistryChange]);
 
-  const toggleStatus = async (provider: string, row: ProviderRow) => {
-    setBusy(provider);
+  const copyRegistry = async () => {
+    if (!registry) return;
+    const session = registry.current_session_provider ? `\nSESSION: ${registry.current_session_provider}` : "";
+    await navigator.clipboard.writeText(`${registry.matrix_line || ""}${session}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  const toggle = async (id: string) => {
+    const row = registry?.providers?.[id];
+    if (!row || row.status === "local") return;
+    setBusy(id);
     try {
-      const status = row.effective_status === "cooldown" ? "active" : "cooldown";
-      const body =
-        status === "cooldown"
-          ? { provider, preset: "3hr" as const }
-          : { provider, status: "active", cooldown_until: null };
-      const data = await api.patchProviderCooldown(body);
-      setRegistry(data);
-      onRegistryChange?.(data.matrix_line || "");
+      const state = gaugeState(row);
+      await patch(
+        state === "cooldown"
+          ? { provider: id, status: "active", cooldown_until: null }
+          : { provider: id, preset: "3hr" },
+      );
     } finally {
       setBusy(null);
     }
   };
 
-  const copyRegistry = async () => {
-    if (!registry) return;
-    const header = registry.matrix_line || "";
-    const session = registry.current_session_provider ? `\nSESSION: ${registry.current_session_provider}` : "";
-    await navigator.clipboard.writeText(`${header}${session}`);
-  };
-
   if (loading && !registry) {
     return (
-      <Panel title="Provider matrix" subtitle="Global resource registry" icon={Timer}>
+      <Panel title="Cooldown deck" subtitle="Provider matrix" icon={Timer}>
         <div className="opacity-55">Loading provider status…</div>
       </Panel>
     );
   }
 
-  if (failed) {
+  if (failed && !registry) {
     return (
-      <Panel title="Provider matrix" subtitle="Global resource registry" icon={Timer}>
-        <WidgetError title="Provider registry" onRetry={load} />
+      <Panel title="Cooldown deck" subtitle="Provider matrix" icon={Timer}>
+        <WidgetError title="Provider registry" onRetry={reload} />
       </Panel>
     );
   }
 
+  if (!registry) return null;
+
   return (
-    <Panel title="Provider matrix" subtitle="Cooldown rotation · click to toggle" icon={Timer}>
+    <Panel title="Cooldown deck" subtitle="Live provider gauges · click to toggle cooldown" icon={Timer}>
       <div className="mb-3 flex items-start justify-between gap-3">
-        <div className="font-mono text-[11px] leading-relaxed opacity-60">{registry?.matrix_line}</div>
+        <div className="min-w-0 overflow-x-auto whitespace-nowrap font-mono text-[11px] leading-relaxed opacity-60">
+          {registry.matrix_line}
+        </div>
         <div className="flex shrink-0 gap-2">
           <button type="button" onClick={copyRegistry} className="rounded-lg border border-border px-2.5 py-1.5 text-xs opacity-70 hover:opacity-100" title="Copy registry line">
-            <Copy size={14} />
+            {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
           </button>
-          <button type="button" onClick={load} className="rounded-lg border border-border px-2.5 py-1.5 text-xs opacity-70 hover:opacity-100" title="Refresh">
+          <button type="button" onClick={reload} className="rounded-lg border border-border px-2.5 py-1.5 text-xs opacity-70 hover:opacity-100" title="Refresh">
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
       </div>
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+
+      <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
         {PROVIDER_ORDER.map((id) => {
-          const row = registry?.providers?.[id] as ProviderRow | undefined;
+          const row = registry.providers?.[id];
           if (!row) return null;
-          const status = row.effective_status || row.status;
+          const state = gaugeState(row);
+          const remaining = liveRemaining(row, nowMs);
+          const fraction = liveRemainingFraction(row, nowMs);
+          const nearlyBack = state === "cooldown" && fraction !== null && fraction < 0.25;
+          const color = nearlyBack ? "#fbbf24" : STATE_COLORS[state].stroke;
+          const value = state === "cooldown" ? (fraction ?? 1) : state === "unknown" ? 0 : 1;
           return (
             <button
               key={id}
               type="button"
               disabled={busy === id}
-              onClick={() => toggleStatus(id, row)}
-              className="flex items-center justify-between gap-2 rounded-xl border border-border bg-foreground/[0.03] px-3 py-2.5 text-left transition hover:bg-foreground/[0.06]"
+              onClick={() => toggle(id)}
+              title={`${row.label}: ${state}${remaining ? ` · ${formatClock(remaining)} left` : ""} · ${limitsLine(row)}`}
+              className="flex flex-col items-center gap-1 rounded-xl px-1 py-2 transition hover:bg-foreground/[0.04] disabled:opacity-40"
             >
-              <div>
-                <div className="text-sm font-medium text-foreground">{row.label || id}</div>
-                <div className="text-[11px] opacity-50">
-                  {status === "cooldown" && row.eta ? `until ~${row.cooldown_label || row.eta}` : status}
-                </div>
-              </div>
-              <Badge text={status === "cooldown" ? "COOLDOWN" : status === "active" ? "ACTIVE" : status.toUpperCase()} tone={statusTone(status)} />
+              <GaugeRing size={52} stroke={5} value={value} color={color} glow={state === "cooldown"}>
+                {state === "cooldown" && remaining !== null ? (
+                  <span className="font-mono text-[8px] font-semibold tabular-nums">{formatClock(remaining)}</span>
+                ) : (
+                  <span className={`text-[7px] font-semibold uppercase ${STATE_COLORS[state].text}`}>
+                    {state === "unknown" ? "?" : STATE_COLORS[state].label}
+                  </span>
+                )}
+              </GaugeRing>
+              <span className="max-w-full truncate text-[9px] opacity-60">{(row.label || id).split(" ")[0]}</span>
             </button>
           );
         })}
       </div>
-      {registry?.current_session_provider && (
-        <div className="mt-3 text-xs opacity-55">Session provider: {registry.current_session_provider}</div>
-      )}
+
+      <LinkCard to="/deck" label="Open Command Deck — gauges, timeline, context radar, save-state" />
     </Panel>
   );
 }

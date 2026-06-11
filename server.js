@@ -53,6 +53,7 @@ const {
   profileToProviderId,
 } = require('./provider-cooldown');
 const { loadRoots, putRoots, validateRoots, buildTerseContext, getActiveRootPath, applyInferredRoots } = require('./workspace-roots');
+const { buildContextRadar } = require('./context-radar');
 const { buildOnboardingState } = require('./onboarding');
 const {
   generateHandoffPacket,
@@ -1839,6 +1840,11 @@ async function route(req, res) {
       const body = await readBody(req);
       const saved = putRoots(body, activeProject);
       return send(res, 200, validateRoots(saved));
+    }
+    if (pathName === '/api/workspace/context' && req.method === 'GET') {
+      const hours = Number(url.searchParams.get('hours')) || 2;
+      const rootsState = loadRoots(activeProject);
+      return send(res, 200, buildContextRadar({ rootsState, activeProject, hours }));
     }
     if (pathName === '/api/handoff/generate' && req.method === 'POST') {
       const body = await readBody(req);

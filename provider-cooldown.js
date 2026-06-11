@@ -8,12 +8,38 @@ const path = require('path');
 const DEFAULT_STATE_FILE = path.join(__dirname, 'state', 'provider-cooldown.json');
 
 const LIMITS_REF = {
-  claude: { messages: 45, window_hours: 5, recovery_note: '~1 msg / 7 min' },
-  chatgpt: { messages: 80, window_hours: 3, recovery_note: 'resets on window boundary' },
-  gemini: { messages: null, window_hours: null, recovery_note: 'quota varies by tier' },
-  kimi: { messages: null, window_hours: null, recovery_note: 'freeze on overuse — manual cooldown' },
-  ollama: { messages: null, window_hours: null, recovery_note: 'local — limited by hardware' },
-  llamacpp: { messages: null, window_hours: null, recovery_note: 'local — limited by hardware' },
+  claude: {
+    messages: 45, window_hours: 5, recovery_note: '~1 msg / 7 min',
+    limit_type: 'rolling_window', max_messages: 45, replenish_rate_minutes: 7.1,
+    context_penalty: true, notes: 'Long-context sessions can deplete message blocks up to 3x faster.',
+  },
+  chatgpt: {
+    messages: 80, window_hours: 3, recovery_note: 'resets on window boundary',
+    limit_type: 'rolling_window', max_messages: 80, replenish_rate_minutes: 2.25,
+    notes: 'Resets 3 hours from execution of each message chunk.',
+  },
+  gemini: {
+    messages: null, window_hours: null, recovery_note: 'daily reset 08:00 UTC',
+    limit_type: 'daily_reset', reset_time_utc: '08:00:00', max_requests: 1500,
+    notes: 'Daily transaction caps hit before context boundaries.',
+  },
+  kimi: {
+    messages: null, window_hours: null, recovery_note: 'freeze on overuse — 5h lockout',
+    limit_type: 'tier_based', lockout_duration_hours: 5,
+    notes: 'Context freeze on overflow; rolling recovery block applies instantly.',
+  },
+  deepseek: {
+    messages: 50, window_hours: 3, recovery_note: '429s at peak load regardless of count',
+    limit_type: 'concurrency_dependent', max_messages: 50, replenish_rate_minutes: 3.6,
+    notes: 'Throws 429 during high peak loads regardless of individual message count.',
+  },
+  perplexity: {
+    messages: null, window_hours: null, recovery_note: 'daily reset 00:00 UTC',
+    limit_type: 'daily_reset', reset_time_utc: '00:00:00', max_requests: 600,
+    notes: 'Standard Search bypasses the daily pro execution allocation.',
+  },
+  ollama: { messages: null, window_hours: null, recovery_note: 'local — limited by hardware', limit_type: 'local' },
+  llamacpp: { messages: null, window_hours: null, recovery_note: 'local — limited by hardware', limit_type: 'local' },
 };
 
 const PROVIDER_LABELS = {
@@ -21,6 +47,8 @@ const PROVIDER_LABELS = {
   chatgpt: 'ChatGPT Plus',
   gemini: 'Gemini',
   kimi: 'Kimi',
+  deepseek: 'DeepSeek',
+  perplexity: 'Perplexity Pro',
   ollama: 'Ollama',
   llamacpp: 'llama.cpp',
 };
@@ -35,6 +63,8 @@ const PROFILE_PROVIDER_MAP = {
   gemini: 'gemini',
   kimi: 'kimi',
   moonshot: 'kimi',
+  deepseek: 'deepseek',
+  perplexity: 'perplexity',
   ollama: 'ollama',
   llamacpp: 'llamacpp',
   'llama.cpp': 'llamacpp',
@@ -148,6 +178,54 @@ function formatCooldownUntil(until) {
   return `${hh}:${mm}`;
 }
 
+function nextDailyResetUtc(resetTimeUtc, now = new Date()) {
+  const m = String(resetTimeUtc || '').match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (!m) return null;
+  const next = new Date(Date.UTC(
+    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(),
+    Number(m[1]), Number(m[2]), Number(m[3] || 0), 0,
+  ));
+  if (next.getTime() <= now.getTime()) next.setUTCDate(next.getUTCDate() + 1);
+  return next;
+}
+
+/** Countdown fields the deck gauges render from: remaining seconds, ring progress, recovery estimate. */
+function computeGaugeFields(row, limits, status, now = new Date()) {
+  const out = {
+    ready_at_iso: null,
+    seconds_remaining: null,
+    progress: null,
+    cooldown_started: null,
+    est_messages_recovered: null,
+    next_reset_iso: null,
+  };
+  if (limits?.limit_type === 'daily_reset' && limits.reset_time_utc) {
+    const reset = nextDailyResetUtc(limits.reset_time_utc, now);
+    out.next_reset_iso = reset ? reset.toISOString() : null;
+  }
+  if (status !== 'cooldown') return out;
+
+  let until = parseUntil(row.cooldown_until);
+  if (!until && out.next_reset_iso) until = new Date(out.next_reset_iso);
+  if (!until) return out;
+
+  out.ready_at_iso = until.toISOString();
+  out.seconds_remaining = Math.max(0, Math.round((until.getTime() - now.getTime()) / 1000));
+
+  const started = parseUntil(row.last_updated);
+  if (started && started.getTime() < until.getTime()) {
+    out.cooldown_started = started.toISOString();
+    const total = until.getTime() - started.getTime();
+    const elapsed = Math.min(total, Math.max(0, now.getTime() - started.getTime()));
+    out.progress = Math.round((elapsed / total) * 1000) / 1000;
+    if (limits?.replenish_rate_minutes && limits?.max_messages) {
+      const recovered = Math.floor(elapsed / 60000 / limits.replenish_rate_minutes);
+      out.est_messages_recovered = Math.min(limits.max_messages, recovered);
+    }
+  }
+  return out;
+}
+
 function enrichRegistry(state, { scan } = {}) {
   const now = new Date();
   const providers = {};
@@ -167,13 +245,15 @@ function enrichRegistry(state, { scan } = {}) {
         }
       }
     }
+    const limits = LIMITS_REF[id] || row.limits_ref || null;
     providers[id] = {
       ...row,
       effective_status: status,
       eta: status === 'cooldown' ? formatEta(row.cooldown_until, now) : null,
       cooldown_label: status === 'cooldown' ? formatCooldownUntil(row.cooldown_until) : null,
       source,
-      limits_ref: row.limits_ref || LIMITS_REF[id] || null,
+      limits_ref: limits,
+      ...computeGaugeFields(row, limits, status, now),
     };
   }
   return {
@@ -186,7 +266,7 @@ function enrichRegistry(state, { scan } = {}) {
 
 function formatMatrixLine(registry) {
   const parts = [];
-  const order = ['claude', 'chatgpt', 'gemini', 'kimi', 'ollama', 'llamacpp'];
+  const order = ['claude', 'chatgpt', 'gemini', 'kimi', 'deepseek', 'perplexity', 'ollama', 'llamacpp'];
   for (const id of order) {
     const row = registry.providers?.[id];
     if (!row) continue;
@@ -302,6 +382,8 @@ module.exports = {
   applyCooldownPreset,
   effectiveStatus,
   formatEta,
+  nextDailyResetUtc,
+  computeGaugeFields,
   formatMatrixLine,
   formatRegistryHeader,
   profileToProviderId,

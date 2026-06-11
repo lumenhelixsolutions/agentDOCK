@@ -1,5 +1,7 @@
 # HOOT Cooldown Command Deck — Visual Monitor Plugin Plan
 
+> **Shipped** — Full plan implemented 2026-06-11: `/deck` page (gauges, timeline, context radar, save-state console, telemetry), top-bar `CooldownStrip`, always-on-top PiP popout, `context-radar.js` + `/api/workspace/context`, enriched cooldown matrix (incl. DeepSeek/Perplexity), `cooldown-command-deck` builtin module.
+
 **Date:** 2026-06-11
 **Source concept:** AI_COMMAND_CENTER plugin manifest v2.0.0 (autonomous cooldown metric engine + context extraction interceptor)
 **Goal:** A *very visual* built-in plugin mod for HOOT — live cooldown gauges, recovery timeline, workspace context radar, and one-click save-state — replacing the current flat badge grid.

@@ -179,6 +179,24 @@ export const api = {
     }>("GET", "/api/providers/cooldown"),
   patchProviderCooldown: (body: { provider?: string; status?: string; cooldown_until?: string | null; preset?: string; current_session_provider?: string | null }) =>
     request<any>("PATCH", "/api/providers/cooldown", body),
+  getWorkspaceContext: (hours = 2) =>
+    request<{
+      generated_at: string;
+      window_hours: number;
+      roots: Array<{
+        id: string;
+        label: string;
+        role: string | null;
+        path: string;
+        exists: boolean;
+        active: boolean;
+        truncated: boolean;
+        total_files: number;
+        total_est_tokens: number;
+        files: Array<{ path: string; ext: string; mtime_iso: string; age_minutes: number; size_bytes: number; est_tokens: number }>;
+      }>;
+      totals: { files: number; est_tokens: number };
+    }>("GET", `/api/workspace/context?hours=${hours}`),
   getWorkspaceRoots: () =>
     request<{ roots: Array<{ id: string; label: string; path: string; role?: string; exists?: boolean; valid?: boolean }>; active_root_id: string; active_root?: Record<string, unknown> | null; enforce_boundaries: boolean }>("GET", "/api/workspace/roots"),
   putWorkspaceRoots: (body: { roots?: Array<{ id: string; label: string; path: string; role?: string }>; active_root_id?: string; enforce_boundaries?: boolean }) =>
