@@ -154,6 +154,7 @@ export default function LaunchCenterPage() {
                 ["cheapest", "Cheapest"],
                 ["heavy", "Heavy work"],
                 ["audit", "Audit"],
+                ["bypass_cooldown", "Bypass cooldown"],
               ].map(([value, label]) => (
                 <button
                   key={value}

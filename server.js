@@ -43,6 +43,24 @@ const { buildActivityAnalytics, formatDiaryMarkdown } = require('./activity-anal
 const { hydrateLastScan, attachCacheMeta } = require('./scan-cache');
 const { createProjectRegistryCache } = require('./project-registry-cache');
 const { enrichProfilesSummary } = require('./profile-summary');
+const {
+  loadState: loadCooldownState,
+  saveState: saveCooldownState,
+  enrichRegistry: enrichCooldownRegistry,
+  patchProvider,
+  applyCooldownPreset,
+  scoreProfileForCooldown,
+  profileToProviderId,
+} = require('./provider-cooldown');
+const { loadRoots, putRoots, validateRoots, buildTerseContext, getActiveRootPath } = require('./workspace-roots');
+const {
+  generateHandoffPacket,
+  writeHandoffSnapshot,
+  parseInboundHandoff,
+  writeInboundDraft,
+} = require('./handoff-packet');
+const { gitSnapshot } = require('./coach-mcp');
+const { syncTelemetryToDisk, importTelemetryFromDisk } = require('./telemetry-bridge');
 
 const ROOT = __dirname;
 function resolveBindHost() {
@@ -77,6 +95,9 @@ const FILES = {
   activityLog: path.join(DIRS.state, 'activity-log.json'),
   userSession: path.join(DIRS.state, 'user-session.json'),
   hootOperatorLog: path.join(DIRS.state, 'hoot-operator-log.json'),
+  providerCooldown: path.join(DIRS.state, 'provider-cooldown.json'),
+  workspaceRoots: path.join(DIRS.state, 'workspace-roots.json'),
+  handoffLatest: path.join(DIRS.state, 'handoff-latest.json'),
 };
 const DIARY_DIR = path.join(ROOT, 'diary');
 
@@ -718,9 +739,51 @@ function buildSuggestions(scan = lastScan) {
   return suggestions.sort((a, b) => b.priority - a.priority);
 }
 
+function getHybridWorkspaceContext(scan = lastScan) {
+  const rootsState = loadRoots(activeProject);
+  const cooldown = enrichCooldownRegistry(loadCooldownState(), { scan });
+  return {
+    roots: validateRoots(rootsState),
+    cooldown,
+    terse: buildTerseContext(rootsState),
+    active_root_path: getActiveRootPath(rootsState, activeProject),
+  };
+}
+
+function buildHybridFns() {
+  const proj = activeProject
+    ? readProjectRegistry().projects.find((p) => path.normalize(p.path || '') === path.normalize(activeProject))
+    : null;
+  return {
+    patchProvider,
+    applyCooldownPreset,
+    enrichRegistry: enrichCooldownRegistry,
+    generateHandoffPacket: async ({ activeProject: ap, nextAction, writeSnapshot = true } = {}) => {
+      const projectPath = ap || activeProject;
+      const rootsState = loadRoots(projectPath);
+      const registry = enrichCooldownRegistry(loadCooldownState(), { scan: lastScan });
+      const packet = await generateHandoffPacket({
+        activeProject: projectPath,
+        rootsState,
+        registry,
+        gitSnapshotFn: gitSnapshot,
+        activityData: activityLog.load(),
+        memoryText: readMemory(),
+        nextAction,
+        projectName: proj?.name || (projectPath ? path.basename(projectPath) : null),
+        sessionProvider: registry.current_session_provider,
+      });
+      if (writeSnapshot !== false && projectPath) writeHandoffSnapshot(projectPath, packet.markdown);
+      writeJSON(FILES.handoffLatest, { ...packet, project: projectPath });
+      return packet;
+    },
+  };
+}
+
 function buildPlan(goal, scan = lastScan) {
   const profiles = listProfiles();
   const memory = readMemory();
+  const cooldownRegistry = enrichCooldownRegistry(loadCooldownState(), { scan });
   const evaluated = profiles.map(p => ({ ...p, ...evaluateProfile(p, scan, memory) }));
   for (const p of evaluated) {
     const mode = String(p.meta.mode || '').toLowerCase();
@@ -729,9 +792,26 @@ function buildPlan(goal, scan = lastScan) {
     if (goal === 'cheapest' && String(p.meta.backend || '').includes('openrouter')) p.score += 15;
     if (goal === 'heavy' && String(p.meta.task_mode || '').includes('refactor')) p.score += 20;
     if (goal === 'audit' && String(p.meta.task_mode || '').includes('read-only')) p.score += 25;
+    if (goal === 'bypass_cooldown') {
+      const boost = scoreProfileForCooldown(p, cooldownRegistry);
+      p.score += boost;
+      const providerId = profileToProviderId(p);
+      if (providerId) {
+        const row = cooldownRegistry.providers?.[providerId];
+        const status = row?.effective_status || row?.status;
+        if (status === 'cooldown') p.reasons = [...(p.reasons || []), `${providerId} on cooldown — deprioritized`];
+        else if (status === 'active') p.reasons = [...(p.reasons || []), `${providerId} ACTIVE — boosted`];
+      }
+    }
   }
   evaluated.sort((a, b) => b.score - a.score);
-  return { goal, recommended: evaluated.filter(p => p.state !== 'BLOCKED').slice(0, 8), blocked: evaluated.filter(p => p.state === 'BLOCKED'), suggestions: buildSuggestions(scan) };
+  return {
+    goal,
+    recommended: evaluated.filter(p => p.state !== 'BLOCKED').slice(0, 8),
+    blocked: evaluated.filter(p => p.state === 'BLOCKED'),
+    suggestions: buildSuggestions(scan),
+    cooldown: goal === 'bypass_cooldown' ? cooldownRegistry : undefined,
+  };
 }
 
 function runScanner(repoPath) {
@@ -1566,7 +1646,104 @@ async function route(req, res) {
         portfolio: { items: buildPortfolioHealthFromRegistry(registry) },
         activeProject: { active, project: activeProj },
         tokenBurn,
+        hybridWorkspace: getHybridWorkspaceContext(scan),
       });
+    }
+    if (pathName === '/api/providers/cooldown' && req.method === 'GET') {
+      const registry = enrichCooldownRegistry(loadCooldownState(), { scan: lastScan });
+      return send(res, 200, registry);
+    }
+    if (pathName === '/api/providers/cooldown' && req.method === 'PATCH') {
+      const body = await readBody(req);
+      let state = loadCooldownState();
+      if (body.provider) {
+        state = body.preset
+          ? applyCooldownPreset(body.provider, body.preset, body.cooldown_until ? new Date(body.cooldown_until) : new Date())
+          : patchProvider(body);
+      }
+      if (body.current_session_provider !== undefined) {
+        state.current_session_provider = body.current_session_provider || null;
+        state = saveCooldownState(state);
+      }
+      try { syncTelemetryToDisk({ scan: lastScan }); } catch { /* optional */ }
+      return send(res, 200, enrichCooldownRegistry(state, { scan: lastScan }));
+    }
+    if (pathName === '/api/telemetry/sync' && req.method === 'POST') {
+      const body = await readBody(req);
+      if (body.import) {
+        const imported = importTelemetryFromDisk();
+        if (!imported.ok) return send(res, 400, imported);
+        try { syncTelemetryToDisk({ scan: lastScan }); } catch { /* optional */ }
+        return send(res, 200, { ok: true, direction: 'import', registry: enrichCooldownRegistry(imported.state, { scan: lastScan }) });
+      }
+      const payload = syncTelemetryToDisk({ scan: lastScan });
+      return send(res, 200, { ok: true, direction: 'export', telemetry: payload });
+    }
+    if (pathName === '/api/workspace/roots' && req.method === 'GET') {
+      const rootsState = loadRoots(activeProject);
+      return send(res, 200, validateRoots(rootsState));
+    }
+    if (pathName === '/api/workspace/roots' && req.method === 'PUT') {
+      const body = await readBody(req);
+      const saved = putRoots(body, activeProject);
+      return send(res, 200, validateRoots(saved));
+    }
+    if (pathName === '/api/handoff/generate' && req.method === 'POST') {
+      const body = await readBody(req);
+      const rootsState = loadRoots(activeProject);
+      const registry = enrichCooldownRegistry(loadCooldownState(), { scan: lastScan });
+      const proj = activeProject ? readProjectRegistry().projects.find(p => path.normalize(p.path || '') === path.normalize(activeProject)) : null;
+      const packet = await generateHandoffPacket({
+        activeProject,
+        rootsState,
+        registry,
+        gitSnapshotFn: gitSnapshot,
+        activityData: activityLog.load(),
+        memoryText: readMemory(),
+        nextAction: body.next_action || body.nextAction,
+        projectName: proj?.name || (activeProject ? path.basename(activeProject) : null),
+        sessionProvider: body.session_provider || registry.current_session_provider,
+      });
+      let snapshotPath = null;
+      if (body.write_snapshot !== false && activeProject) {
+        snapshotPath = writeHandoffSnapshot(activeProject, packet.markdown);
+      }
+      writeJSON(FILES.handoffLatest, { ...packet, snapshot_path: snapshotPath, project: activeProject });
+      return send(res, 200, { ...packet, snapshot_path: snapshotPath });
+    }
+    if (pathName === '/api/handoff/latest' && req.method === 'GET') {
+      const latest = readJSON(FILES.handoffLatest, null);
+      return send(res, 200, latest || { empty: true });
+    }
+    if (pathName === '/api/session/bootstrap' && req.method === 'POST') {
+      const body = await readBody(req);
+      const results = { cooldowns: [], roots: null, handoff_import: null };
+      for (const row of body.cooldowns || []) {
+        try {
+          if (row.preset) results.cooldowns.push(applyCooldownPreset(row.provider, row.preset, row.cooldown_until));
+          else results.cooldowns.push(patchProvider(row));
+        } catch (e) {
+          results.cooldowns.push({ error: e.message, provider: row.provider });
+        }
+      }
+      if (body.current_session_provider !== undefined) {
+        const st = loadCooldownState();
+        st.current_session_provider = body.current_session_provider || null;
+        writeJSON(FILES.providerCooldown, { ...st, updated_at: new Date().toISOString() });
+      }
+      if (body.roots || body.active_root_id !== undefined || body.enforce_boundaries !== undefined) {
+        results.roots = validateRoots(putRoots(body, activeProject));
+      }
+      if (body.inbound_handoff) {
+        const parsed = parseInboundHandoff(body.inbound_handoff);
+        if (parsed.ok && activeProject) {
+          const file = writeInboundDraft(activeProject, parsed.draft);
+          results.handoff_import = { ok: true, file, fields: parsed.fields };
+        } else {
+          results.handoff_import = parsed;
+        }
+      }
+      return send(res, 200, { ok: true, ...results, hybridWorkspace: getHybridWorkspaceContext(lastScan) });
     }
     if (pathName === '/api/token-burn' && req.method === 'GET') {
       const refresh = url.searchParams.get('refresh') === '1';
@@ -2120,6 +2297,7 @@ async function route(req, res) {
       try {
         mcpContext = await gatherOperatorContext({ hootRoot: ROOT, activeProject, settings });
       } catch { /* optional */ }
+      const hybrid = getHybridWorkspaceContext(lastScan);
       const context = {
         activeProject: proj,
         installedAgents: (lastScan?.coders || []).filter(c => c.detection?.present).map(c => c.id),
@@ -2129,11 +2307,13 @@ async function route(req, res) {
         scan: lastScan ? { system: lastScan.system, hardware: lastScan.hardware, tools: lastScan.tools, ollama: lastScan.ollama } : null,
         scanFull: lastScan,
         coachView,
-        pageContext,
+        pageContext: { ...pageContext, hybridWorkspace: hybrid },
         viewGuide,
         orchestration: ORCHESTRATION_LOOP,
         sessions: [...sessions.values()].map(publicSession).slice(0, 8),
         mcpContext,
+        hybridWorkspace: hybrid,
+        workspaceTerse: hybrid.terse,
       };
       const coachDeps = buildCoachDeps();
       const result = await processChatMessage({
@@ -2150,7 +2330,8 @@ async function route(req, res) {
           hootRoot: ROOT,
           activeProject,
           policy: settings.operator_policy,
-          deps: { executeCoachCommand, coachDeps },
+          deps: { executeCoachCommand, coachDeps, lastScan },
+          hybridFns: buildHybridFns(),
           appendLog: (entry) => appendOperatorLog(FILES.hootOperatorLog, entry),
         },
       });

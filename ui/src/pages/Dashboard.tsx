@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, Flame, FolderKanban, PlayCircle, Radar, Scan, Wrench } from "lucide-react";
+import { BookOpen, ClipboardCopy, Flame, FolderKanban, PlayCircle, Radar, Scan, Sparkles, Wrench } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/Toast";
 import { useCoach } from "@/context/CoachContext";
@@ -20,12 +20,16 @@ import {
   type Readiness,
   type SummaryItem,
 } from "@/components/dashboard/widgets";
+import ProviderMatrixWidget from "@/components/hybrid/ProviderMatrixWidget";
+import SessionBootstrapWizard from "@/components/hybrid/SessionBootstrapWizard";
 
 export default function Dashboard() {
   const toast = useToast();
   const { setPageContext, pageContext, registerActionHandler } = useCoach();
   const [switchingProject, setSwitchingProject] = useState(false);
   const [burnLoading, setBurnLoading] = useState(false);
+  const [bootstrapOpen, setBootstrapOpen] = useState(false);
+  const [handoffBusy, setHandoffBusy] = useState(false);
 
   const data = useDashboardData(() => toast.showToast("Failed to load dashboard data", "error"));
   const { profiles, projects, activeProjectData, scan, usage, portfolio, research, memory, tokenBurn, loading, failedSources, reload } = data;
@@ -97,8 +101,23 @@ export default function Dashboard() {
   useEffect(() => {
     return registerActionHandler((target) => {
       if (target === "token-burn-refresh") refreshBurn();
+      if (target === "generate-handoff") generateHandoff();
+      if (target === "session-bootstrap") setBootstrapOpen(true);
     });
   });
+
+  const generateHandoff = async () => {
+    setHandoffBusy(true);
+    try {
+      const packet = await api.generateHandoff();
+      await navigator.clipboard.writeText(packet.markdown);
+      toast.showToast("Handoff packet copied to clipboard", "success");
+    } catch {
+      toast.showToast("Failed to generate handoff", "error");
+    } finally {
+      setHandoffBusy(false);
+    }
+  };
 
   const readiness = useMemo<Readiness>(() => {
     if (!scan) {
@@ -281,6 +300,21 @@ export default function Dashboard() {
         failed={failedSources.has("tokenBurn")}
         onRefresh={refreshBurn}
       />
+
+      <div className="flex flex-wrap gap-2">
+        <button type="button" disabled={handoffBusy} onClick={generateHandoff} className="hoot-gold-chip inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold">
+          <ClipboardCopy size={14} /> {handoffBusy ? "Generating…" : "Generate handoff"}
+        </button>
+        <button type="button" onClick={() => setBootstrapOpen(true)} className="inline-flex items-center gap-2 rounded-xl border border-border px-3.5 py-2 text-xs opacity-80 hover:opacity-100">
+          <Sparkles size={14} /> Session bootstrap
+        </button>
+      </div>
+
+      <ProviderMatrixWidget
+        onRegistryChange={(matrixLine) => setPageContext({ providerMatrix: matrixLine })}
+      />
+
+      <SessionBootstrapWizard open={bootstrapOpen} onClose={() => setBootstrapOpen(false)} />
 
       <div className="grid gap-[18px] lg:grid-cols-2">
         <NextActionsWidget actions={recommendedActions} />

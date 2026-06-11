@@ -151,6 +151,7 @@ async function runOllamaNativeToolLoop({
         hootRoot: operatorRuntime.hootRoot,
         activeProject: operatorRuntime.activeProject,
         policy: operatorRuntime.policy,
+        hybridFns: operatorRuntime.hybridFns,
       });
       toolCallLog.push({ name, args, result });
 

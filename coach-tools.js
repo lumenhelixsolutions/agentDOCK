@@ -119,6 +119,37 @@ function buildOperatorToolSchemas() {
         },
       },
     },
+    {
+      type: 'function',
+      function: {
+        name: 'set_provider_status',
+        description: 'Update provider cooldown registry (claude, chatgpt, gemini, kimi, ollama, llamacpp)',
+        parameters: {
+          type: 'object',
+          properties: {
+            provider: { type: 'string' },
+            status: { type: 'string', enum: ['active', 'cooldown', 'unknown'] },
+            cooldown_until: { type: 'string' },
+            preset: { type: 'string', enum: ['3hr', '5hr', 'midnight_pt'] },
+          },
+          required: ['provider'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'generate_handoff',
+        description: 'Generate paste-ready handoff packet for switching cloud providers',
+        parameters: {
+          type: 'object',
+          properties: {
+            next_action: { type: 'string' },
+            write_snapshot: { type: 'boolean' },
+          },
+        },
+      },
+    },
   ];
 }
 
@@ -156,8 +187,36 @@ function toolCallToCommand(name, args) {
   }
 }
 
-async function executeNativeTool(name, args, { deps, hootRoot, activeProject, policy }) {
+async function executeNativeTool(name, args, { deps, hootRoot, activeProject, policy, hybridFns }) {
   const parsed = parseToolArgs(args);
+
+  if (name === 'set_provider_status') {
+    const fn = hybridFns?.patchProvider || hybridFns?.applyCooldownPreset;
+    if (!fn) return { ok: false, error: 'Provider cooldown module unavailable' };
+    try {
+      const state = parsed.preset
+        ? hybridFns.applyCooldownPreset(parsed.provider, parsed.preset, parsed.cooldown_until)
+        : hybridFns.patchProvider(parsed);
+      const registry = hybridFns.enrichRegistry(state, { scan: deps?.lastScan });
+      return { ok: true, type: 'set_provider_status', registry };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  }
+
+  if (name === 'generate_handoff') {
+    if (!hybridFns?.generateHandoffPacket) return { ok: false, error: 'Handoff module unavailable' };
+    try {
+      const packet = await hybridFns.generateHandoffPacket({
+        activeProject,
+        nextAction: parsed.next_action,
+        writeSnapshot: parsed.write_snapshot !== false,
+      });
+      return { ok: true, type: 'generate_handoff', packet };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  }
 
   if (name === 'git_snapshot') {
     if (policy?.mcp_git === false) return { ok: false, blocked: true, error: 'git MCP disabled in operator policy' };
@@ -189,6 +248,8 @@ function summarizeToolResult(name, result) {
   if (name === 'append_memory') return 'append_memory: evidence logged';
   if (name === 'git_snapshot') return `git_snapshot: ${result.snapshot?.branch || 'no repo'}`;
   if (name === 'read_hoot_file') return `read_hoot_file: ${result.file?.path}`;
+  if (name === 'set_provider_status') return `set_provider_status: ${result.registry?.matrix_line || 'updated'}`;
+  if (name === 'generate_handoff') return `generate_handoff: packet ready (${result.packet?.markdown?.length || 0} chars)`;
   return `${name}: ok`;
 }
 

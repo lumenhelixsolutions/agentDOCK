@@ -220,6 +220,9 @@ export function CoachProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(t);
   }, [location.pathname, hintContextKey, refreshHints]);
 
+  const prevExternalRef = useRef<number | null>(null);
+  const handoffSuggestedRef = useRef(false);
+
   useEffect(() => {
     let cancelled = false;
     const poll = (force = false) => {
@@ -232,6 +235,13 @@ export function CoachProvider({ children }: { children: ReactNode }) {
           const total = radar.summary?.total ?? 0;
           const dock = radar.summary?.dock ?? 0;
           const external = radar.summary?.external ?? 0;
+          const prevExternal = prevExternalRef.current;
+          if (prevExternal != null && prevExternal > 0 && external === 0 && !handoffSuggestedRef.current) {
+            handoffSuggestedRef.current = true;
+            setPendingChatPrompt("External agent session ended — generate a handoff packet before switching providers?");
+            setCoachOpen(true);
+          }
+          prevExternalRef.current = external;
           setPageContextState((prev) => {
             if (
               !force &&

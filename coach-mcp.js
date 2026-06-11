@@ -125,6 +125,8 @@ function listOperatorTools() {
       { id: 'appendMemory', readOnly: false, policy: 'structured-blocks-only' },
       { id: 'coachAction', readOnly: false, policy: 'ui-actions-only' },
       { id: 'makePlan', readOnly: true },
+      { id: 'setProviderStatus', readOnly: false, policy: 'cooldown-registry' },
+      { id: 'generateHandoff', readOnly: false, policy: 'handoff-export' },
       { id: 'getPrefab', readOnly: true },
       { id: 'getActivity', readOnly: true },
     ],

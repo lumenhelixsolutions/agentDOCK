@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Key, Save, CheckCircle, Database, Sparkles, Cpu, Zap, RefreshCw, Wifi, Shield } from "lucide-react";
 import { api } from "../lib/api";
 import { useCoach } from "@/context/CoachContext";
+import HybridWorkspaceSettings from "@/components/hybrid/HybridWorkspaceSettings";
 
 type VaultKeyRow = {
   name: string;
@@ -443,6 +444,8 @@ export default function SettingsPage() {
           </p>
         )}
       </div>
+
+      <HybridWorkspaceSettings />
 
       <div style={{ padding: 20, borderRadius: 12, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>

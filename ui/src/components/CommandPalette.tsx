@@ -16,6 +16,8 @@ import {
   Wrench,
 } from "lucide-react";
 import { toggleTheme } from "@/lib/theme";
+import { api } from "@/lib/api";
+import { useCoach } from "@/context/CoachContext";
 
 export interface PaletteCommand {
   id: string;
@@ -39,6 +41,7 @@ interface Props {
  */
 export default function CommandPalette({ open, onClose, onToggleSidebar }: Props) {
   const navigate = useNavigate();
+  const { emitCoachAction } = useCoach();
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -59,8 +62,12 @@ export default function CommandPalette({ open, onClose, onToggleSidebar }: Props
       { id: "act-scan", label: "Run system scan", hint: "Open Readiness and rescan the environment", group: "Actions", keywords: "rescan detect refresh", icon: ShieldCheck, run: () => navigate("/scan") },
       { id: "act-theme", label: "Toggle dark / light theme", hint: "Switch the interface theme", group: "Actions", keywords: "appearance mode color", icon: Moon, run: () => toggleTheme() },
       { id: "act-sidebar", label: "Toggle sidebar", hint: "Collapse or expand the dock (Ctrl+B)", group: "Actions", keywords: "collapse expand dock nav", icon: PanelLeftClose, run: onToggleSidebar },
+      { id: "act-handoff", label: "Generate handoff packet", hint: "Copy paste-ready project state for provider switch", group: "Actions", keywords: "handoff packet switch provider dump", icon: Sparkles, run: () => { navigate("/"); emitCoachAction("generate-handoff"); } },
+      { id: "act-bootstrap", label: "Session bootstrap wizard", hint: "Inject cooldowns, root, and prior handoff", group: "Actions", keywords: "bootstrap session init inject", icon: Sparkles, run: () => { navigate("/"); emitCoachAction("session-bootstrap"); } },
+      { id: "act-claude-cd", label: "Mark Claude cooldown (3hr)", hint: "Update provider matrix", group: "Actions", keywords: "claude cooldown quota limit", icon: ShieldCheck, run: () => { api.patchProviderCooldown({ provider: "claude", preset: "3hr" }).catch(() => {}); navigate("/"); } },
+      { id: "act-hybrid-settings", label: "Hybrid workspace settings", hint: "Cooldowns and workspace roots", group: "Navigate", keywords: "cooldown roots workspace hybrid", icon: SettingsIcon, run: () => navigate("/settings") },
     ],
-    [navigate, onToggleSidebar],
+    [navigate, onToggleSidebar, emitCoachAction],
   );
 
   const filtered = useMemo(() => {

@@ -168,4 +168,30 @@ export const api = {
     }>("POST", "/api/coach/execute", { command }),
   getCoachAudit: (limit = 50) =>
     request<{ entries: Array<Record<string, unknown>>; count: number }>("GET", `/api/coach/audit?limit=${limit}`),
+  getProviderCooldown: () =>
+    request<{
+      version: number;
+      providers: Record<string, { label: string; status: string; effective_status?: string; cooldown_until?: string | null; eta?: string | null; cooldown_label?: string | null }>;
+      current_session_provider?: string | null;
+      matrix_line: string;
+      limits_reference?: Record<string, unknown>;
+      updated_at?: string;
+    }>("GET", "/api/providers/cooldown"),
+  patchProviderCooldown: (body: { provider?: string; status?: string; cooldown_until?: string | null; preset?: string; current_session_provider?: string | null }) =>
+    request<any>("PATCH", "/api/providers/cooldown", body),
+  getWorkspaceRoots: () =>
+    request<{ roots: Array<{ id: string; label: string; path: string; role?: string; exists?: boolean; valid?: boolean }>; active_root_id: string; active_root?: Record<string, unknown> | null; enforce_boundaries: boolean }>("GET", "/api/workspace/roots"),
+  putWorkspaceRoots: (body: { roots?: Array<{ id: string; label: string; path: string; role?: string }>; active_root_id?: string; enforce_boundaries?: boolean }) =>
+    request<any>("PUT", "/api/workspace/roots", body),
+  generateHandoff: (body?: { next_action?: string; write_snapshot?: boolean }) =>
+    request<{ markdown: string; json: Record<string, unknown>; copied_at: string; snapshot_path?: string | null }>("POST", "/api/handoff/generate", body || {}),
+  getHandoffLatest: () => request<{ markdown?: string; empty?: boolean }>("GET", "/api/handoff/latest"),
+  sessionBootstrap: (body: {
+    cooldowns?: Array<{ provider: string; status?: string; cooldown_until?: string | null; preset?: string }>;
+    current_session_provider?: string | null;
+    roots?: Array<{ id: string; label: string; path: string; role?: string }>;
+    active_root_id?: string;
+    enforce_boundaries?: boolean;
+    inbound_handoff?: string;
+  }) => request<any>("POST", "/api/session/bootstrap", body),
 } as const;

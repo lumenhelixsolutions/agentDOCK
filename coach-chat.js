@@ -174,6 +174,9 @@ function summarizeCoachContext(context) {
       recentCommits: context.mcpContext.git?.recentCommits || null,
       memoryExcerpt: context.mcpContext.filesystem?.find((f) => f.path === 'memory.md')?.excerpt?.slice(0, 400) || null,
     } : null,
+    providerMatrix: context.hybridWorkspace?.cooldown?.matrix_line || context.pageContext?.providerMatrix || null,
+    activeRoot: context.hybridWorkspace?.active_root_path || context.workspaceTerse?.active_root || null,
+    workspaceBoundaries: context.workspaceTerse?.rule || null,
   };
 }
 

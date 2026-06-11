@@ -53,6 +53,44 @@ describe('api', () => {
     });
   }
 
+  function patch(path, bodyObj) {
+    return new Promise((resolve, reject) => {
+      const body = JSON.stringify(bodyObj || {});
+      const req = http.request(`${baseUrl}${path}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+        timeout: 5000,
+      }, (res) => {
+        let data = '';
+        res.on('data', chunk => { data += chunk; });
+        res.on('end', () => resolve({ status: res.statusCode, body: data }));
+      });
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('Request timeout')); });
+      req.write(body);
+      req.end();
+    });
+  }
+
+  function put(path, bodyObj) {
+    return new Promise((resolve, reject) => {
+      const body = JSON.stringify(bodyObj || {});
+      const req = http.request(`${baseUrl}${path}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+        timeout: 5000,
+      }, (res) => {
+        let data = '';
+        res.on('data', chunk => { data += chunk; });
+        res.on('end', () => resolve({ status: res.statusCode, body: data }));
+      });
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('Request timeout')); });
+      req.write(body);
+      req.end();
+    });
+  }
+
   it('GET /api/templates returns templates object', async () => {
     const res = await get('/api/templates');
     assert.strictEqual(res.status, 200);
@@ -298,5 +336,48 @@ describe('api', () => {
     assert.strictEqual(json.counts.mcp_servers, 2);
     assert.ok(json.prefab);
     assert.ok(json.detected);
+  });
+
+  it('GET /api/providers/cooldown returns provider matrix', async () => {
+    const res = await get('/api/providers/cooldown');
+    assert.strictEqual(res.status, 200);
+    const json = JSON.parse(res.body);
+    assert.ok(json.providers?.claude);
+    assert.ok(json.matrix_line);
+    assert.ok(json.limits_reference?.claude);
+  });
+
+  it('PATCH /api/providers/cooldown updates status', async () => {
+    const until = new Date(Date.now() + 3600000).toISOString();
+    const res = await patch('/api/providers/cooldown', { provider: 'claude', status: 'cooldown', cooldown_until: until });
+    assert.strictEqual(res.status, 200);
+    const json = JSON.parse(res.body);
+    assert.strictEqual(json.providers.claude.effective_status, 'cooldown');
+    await patch('/api/providers/cooldown', { provider: 'claude', status: 'active', cooldown_until: null });
+  });
+
+  it('GET /api/workspace/roots returns roots validation', async () => {
+    const res = await get('/api/workspace/roots');
+    assert.strictEqual(res.status, 200);
+    const json = JSON.parse(res.body);
+    assert.ok(Array.isArray(json.roots));
+    assert.ok(json.hasOwnProperty('active_root_id'));
+  });
+
+  it('POST /api/handoff/generate returns markdown packet', async () => {
+    const res = await post('/api/handoff/generate', { write_snapshot: false });
+    assert.strictEqual(res.status, 200);
+    const json = JSON.parse(res.body);
+    assert.ok(json.markdown.includes('PROJECT STATE DUMP'));
+    assert.ok(json.json?.target_directory);
+  });
+
+  it('POST /api/plan bypass_cooldown includes cooldown registry', async () => {
+    const res = await post('/api/plan', { goal: 'bypass_cooldown' });
+    assert.strictEqual(res.status, 200);
+    const json = JSON.parse(res.body);
+    assert.strictEqual(json.goal, 'bypass_cooldown');
+    assert.ok(json.cooldown?.providers);
+    assert.ok(Array.isArray(json.recommended));
   });
 });
