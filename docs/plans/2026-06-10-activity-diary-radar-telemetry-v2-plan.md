@@ -1,6 +1,6 @@
 # Session Diary · Radar History · Telemetry — v2 Plan
 
-> **For approval** — plan only. No implementation until you pick phases and sign off.
+> **Shipped** (2026-06-11) — Phase A+B implemented in activity-analytics v2, activity-log reconcile, and ActivityPage v2 UX.
 
 **Scope:** Fix telemetry **logic** and sharpen **UX** for session diary + radar history on HOOT `/activity`.  
 **Out of scope (unless you ask):** Token burn panel redesign, CodeBurn ingest, LAN multi-client sync.  
