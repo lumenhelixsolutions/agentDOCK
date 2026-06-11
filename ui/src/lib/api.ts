@@ -186,6 +186,21 @@ export const api = {
   generateHandoff: (body?: { next_action?: string; write_snapshot?: boolean }) =>
     request<{ markdown: string; json: Record<string, unknown>; copied_at: string; snapshot_path?: string | null }>("POST", "/api/handoff/generate", body || {}),
   getHandoffLatest: () => request<{ markdown?: string; empty?: boolean }>("GET", "/api/handoff/latest"),
+  getOnboarding: () =>
+    request<{
+      version: number;
+      completed: boolean;
+      current_step: string;
+      steps: Array<{ id: string; title: string; summary: string }>;
+      checks: Record<string, boolean>;
+      portfolio_roots: string[];
+      scan_summary: Record<string, unknown> | null;
+      projects: { active: string | null; count: number; items: Array<Record<string, unknown>> };
+      layout: Record<string, unknown>;
+      providers: Record<string, unknown>;
+    }>("GET", "/api/onboarding"),
+  postOnboarding: (body: Record<string, unknown>) =>
+    request<{ ok: boolean; onboarding: Record<string, unknown>; scan?: unknown; projects?: unknown; roots?: unknown }>("POST", "/api/onboarding", body),
   getTelemetry: () =>
     request<{ file: string | null; kernel: string; mirror: string | null; telemetry: Record<string, unknown> }>("GET", "/api/telemetry"),
   syncTelemetry: (importFromDisk?: boolean) =>

@@ -372,6 +372,16 @@ describe('api', () => {
     assert.ok(json.json?.target_directory);
   });
 
+  it('GET /api/onboarding returns scan-driven setup state', async () => {
+    const res = await get('/api/onboarding');
+    assert.strictEqual(res.status, 200);
+    const json = JSON.parse(res.body);
+    assert.ok(Array.isArray(json.steps));
+    assert.ok(json.checks);
+    assert.ok(Array.isArray(json.portfolio_roots));
+    assert.ok(json.current_step);
+  });
+
   it('GET /api/telemetry returns HOOT ai_status paths', async () => {
     const res = await get('/api/telemetry');
     assert.strictEqual(res.status, 200);

@@ -1,4 +1,6 @@
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { api } from "@/lib/api";
+import OnboardingWizard from "@/components/onboarding/OnboardingWizard";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import {
   BookOpen,
@@ -75,6 +77,25 @@ export default function AppLayout() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [onboardingData, setOnboardingData] = useState<Awaited<ReturnType<typeof api.getOnboarding>> | null>(null);
+
+  const loadOnboarding = useCallback(() => {
+    api.getOnboarding().then((data) => {
+      setOnboardingData(data);
+      if (!data.completed && data.current_step !== "ready") setOnboardingOpen(true);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    loadOnboarding();
+  }, [loadOnboarding]);
+
+  useEffect(() => {
+    const open = () => setOnboardingOpen(true);
+    window.addEventListener("hoot-open-onboarding", open);
+    return () => window.removeEventListener("hoot-open-onboarding", open);
+  }, []);
 
   const current = useMemo(() => {
     for (const group of navGroups) {
@@ -243,6 +264,12 @@ export default function AppLayout() {
 
         <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onToggleSidebar={toggleSidebar} />
         <ShortcutHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
+        <OnboardingWizard
+          open={onboardingOpen}
+          initial={onboardingData}
+          onClose={() => setOnboardingOpen(false)}
+          onComplete={loadOnboarding}
+        />
         <HootMascot />
       </div>
     </ToastProvider>

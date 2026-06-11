@@ -52,7 +52,8 @@ const {
   scoreProfileForCooldown,
   profileToProviderId,
 } = require('./provider-cooldown');
-const { loadRoots, putRoots, validateRoots, buildTerseContext, getActiveRootPath } = require('./workspace-roots');
+const { loadRoots, putRoots, validateRoots, buildTerseContext, getActiveRootPath, applyInferredRoots } = require('./workspace-roots');
+const { buildOnboardingState } = require('./onboarding');
 const {
   generateHandoffPacket,
   writeHandoffSnapshot,
@@ -130,6 +131,11 @@ const DEFAULT_USER_SETTINGS = {
   hybrid_workspace: {
     auto_handoff_on_cooldown: true,
     mirror_telemetry_to_data_root: true,
+  },
+  onboarding: {
+    completed: false,
+    completed_at: null,
+    dismissed_at: null,
   },
 };
 const activityLog = createActivityLog({ stateFile: FILES.activityLog, diaryDir: DIARY_DIR, root: ROOT });
@@ -440,7 +446,29 @@ function setActiveProject(projectPath) {
   if (proj) { proj.lastOpened = new Date().toISOString(); proj.git = readGitStatus(normPath); }
   writeJSON(FILES.projects, data);
   if (projectRegistryCache) projectRegistryCache.bust();
+  if (normPath) {
+    try { applyInferredRoots(normPath); } catch { /* optional */ }
+    try { syncTelemetryToDisk(telemetryCtx()); } catch { /* optional */ }
+  }
   return data;
+}
+
+function buildOnboardingPayload() {
+  const settings = loadUserSettings();
+  const registry = readProjectRegistry();
+  const rootsState = loadRoots(activeProject);
+  const rootsValidated = validateRoots(rootsState);
+  const scan = getCachedScanResponse() || lastScan;
+  return buildOnboardingState({
+    settings,
+    scan,
+    activeProject,
+    registry,
+    rootsState,
+    rootsValidated,
+    portfolioRoots: getProjectRoots(),
+    cooldownRaw: loadCooldownState(),
+  });
 }
 
 function readAgentsMd(projectPath) {
@@ -468,6 +496,7 @@ function loadUserSettings() {
     hoot_brain: { ...DEFAULT_USER_SETTINGS.hoot_brain, ...(stored.hoot_brain || {}) },
     operator_policy: { ...DEFAULT_USER_SETTINGS.operator_policy, ...(stored.operator_policy || {}) },
     hybrid_workspace: { ...DEFAULT_USER_SETTINGS.hybrid_workspace, ...(stored.hybrid_workspace || {}) },
+    onboarding: { ...DEFAULT_USER_SETTINGS.onboarding, ...(stored.onboarding || {}) },
   };
 }
 
@@ -489,6 +518,7 @@ function saveUserSettings(partial) {
     hoot_brain: { ...current.hoot_brain, ...(partial.hoot_brain || {}) },
     operator_policy: { ...current.operator_policy, ...(partial.operator_policy || {}) },
     hybrid_workspace: { ...current.hybrid_workspace, ...(partial.hybrid_workspace || {}) },
+    onboarding: { ...current.onboarding, ...(partial.onboarding || {}) },
   };
   writeJSON(FILES.userSettings, next);
   return next;
@@ -1699,6 +1729,66 @@ async function route(req, res) {
           },
         },
       });
+    }
+    if (pathName === '/api/onboarding' && req.method === 'GET') {
+      return send(res, 200, buildOnboardingPayload());
+    }
+    if (pathName === '/api/onboarding' && req.method === 'POST') {
+      const body = await readBody(req);
+      const action = body.action || 'complete';
+      if (action === 'run_scan') {
+        const repo = body.repo || activeProject || process.cwd();
+        const fresh = await runScanner(repo);
+        return send(res, 200, { ok: true, scan: attachCacheMeta(fresh, { cached: false, source: 'live' }), onboarding: buildOnboardingPayload() });
+      }
+      if (action === 'discover_projects') {
+        if (projectRegistryCache) projectRegistryCache.bust();
+        const data = readProjectRegistry(true);
+        return send(res, 200, { ok: true, projects: data.projects, active: data.active, onboarding: buildOnboardingPayload() });
+      }
+      if (action === 'set_project') {
+        const data = setActiveProject(body.path);
+        return send(res, 200, { ok: true, active: data.active, projects: data.projects, onboarding: buildOnboardingPayload() });
+      }
+      if (action === 'infer_layout') {
+        const target = body.path || activeProject;
+        if (!target) return send(res, 400, { error: 'No project path' });
+        const saved = applyInferredRoots(target, { force: Boolean(body.force) });
+        return send(res, 200, { ok: true, roots: validateRoots(saved), onboarding: buildOnboardingPayload() });
+      }
+      if (action === 'apply_layout') {
+        const saved = putRoots(body, activeProject);
+        return send(res, 200, { ok: true, roots: validateRoots(saved), onboarding: buildOnboardingPayload() });
+      }
+      if (action === 'apply_providers') {
+        if (body.cooldowns?.length) {
+          for (const row of body.cooldowns) {
+            try {
+              if (row.preset) applyCooldownPreset(row.provider, row.preset);
+              else patchProvider(row);
+            } catch { /* skip */ }
+          }
+        }
+        if (body.current_session_provider !== undefined) {
+          const st = loadCooldownState();
+          st.current_session_provider = body.current_session_provider || null;
+          saveCooldownState(st);
+        }
+        try { syncTelemetryToDisk(telemetryCtx()); } catch { /* optional */ }
+        return send(res, 200, { ok: true, onboarding: buildOnboardingPayload() });
+      }
+      if (action === 'complete' || action === 'dismiss') {
+        const patch = action === 'complete'
+          ? { onboarding: { completed: true, completed_at: new Date().toISOString(), dismissed_at: null } }
+          : { onboarding: { dismissed_at: new Date().toISOString() } };
+        saveUserSettings(patch);
+        if (body.inbound_handoff) {
+          const parsed = parseInboundHandoff(body.inbound_handoff);
+          if (parsed.ok && activeProject) writeInboundDraft(activeProject, parsed.draft);
+        }
+        return send(res, 200, { ok: true, onboarding: buildOnboardingPayload() });
+      }
+      return send(res, 400, { error: `Unknown onboarding action: ${action}` });
     }
     if (pathName === '/api/providers/cooldown' && req.method === 'GET') {
       const registry = enrichCooldownRegistry(loadCooldownState(), { scan: lastScan });

@@ -4,6 +4,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { inferRootsFromProject } = require('./workspace-infer');
 
 const DEFAULT_STATE_FILE = path.join(__dirname, 'state', 'workspace-roots.json');
 
@@ -42,6 +43,8 @@ function defaultRoots(activeProjectPath) {
     ],
     active_root_id: 'core',
     enforce_boundaries: false,
+    inferred: false,
+    inferred_from: null,
     updated_at: new Date().toISOString(),
   };
 }
@@ -54,6 +57,8 @@ function loadRoots(activeProjectPath) {
     roots: Array.isArray(stored.roots) ? stored.roots : fallback.roots,
     active_root_id: stored.active_root_id || fallback.active_root_id,
     enforce_boundaries: Boolean(stored.enforce_boundaries),
+    inferred: Boolean(stored.inferred),
+    inferred_from: stored.inferred_from || null,
     updated_at: stored.updated_at || new Date().toISOString(),
   };
 }
@@ -109,8 +114,24 @@ function putRoots(patch, activeProjectPath) {
     active_root_id: patch.active_root_id ?? current.active_root_id,
     enforce_boundaries: patch.enforce_boundaries ?? current.enforce_boundaries,
     roots: Array.isArray(patch.roots) ? patch.roots : current.roots,
+    inferred: patch.inferred ?? (Array.isArray(patch.roots) ? false : current.inferred),
+    inferred_from: patch.inferred_from ?? current.inferred_from,
   };
   return saveRoots(next);
+}
+
+function applyInferredRoots(projectPath, { force = false } = {}) {
+  const current = loadRoots(projectPath);
+  if (!force && !current.inferred && current.roots?.some((r) => r.path)) return current;
+  const inferred = inferRootsFromProject(projectPath);
+  if (!inferred.roots?.length) return current;
+  return saveRoots({
+    ...current,
+    roots: inferred.roots.map(({ id, label, path: p, role }) => ({ id, label, path: p, role })),
+    active_root_id: inferred.active_root_id || current.active_root_id,
+    inferred: true,
+    inferred_from: inferred.inferred_from,
+  });
 }
 
 module.exports = {
@@ -122,5 +143,6 @@ module.exports = {
   validateRoots,
   buildTerseContext,
   putRoots,
+  applyInferredRoots,
   defaultRoots,
 };

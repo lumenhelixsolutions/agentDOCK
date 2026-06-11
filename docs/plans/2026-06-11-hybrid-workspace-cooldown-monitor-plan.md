@@ -239,6 +239,7 @@ Click any provider → quick status toggle. Click "Copy registry" → paste into
 
 ### Phase D — Smart routing & initialization (optional, ~1 day)
 
+- [x] Onboarding wizard (`/api/onboarding`) — scan → project → inferred layout → providers → ready
 - [x] Boot wizard: "Inject session" form (your §4) — cooldowns + root + paste prior handoff
 - [x] Parse inbound handoff markdown → populate `project-brain` draft
 - [x] Stack Builder goal: **"Bypass cooldown"** auto-picks ACTIVE provider

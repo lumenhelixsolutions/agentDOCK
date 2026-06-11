@@ -21,14 +21,14 @@ import {
   type SummaryItem,
 } from "@/components/dashboard/widgets";
 import ProviderMatrixWidget from "@/components/hybrid/ProviderMatrixWidget";
-import SessionBootstrapWizard from "@/components/hybrid/SessionBootstrapWizard";
+
 
 export default function Dashboard() {
   const toast = useToast();
   const { setPageContext, pageContext, registerActionHandler } = useCoach();
   const [switchingProject, setSwitchingProject] = useState(false);
   const [burnLoading, setBurnLoading] = useState(false);
-  const [bootstrapOpen, setBootstrapOpen] = useState(false);
+
   const [handoffBusy, setHandoffBusy] = useState(false);
 
   const data = useDashboardData(() => toast.showToast("Failed to load dashboard data", "error"));
@@ -102,7 +102,9 @@ export default function Dashboard() {
     return registerActionHandler((target) => {
       if (target === "token-burn-refresh") refreshBurn();
       if (target === "generate-handoff") generateHandoff();
-      if (target === "session-bootstrap") setBootstrapOpen(true);
+      if (target === "session-bootstrap" || target === "open-onboarding") {
+        window.dispatchEvent(new CustomEvent("hoot-open-onboarding"));
+      }
     });
   });
 
@@ -305,16 +307,14 @@ export default function Dashboard() {
         <button type="button" disabled={handoffBusy} onClick={generateHandoff} className="hoot-gold-chip inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold">
           <ClipboardCopy size={14} /> {handoffBusy ? "Generating…" : "Generate handoff"}
         </button>
-        <button type="button" onClick={() => setBootstrapOpen(true)} className="inline-flex items-center gap-2 rounded-xl border border-border px-3.5 py-2 text-xs opacity-80 hover:opacity-100">
-          <Sparkles size={14} /> Session bootstrap
+        <button type="button" onClick={() => window.dispatchEvent(new CustomEvent("hoot-open-onboarding"))} className="inline-flex items-center gap-2 rounded-xl border border-border px-3.5 py-2 text-xs opacity-80 hover:opacity-100">
+          <Sparkles size={14} /> Workspace setup
         </button>
       </div>
 
       <ProviderMatrixWidget
         onRegistryChange={(matrixLine) => setPageContext({ providerMatrix: matrixLine })}
       />
-
-      <SessionBootstrapWizard open={bootstrapOpen} onClose={() => setBootstrapOpen(false)} />
 
       <div className="grid gap-[18px] lg:grid-cols-2">
         <NextActionsWidget actions={recommendedActions} />
