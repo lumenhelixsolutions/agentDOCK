@@ -63,7 +63,7 @@ Tokens gate everything (M1) → layout (M2) → surfaces in traffic order (M3–
 | M4 — Launch & Terminal experience | **Integrated** (2026-06-11) |
 | M5 — Stack Builder evolution | **Integrated** (2026-06-11) |
 | M6 — Profiles & Modules unification | Pending |
-| M7 — Coach & mascot polish | Pending |
+| M7 — Coach & mascot polish | **In progress** — cognitive ASCII + brain fix shipped 2026-06-11 |
 | M8 — Settings & onboarding | Pending |
 | M9 — Accessibility & motion pass | Pending |
 | M10 — Design system, regression & release | Pending |

@@ -17,6 +17,20 @@ const {
 const MAX_HISTORY = 50;
 const chats = new Map();
 
+/** Vault-first key resolution — client override only when vault has no key for provider. */
+function resolveChatApiKey({ apiKey, effectiveProvider }) {
+  if (isLocalProvider(effectiveProvider)) return undefined;
+  const vaultKey = resolveProviderKey(effectiveProvider);
+  if (vaultKey && vaultKey !== '__local__') return vaultKey;
+  const clientKey = String(apiKey || '').trim();
+  if (clientKey) return clientKey;
+  if (effectiveProvider === 'gemini') {
+    const legacy = getApiKey();
+    return legacy ? String(legacy).trim() : undefined;
+  }
+  return undefined;
+}
+
 const OPERATOR_SYSTEM_PROMPT = `You are HOOT Operator — local ops owl for this command center.
 
 YOU DO: explain screens, run scans, read repo/memory, recommend safe-audit profiles,
@@ -225,7 +239,7 @@ async function processChatMessage({
   const commandPrompt = buildCommandPrompt(context || {});
   const history = chat.messages.filter((m) => m.role !== 'system');
 
-  const resolvedKey = apiKey || resolveProviderKey(effectiveProvider) || (effectiveProvider === 'gemini' ? getApiKey() : undefined);
+  const resolvedKey = resolveChatApiKey({ apiKey, effectiveProvider });
   const hasLlm = Boolean(
     (isLocalProvider(effectiveProvider) && brain.available)
     || (resolvedKey && resolvedKey !== '__local__')
@@ -331,4 +345,4 @@ function clearChat(sessionId) {
   chats.delete(sessionId);
 }
 
-module.exports = { processChatMessage, getChatHistory, clearChat, OPERATOR_SYSTEM_PROMPT };
+module.exports = { processChatMessage, getChatHistory, clearChat, OPERATOR_SYSTEM_PROMPT, resolveChatApiKey };

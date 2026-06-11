@@ -181,12 +181,297 @@ function scanBarLine(mood: HootMood, frame: number): string | null {
   return brandFit(`  [${bar}]  `);
 }
 
+// ── Cognitive ASCII (see → think → intend → do) ─────────────────────────────
+
+export type CognitivePhase = "idle" | "perceive" | "think" | "intent" | "act" | "hold";
+
+export type CognitiveDomain =
+  | "idle"
+  | "alert"
+  | "coding"
+  | "scanning"
+  | "thinking"
+  | "launching"
+  | "reading"
+  | "monitoring"
+  | "syncing"
+  | "celebrating";
+
+type DomainVocab = {
+  perceive: string[];
+  thinkingBand: string[][];
+  act: string[];
+  emit: string[];
+  pulse: {
+    eyes?: string[][];
+    band?: string[][];
+    beak?: string[][];
+    emit?: string[][];
+  };
+  tickMs: number;
+};
+
+const COGNITIVE_DOMAINS: Record<CognitiveDomain, DomainVocab> = {
+  idle: {
+    perceive: ["( · · )", "( - - )", "( · · )"],
+    thinkingBand: [["  · · ·  "], ["  A · !  "], ["  · · ·  "]],
+    act: ["▽"],
+    emit: [" "],
+    pulse: { eyes: [["( · · )", "( - - )"]], band: [["  · · ·  ", "  A · !  "]] },
+    tickMs: 800,
+  },
+  alert: {
+    perceive: ["( ! ! )", "( ! ! )", "( ! ! )"],
+    thinkingBand: [["  · · ·  "], ["  ! · ·  "], ["  ! @ !  "], ["  · @ ·  "]],
+    act: ["@", "!!"],
+    emit: ["@", "!", " "],
+    pulse: { eyes: [["( ! ! )", "( ! !!)"]], band: [["  ! @ !  ", "  ! @!! "]], beak: [["@", "!!"]] },
+    tickMs: 300,
+  },
+  coding: {
+    perceive: ["(1 0)", "(0 1)", "(1 0)"],
+    thinkingBand: [["  1 0 1  "], ["  0 1 0  "], ["  1 0 1  "]],
+    act: [">", ";"],
+    emit: ["0", "1", " "],
+    pulse: {
+      eyes: [["(1 0)", "(0 1)"]],
+      band: [["  1 0 1  ", "  0 1 0  "]],
+      beak: [[">", ";"]],
+      emit: [["0", "1"]],
+    },
+    tickMs: 400,
+  },
+  scanning: {
+    perceive: ["(◎ ◎)", "(◎ ◎)", "(◎ ◎)"],
+    thinkingBand: [["  ~ · ~  "], ["  ~ > ~  "], ["  ~ =>  "]],
+    act: [".", "..", "..."],
+    emit: [".", "..", "..."],
+    pulse: { band: [["  ~ > ~  ", "  ~ =>  "]], emit: [[".", "..", "..."]] },
+    tickMs: 350,
+  },
+  thinking: {
+    perceive: ["( - o )", "( o - )", "( o o )"],
+    thinkingBand: [["  · · ·  "], ["  . . .  "], ["  · @ ·  "], ["  . @ .  "]],
+    act: ["?", "‥"],
+    emit: ["@", ".", " "],
+    pulse: { eyes: [["( - o )", "( o - )", "( o o )"]], band: [["  . . .  ", "  · @ ·  "]] },
+    tickMs: 450,
+  },
+  launching: {
+    perceive: ["(◎ ◎)", "( ◎ ◎ )", "(◎ ◎)"],
+    thinkingBand: [["  · @ ·  "], ["  ! @ !  "], ["  · > ·  "]],
+    act: [">", ">^"],
+    emit: [">", "@", " "],
+    pulse: { band: [["  · @ ·  ", "  · > ·  "]], beak: [[">", ">^"]] },
+    tickMs: 300,
+  },
+  reading: {
+    perceive: ["( ◡ ◡ )", "( · · )", "( ◡ ◡ )"],
+    thinkingBand: [["  · · ·  "], ["  A · !  "], ["  · · ·  "]],
+    act: ["▽", "‾"],
+    emit: [" ", "·"],
+    pulse: { eyes: [["( ◡ ◡ )", "( · · )"]] },
+    tickMs: 500,
+  },
+  monitoring: {
+    perceive: ["( ● ● )", "( o o )", "( ● ● )"],
+    thinkingBand: [["  · · ·  "], ["  : : :  "], ["  · · ·  "]],
+    act: ["--", "::"],
+    emit: ["●", "○", " "],
+    pulse: { eyes: [["( ● ● )", "( o o )", "( ● ○ )"]] },
+    tickMs: 500,
+  },
+  syncing: {
+    perceive: ["( ◉ ◉ )", "( ● ○ )", "( ◉ ◉ )"],
+    thinkingBand: [["  [~~]  "], ["  [=>]  "], ["  [~~]  "]],
+    act: ["~▽~", "=▽="],
+    emit: ["=>", "~", " "],
+    pulse: { band: [["  [~~]  ", "  [=>]  "]] },
+    tickMs: 280,
+  },
+  celebrating: {
+    perceive: ["( ^ ^ )", "( ◠ ◠ )", "( ^ ^ )"],
+    thinkingBand: [["  · ★ ·  "], ["  ! @ !  "], ["  · ^ ·  "]],
+    act: ["^", "★"],
+    emit: ["★", "^", " "],
+    pulse: { eyes: [["( ^ ^ )", "( ◠ ◠ )"]], beak: [["^", "★"]] },
+    tickMs: 400,
+  },
+};
+
+const CASCADE_PHASES: CognitivePhase[] = ["perceive", "think", "intent", "act", "hold"];
+const FRAMES_PER_CASCADE_PHASE = 4;
+
+export function gapCenterFromEyeLine(eyeLine: string): number {
+  const open = eyeLine.indexOf("(");
+  const close = eyeLine.indexOf(")", open + 1);
+  if (open < 0 || close < 0) return Math.floor(eyeLine.length / 2);
+  const inner = eyeLine.slice(open + 1, close);
+  const tokens = inner.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length < 2) return Math.floor(eyeLine.length / 2);
+  const firstStart = eyeLine.indexOf(tokens[0]!, open + 1);
+  const firstEnd = firstStart + tokens[0]!.length;
+  const secondStart = eyeLine.indexOf(tokens[1]!, firstEnd);
+  return Math.floor((firstEnd + secondStart) / 2);
+}
+
+export function alignRow(glyph: string, width = WIDTH, centerCol?: number): string {
+  const text = glyph.trim();
+  if (!text) return " ".repeat(width);
+  const center = centerCol ?? Math.floor(width / 2);
+  const start = Math.max(0, Math.round(center - (text.length - 1) / 2));
+  const line = " ".repeat(start) + text;
+  if (line.length >= width) return line.slice(0, width);
+  return line + " ".repeat(width - line.length);
+}
+
+export function faceCenterCol(eyeLine: string): number {
+  return gapCenterFromEyeLine(fit(eyeLine));
+}
+
+function pickCycle<T>(items: T[] | undefined, frame: number, fallback: T): T {
+  if (!items?.length) return fallback;
+  return items[frame % items.length]!;
+}
+
+function pickPulseRow(rows: string[][] | undefined, frame: number, fallback: string): string {
+  if (!rows?.length) return fallback;
+  const row = rows[frame % rows.length]!;
+  return row[Math.floor(frame / rows.length) % row.length] ?? row[0] ?? fallback;
+}
+
+function emotionToDomain(emotion: HootEmotion, ctx: HootMoodContext): CognitiveDomain {
+  const id = emotion.triggerId;
+  if (ctx.hasError || emotion.mood === "error") return "alert";
+  if (ctx.coachOpen && ctx.chatLoading) return "thinking";
+  if (id.startsWith("coach:") && emotion.mood === "thinking") return "thinking";
+  if (id === "chat:loading") return "thinking";
+  if (id === "scan:active" || emotion.mood === "scanning") return "scanning";
+  if (id === "radar:external" || emotion.mood === "alert") return "alert";
+  if (id === "path:/activity" || emotion.mood === "logging") return "monitoring";
+  if (emotion.mood === "syncing" || emotion.mood === "installing") return "syncing";
+  if (emotion.mood === "celebrating" || emotion.mood === "proud") return "celebrating";
+  if (id === "launch:running" || id === "path:terminal" || emotion.mood === "building" || emotion.mood === "launching") {
+    return ctx.pathname === "/terminal" || ctx.pathname === "/launch" || id === "launch:running" ? "coding" : "launching";
+  }
+  if (emotion.mood === "reading" || emotion.mood === "curious") return "reading";
+  if (emotion.mood === "monitoring" || emotion.mood === "watchful") return "monitoring";
+  return "idle";
+}
+
+type CognitiveState = {
+  triggerId: string;
+  domain: CognitiveDomain;
+  phase: CognitivePhase;
+  phaseAge: number;
+};
+
+let cognitiveState: CognitiveState = {
+  triggerId: "idle",
+  domain: "idle",
+  phase: "hold",
+  phaseAge: 0,
+};
+
+export function resetCognitiveState(): void {
+  cognitiveState = { triggerId: "idle", domain: "idle", phase: "hold", phaseAge: 0 };
+}
+
+export class CognitiveRuntime {
+  tick(ctx: HootMoodContext, frame: number): { lines: string[]; domain: CognitiveDomain; phase: CognitivePhase } {
+    const emotion = resolveHootEmotion(ctx);
+    const domain = emotionToDomain(emotion, ctx);
+    const triggerId = emotion.triggerId;
+
+    if (triggerId !== cognitiveState.triggerId || domain !== cognitiveState.domain) {
+      cognitiveState = { triggerId, domain, phase: "perceive", phaseAge: 0 };
+    } else if (cognitiveState.phase !== "hold") {
+      if (cognitiveState.phaseAge >= FRAMES_PER_CASCADE_PHASE) {
+        const idx = CASCADE_PHASES.indexOf(cognitiveState.phase);
+        const next = idx >= 0 && idx < CASCADE_PHASES.length - 1 ? CASCADE_PHASES[idx + 1]! : "hold";
+        cognitiveState = { ...cognitiveState, phase: next, phaseAge: 0 };
+      } else {
+        cognitiveState = { ...cognitiveState, phaseAge: cognitiveState.phaseAge + 1 };
+      }
+    }
+
+    const vocab = COGNITIVE_DOMAINS[cognitiveState.domain];
+    const phase = cognitiveState.phase;
+    const pulseFrame = frame;
+
+    let eyes: string;
+    let band: string;
+    let beak: string;
+    let emit: string;
+
+    if (phase === "hold") {
+      eyes = pickPulseRow(vocab.pulse.eyes, pulseFrame, pickCycle(vocab.perceive, pulseFrame, "( · · )"));
+      band = pickPulseRow(vocab.pulse.band, pulseFrame, vocab.thinkingBand[0]?.[0] ?? "  · · ·  ");
+      beak = pickPulseRow(vocab.pulse.beak, pulseFrame, pickCycle(vocab.act, pulseFrame, "▽"));
+      emit = pickPulseRow(vocab.pulse.emit, pulseFrame, " ");
+    } else {
+      const bandFrames = vocab.thinkingBand;
+      if (phase === "perceive") {
+        eyes = pickCycle(vocab.perceive, 0, "( · · )");
+        band = bandFrames[0]?.[0] ?? "  · · ·  ";
+        beak = "▽";
+        emit = " ";
+      } else if (phase === "think") {
+        eyes = pickCycle(vocab.perceive, 0, "( · · )");
+        band = bandFrames[1]?.[0] ?? bandFrames[0]?.[0] ?? "  ! · ·  ";
+        beak = "▽";
+        emit = " ";
+      } else if (phase === "intent") {
+        eyes = pickCycle(vocab.perceive, 0, "( · · )");
+        band = bandFrames[2]?.[0] ?? bandFrames[bandFrames.length - 1]?.[0] ?? "  ! @ !  ";
+        beak = "▽";
+        emit = " ";
+      } else {
+        eyes = pickCycle(vocab.perceive, 0, "( · · )");
+        band = bandFrames[Math.max(0, bandFrames.length - 2)]?.[0] ?? "  · @ ·  ";
+        beak = pickCycle(vocab.act, 0, "@");
+        emit = pickCycle(vocab.emit, 0, "@");
+      }
+    }
+
+    const eyesLine = fit(eyes);
+    const center = faceCenterCol(eyesLine);
+    const bandLine = alignRow(band.trim(), WIDTH, center);
+    const beakLineStr = alignRow(beak, WIDTH, center);
+    const emitLine = emit.trim() ? alignRow(emit, WIDTH, center) : null;
+    const caption = fit((emotion.caption || statusCaption(emotion.mood, frame, null)).slice(0, WIDTH));
+
+    const lines = [bandLine, eyesLine, beakLineStr];
+    if (emitLine && emit.trim()) lines.push(emitLine);
+    lines.push(caption);
+
+    return { lines, domain: cognitiveState.domain, phase };
+  }
+}
+
+const defaultCognitiveRuntime = new CognitiveRuntime();
+
+export function renderCognitiveCompactLines(
+  ctx: HootMoodContext,
+  _offset: PupilOffset,
+  frame: number,
+  statusOverride?: string | null,
+): string[] {
+  const { lines } = defaultCognitiveRuntime.tick(ctx, frame);
+  if (!statusOverride) return lines;
+  const next = [...lines];
+  next[next.length - 1] = fit(statusOverride.slice(0, WIDTH));
+  return next;
+}
+
 export function renderCompactLines(
   mood: HootMood,
   offset: PupilOffset,
   frame: number,
   statusOverride?: string | null,
+  ctx?: HootMoodContext,
 ): string[] {
+  if (ctx) return renderCognitiveCompactLines(ctx, offset, frame, statusOverride);
   return [
     earLine(mood, frame),
     eyeLine(offset, mood, frame),

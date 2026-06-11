@@ -9,6 +9,7 @@ import {
   renderBrandLines,
   renderCompactLines,
   type HootMood,
+  type HootMoodContext,
   type PupilOffset,
 } from "./hoot-ascii";
 
@@ -17,6 +18,7 @@ const DIM_COLOR = "rgba(232,213,163,0.55)";
 
 export type HootLogoProps = {
   mood: HootMood;
+  moodContext?: HootMoodContext;
   size?: number;
   showWordmark?: boolean;
   showSubtitle?: boolean;
@@ -47,6 +49,10 @@ function colorizeLine(line: string, mood: HootMood, frame: number, isWordmarkLin
       color = glow;
       shadow = `0 0 ${6 + pulse * 6}px ${glow}, 0 0 2px #FFF176`;
       weight = 600;
+    } else if (ch === "@") {
+      color = "#FFF176";
+      shadow = `0 0 ${8 + pulse * 8}px #ffb042, 0 0 3px #FFF176`;
+      weight = 700;
     } else if (isWordmarkLine) {
       color = LINE_COLOR;
       weight = 700;
@@ -100,6 +106,7 @@ function AsciiBlock({
 /** ASCII HOOT logo — frame sprites, per-char eye glow, optional mouse tracking */
 export default function HootLogo({
   mood,
+  moodContext,
   size = 72,
   showWordmark = false,
   frame: frameProp,
@@ -115,10 +122,10 @@ export default function HootLogo({
   const frame = frameProp ?? frameInternal;
   const lines = showWordmark
     ? renderBrandLines(mood, offset, frame)
-    : renderCompactLines(mood, offset, frame, statusLine);
+    : renderCompactLines(mood, offset, frame, statusLine, moodContext);
 
   const lineCount = lines.length;
-  const fontSize = showWordmark ? size / (lineCount + 1) : size / 5.5;
+  const fontSize = showWordmark ? size / (lineCount + 1) : size / (lineCount + 0.5);
   const wordmarkStart = showWordmark ? lineCount - 2 : lineCount;
 
   useEffect(() => {
@@ -159,6 +166,7 @@ export default function HootLogo({
   };
 
   const motionClass = asciiMotionClass(mood);
+  const hasEmit = Boolean(moodContext && lines.length >= 5 && lines[lines.length - 2]?.trim());
   const Tag = onClick ? "button" : "div";
 
   return (
@@ -168,7 +176,7 @@ export default function HootLogo({
       onClick={onClick}
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
-      className={[className, "hoot-ascii", motionClass].filter(Boolean).join(" ")}
+      className={[className, "hoot-ascii", motionClass, hasEmit ? "hoot-ascii--emit" : ""].filter(Boolean).join(" ")}
       style={style}
       aria-label="HOOT"
     >

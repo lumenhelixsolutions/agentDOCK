@@ -58,6 +58,7 @@ type CoachContextValue = {
   refreshHints: () => void;
   hootMood: HootMood;
   setHootMood: (mood: HootMood, options?: { ttl?: number }) => void;
+  chatLoading: boolean;
   setChatLoading: (loading: boolean) => void;
   hootPinned: boolean;
   setHootPinned: (pinned: boolean) => void;
@@ -353,6 +354,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
     refreshHints,
     hootMood,
     setHootMood,
+    chatLoading,
     setChatLoading,
     hootPinned,
     setHootPinned,

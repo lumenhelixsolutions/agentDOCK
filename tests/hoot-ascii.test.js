@@ -1,7 +1,17 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert');
 
-// Mirror of gap/beak alignment logic (keep in sync with ui/src/lib/hoot-ascii.ts)
+// Mirror alignment helpers — keep in sync with ui/src/lib/hoot-ascii.ts
+const WIDTH = 11;
+
+function fit(line, width = WIDTH) {
+  if (line.length === width) return line;
+  if (line.length > width) return line.slice(0, width);
+  const pad = width - line.length;
+  const left = Math.floor(pad / 2);
+  return ' '.repeat(left) + line + ' '.repeat(width - line.length - left);
+}
+
 function gapCenterFromEyeLine(eyeLine) {
   const open = eyeLine.indexOf('(');
   const close = eyeLine.indexOf(')', open + 1);
@@ -15,14 +25,22 @@ function gapCenterFromEyeLine(eyeLine) {
   return Math.floor((firstEnd + secondStart) / 2);
 }
 
-function beakLineFromEyes(glyph, eyeLine, width = 11) {
-  const text = glyph;
-  if (!text.trim()) return ' '.repeat(width);
-  const gap = gapCenterFromEyeLine(eyeLine);
-  const start = Math.max(0, Math.round(gap - (text.length - 1) / 2));
+function alignRow(glyph, width = WIDTH, centerCol) {
+  const text = String(glyph || '').trim();
+  if (!text) return ' '.repeat(width);
+  const center = centerCol ?? Math.floor(width / 2);
+  const start = Math.max(0, Math.round(center - (text.length - 1) / 2));
   const line = ' '.repeat(start) + text;
   if (line.length >= width) return line.slice(0, width);
   return line + ' '.repeat(width - line.length);
+}
+
+function faceCenterCol(eyeLine) {
+  return gapCenterFromEyeLine(fit(eyeLine));
+}
+
+function beakLineFromEyes(glyph, eyeLine, width = 11) {
+  return alignRow(glyph, width, gapCenterFromEyeLine(eyeLine));
 }
 
 describe('hoot ascii beak alignment', () => {
@@ -51,5 +69,25 @@ describe('hoot ascii beak alignment', () => {
 
     const question = beakLineFromEyes(' ? ', eyes);
     assert.strictEqual(question[5], '?');
+  });
+
+  it('faceCenterCol matches gap center on fitted eyes', () => {
+    const eyes = '  ( ! ! )  ';
+    assert.strictEqual(faceCenterCol(eyes), gapCenterFromEyeLine(eyes));
+  });
+});
+
+describe('hoot cognitive layout', () => {
+  it('builds 7-line stack order: band above eyes, emit below beak', () => {
+    const eyes = fit('( ! ! )');
+    const center = faceCenterCol(eyes);
+    const band = alignRow('! @ !', WIDTH, center);
+    const beak = alignRow('▽', WIDTH, center);
+    const emit = alignRow('@', WIDTH, center);
+    const lines = [band, eyes, beak, emit, fit('watching')];
+    assert.strictEqual(lines[0].trim(), '! @ !');
+    assert.ok(lines[1].includes('!'));
+    assert.strictEqual(lines[2].trim(), '▽');
+    assert.strictEqual(lines[3].trim(), '@');
   });
 });

@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
 import HootLogo from "@/lib/hoot-logo";
-import { moodColor, moodFrameInterval, moodLabel, type HootMood } from "@/lib/hoot-ascii";
+import { moodColor, moodFrameInterval, moodLabel, type HootMood, type HootMoodContext } from "@/lib/hoot-ascii";
 
 export default function HootOwl({
   mood,
+  moodContext,
   size = "sm",
   onClick,
   statusLine,
   showWordmark = false,
 }: {
   mood: HootMood;
+  moodContext?: HootMoodContext;
   size?: "sm" | "lg";
   onClick?: () => void;
   statusLine?: string | null;
@@ -28,12 +30,13 @@ export default function HootOwl({
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
       <HootLogo
         mood={mood}
+        moodContext={moodContext}
         size={px}
         frame={frame}
         onClick={onClick}
         showWordmark={showWordmark}
         statusLine={statusLine}
-        trackMouse
+        trackMouse={!moodContext}
       />
       {!showWordmark && (
         <span

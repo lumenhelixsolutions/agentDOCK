@@ -230,6 +230,22 @@
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-3px); }
   }
+
+  .hoot-ascii--emit .hoot-ascii-line:nth-last-child(2) {
+    animation: hootEmitDrop 0.45s ease-out;
+  }
+
+  @keyframes hootEmitDrop {
+    0% { opacity: 0; transform: translateY(-4px); }
+    40% { opacity: 1; }
+    100% { opacity: 0.85; transform: translateY(2px); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hoot-ascii--emit .hoot-ascii-line:nth-last-child(2) {
+      animation: none;
+    }
+  }
 }
 
 /* Motion accessibility baseline (full sweep in M9): honor user preference */

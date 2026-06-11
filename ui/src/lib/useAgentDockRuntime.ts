@@ -16,9 +16,14 @@ function getModelProvider(): string | undefined {
   return p === "auto" ? undefined : p;
 }
 
-/** Optional browser override; server resolves keys from scan vault first. */
+/** Browser override — only sent when user explicitly chose a cloud provider. */
 function getApiKeyOverride(): string | undefined {
-  return localStorage.getItem("agentdock_gemini_key") || localStorage.getItem("agentdock_api_key") || undefined;
+  const provider = localStorage.getItem("agentdock_model_provider") || "auto";
+  if (provider === "auto" || provider === "ollama" || provider === "llamacpp" || provider === "coach-local") {
+    return undefined;
+  }
+  const key = (localStorage.getItem("agentdock_gemini_key") || localStorage.getItem("agentdock_api_key") || "").trim();
+  return key || undefined;
 }
 
 function extractText(message: AppendMessage): string {
@@ -59,9 +64,10 @@ export function useAgentDockRuntime(
       onCommands?.(null);
       try {
         const provider = getModelProvider();
+        const apiKey = getApiKeyOverride();
         const res = await api.chat(sessionId, trimmed, {
           ...(provider ? { provider } : {}),
-          apiKey: getApiKeyOverride(),
+          ...(apiKey ? { apiKey } : {}),
           customEndpoint: localStorage.getItem("agentdock_custom_endpoint") || undefined,
           coachView: coachContext?.coachView,
           pageContext: coachContext?.pageContext,

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useCoach } from "@/context/CoachContext";
 import CoachThread from "@/components/coach/CoachThread";
@@ -44,7 +44,21 @@ export default function HootMascot() {
     consumeChatPrompt, emitCoachAction, queueChatPrompt,
     hootMood, hootPinned, setHootPinned,
     hootError, clearHootError, hootStatus, setHootStatus,
+    chatLoading, pageContext,
   } = useCoach();
+
+  const hootMoodContext = useMemo(
+    () => ({
+      pathname: location.pathname,
+      pageContext,
+      hasError: Boolean(hootError),
+      coachOpen,
+      chatLoading,
+      topHintTone: topHint?.tone || null,
+      hasTopHint: Boolean(topHint),
+    }),
+    [location.pathname, pageContext, hootError, coachOpen, chatLoading, topHint],
+  );
   const [bubbleVisible, setBubbleVisible] = useState(true);
   const [composerPrompt, setComposerPrompt] = useState<string | null>(null);
   const [poppedOut, setPoppedOut] = useState(false);
@@ -304,7 +318,7 @@ export default function HootMascot() {
           >
             <div style={dragHandleStyle}>
               {poppedOut && <GripHorizontal size={14} color="#666" style={{ flexShrink: 0 }} />}
-              <HootOwl mood={hootMood} size="sm" statusLine={hootStatus} />
+              <HootOwl mood={hootMood} moodContext={hootMoodContext} size="sm" statusLine={hootStatus} />
               <div>
                 <span style={{ fontSize: 14, fontWeight: 600, color: "#ffb042" }}>{BRAND.name}</span>
                 <span style={{ fontSize: 10, marginLeft: 8, opacity: 0.5 }}>{BRAND.mascotTagline}{poppedOut ? " · drag to move" : ""}</span>
@@ -333,6 +347,7 @@ export default function HootMascot() {
         <div style={{ pointerEvents: "auto" }}>
           <HootOwl
             mood={hootMood}
+            moodContext={hootMoodContext}
             size="lg"
             onClick={() => setCoachOpen(true)}
             statusLine={hootStatus}

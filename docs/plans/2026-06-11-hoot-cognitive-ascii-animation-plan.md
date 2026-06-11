@@ -1,6 +1,6 @@
 # HOOT Cognitive ASCII + Brain Fix — Combined Plan
 
-> **Approved** (2026-06-11) — scope locked: Phase 0+1+2 cognitive ASCII **and** HOOT brain/API-key fix in **one pass**. Reply `execute the plan` / `ship it` to implement.
+> **Shipped** (2026-06-11) — Phase 0+1+2 cognitive ASCII **and** HOOT brain/API-key fix implemented.
 
 **Date:** 2026-06-11  
 **Relates to:** UIUX M7 (mascot polish) · `ui/src/lib/hoot-ascii.ts` · `hoot-logo.tsx` · `HootMascot.tsx`  
