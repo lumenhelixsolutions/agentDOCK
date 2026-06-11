@@ -24,12 +24,70 @@
     --input: 0 0% 16%;
     --ring: 34 68% 75%;
     --radius: 0px;
+
+    /* HOOT brand tokens (single source of truth for gold family) */
+    --hoot-gold: #ffb042;
+    --hoot-gold-light: #f5c878;
+    --hoot-gold-mid: #e8a050;
+    --hoot-gold-dark: #c8872e;
+    --hoot-ink: #0a0a0a;
+    --hoot-face: #12100e;
+    --hoot-glow: rgba(255, 176, 66, 0.28);
+
+    /* ANSI terminal palette (console surface is dark in both themes) */
+    --term-black: #52525b;
+    --term-red: #f87171;
+    --term-green: #4ade80;
+    --term-yellow: #facc15;
+    --term-blue: #60a5fa;
+    --term-magenta: #c084fc;
+    --term-cyan: #22d3ee;
+    --term-white: #e4e4e7;
+    --term-bright-black: #71717a;
+    --term-bright-red: #fca5a5;
+    --term-bright-green: #86efac;
+    --term-bright-yellow: #fde047;
+    --term-bright-blue: #93c5fd;
+    --term-bright-magenta: #d8b4fe;
+    --term-bright-cyan: #67e8f9;
+    --term-bright-white: #fafafa;
+  }
+
+  /* Light theme — warm paper, gold darkened for AA contrast on light surfaces */
+  .light {
+    --background: 40 25% 96%;
+    --foreground: 20 8% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 20 8% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 8% 10%;
+    --primary: 34 65% 38%;
+    --primary-foreground: 40 25% 97%;
+    --secondary: 40 18% 90%;
+    --secondary-foreground: 20 8% 10%;
+    --muted: 40 14% 88%;
+    --muted-foreground: 24 8% 32%;
+    --accent: 34 65% 38%;
+    --accent-foreground: 40 25% 97%;
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 24 10% 10% / 0.12;
+    --input: 40 14% 88%;
+    --ring: 34 65% 38%;
+
+    --hoot-gold: #c8872e;
+    --hoot-gold-light: #e8a050;
+    --hoot-gold-mid: #b67a26;
+    --hoot-gold-dark: #99661f;
+    --hoot-ink: #faf7f2;
+    --hoot-face: #f1ebe1;
+    --hoot-glow: rgba(200, 135, 46, 0.22);
   }
 
   body {
-    @apply bg-[#0a0a0a] text-white;
+    @apply bg-background text-foreground;
     font-family: 'Inter', sans-serif;
-    font-weight: 200;
+    font-weight: 300;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     overflow-x: hidden;
@@ -38,6 +96,47 @@
   h1, h2, h3, h4, h5, h6 {
     font-family: 'EB Garamond', serif;
     font-weight: 400;
+  }
+}
+
+
+@layer components {
+  /* Semantic HOOT surfaces built on the token layer (M2) */
+  .hoot-gold-text { color: var(--hoot-gold); }
+  .hoot-gold-chip {
+    border: 1px solid color-mix(in srgb, var(--hoot-gold) 18%, transparent);
+    background: color-mix(in srgb, var(--hoot-gold) 8%, transparent);
+    color: color-mix(in srgb, var(--hoot-gold) 75%, hsl(var(--foreground)));
+  }
+  .hoot-card-soft {
+    border: 1px solid hsl(var(--border));
+    background: color-mix(in srgb, hsl(var(--foreground)) 3%, transparent);
+  }
+  .hoot-active-item {
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--hoot-gold) 18%, transparent),
+      color-mix(in srgb, var(--hoot-gold) 8%, transparent)
+    );
+    border: 1px solid color-mix(in srgb, var(--hoot-gold) 22%, transparent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, hsl(var(--foreground)) 6%, transparent);
+  }
+  .hoot-focus-card {
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--hoot-gold) 12%, transparent),
+      color-mix(in srgb, hsl(var(--foreground)) 3%, transparent)
+    );
+    border: 1px solid color-mix(in srgb, var(--hoot-gold) 14%, transparent);
+  }
+  .hoot-app-shell {
+    background:
+      radial-gradient(circle at top left, color-mix(in srgb, var(--hoot-gold) 8%, transparent), transparent 28%),
+      linear-gradient(180deg, hsl(var(--background)) 0%, color-mix(in srgb, hsl(var(--background)) 97%, var(--hoot-gold)) 100%);
+  }
+  .hoot-backdrop {
+    background: color-mix(in srgb, hsl(var(--background)) 60%, transparent);
+    backdrop-filter: blur(6px);
   }
 }
 
@@ -130,5 +229,14 @@
   @keyframes hootAsciiLift {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-3px); }
+  }
+}
+
+/* Motion accessibility baseline (full sweep in M9): honor user preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

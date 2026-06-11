@@ -25,6 +25,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   const opts: RequestInit = { method, headers };
   if (body !== undefined) opts.body = JSON.stringify(body);
   const res = await fetch(`${API_BASE}${path}`, opts);
+  const contentType = res.headers.get("content-type") || "";
+  if (contentType.includes("text/html") && path.startsWith("/api/")) {
+    throw new Error(`API returned HTML instead of JSON for ${path} — restart HOOT server (node server.js).`);
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const msg = String((data as { error?: string }).error || `HTTP ${res.status}`);
@@ -52,13 +56,33 @@ export const api = {
   clearAuthToken: () => request<{ ok: boolean }>("DELETE", "/api/auth/token"),
   getActivity: (from?: string, to?: string) => request<any>("GET", `/api/activity${from || to ? `?${new URLSearchParams({ ...(from ? { from } : {}), ...(to ? { to } : {}) }).toString()}` : ""}`),
   getActivityToday: () => request<any>("GET", "/api/activity/today"),
+  getActivityAnalytics: (days = 30, to?: string) => {
+    const params = new URLSearchParams({ days: String(days) });
+    if (to) params.set("to", to);
+    return request<import("./activity-types").ActivityAnalytics>("GET", `/api/activity/analytics?${params}`);
+  },
+  exportActivityJson: (days = 30) => request<{ ok: boolean; analytics: import("./activity-types").ActivityAnalytics }>("GET", `/api/activity/export?days=${days}`),
   writeDiary: (date?: string) => request<any>("POST", "/api/activity/diary", { date }),
   getProfiles: () => request<Array<any>>("GET", "/api/profiles"),
   getProfileGroups: () => request<any>("GET", "/api/profiles/groups"),
   getProfileMatrix: () => request<any>("GET", "/api/profiles/matrix"),
   getProfile: (id: string) => request<any>("GET", `/api/profile/${encodeURIComponent(id)}`),
   createProfile: (data: any) => request<any>("POST", "/api/profiles/create", data),
-  runScan: (repo?: string) => request<any>("GET", `/api/scan?repo=${encodeURIComponent(repo || "")}`),
+  runScan: (repo?: string) => request<any>("GET", `/api/scan?repo=${encodeURIComponent(repo || "")}&refresh=1`),
+  getScanCached: (repo?: string) => request<any>("GET", `/api/scan?cached=1&repo=${encodeURIComponent(repo || "")}`),
+  getBootstrap: (refreshRegistry?: boolean) =>
+    request<{
+      version: number;
+      scan: any;
+      profiles: any[];
+      usage: any;
+      memory: { text: string };
+      projects: { projects: any[]; active: string | null };
+      portfolio: { items: any[] };
+      activeProject: { active: string | null; project: any };
+      tokenBurn: any;
+    }>("GET", `/api/bootstrap${refreshRegistry ? "?refresh_registry=1" : ""}`),
+  getProfilesSummary: () => request<any[]>("GET", "/api/profiles/summary"),
   getTokenBurn: (refresh?: boolean) => request<any>("GET", `/api/token-burn${refresh ? "?refresh=1" : ""}`),
   getAgentRadar: (force?: boolean) =>
     request<{
@@ -80,6 +104,7 @@ export const api = {
   reportOutcome: (id: string, outcome: string) => request<void>("POST", `/api/session/${encodeURIComponent(id)}/outcome`, { outcome }),
   getMemory: () => request<{ text: string }>("GET", "/api/memory"),
   setMemory: (text: string) => request<void>("POST", "/api/memory", { text }),
+  getCompatibilityRules: () => request<any>("GET", "/api/compatibility-rules"),
   getCatalog: () => request<any>("GET", "/api/catalog"),
   getProjects: () => request<any>("GET", "/api/projects"),
   getActiveProject: () => request<any>("GET", "/api/active-project"),
@@ -125,6 +150,12 @@ export const api = {
     request<{ view: string; guide: Record<string, unknown>; orchestration: Record<string, unknown> }>("GET", `/api/coach/docs?view=${encodeURIComponent(view)}`),
   getCoachBrain: () =>
     request<{ brain: Record<string, unknown>; pull?: Record<string, unknown>; scan?: Record<string, unknown> }>("GET", "/api/coach/brain"),
+  getCoachTools: () =>
+    request<{
+      tools: { app: Array<Record<string, unknown>>; mcp: Array<Record<string, unknown>> };
+      coachActions: Array<{ id: string; label: string; aliases?: string[] }>;
+      mcpPreview?: Record<string, unknown> | null;
+    }>("GET", "/api/coach/tools"),
   coachExecute: (command: Record<string, unknown>) =>
     request<{
       ok: boolean;
@@ -135,4 +166,6 @@ export const api = {
       launched?: boolean;
       session?: Record<string, unknown> | null;
     }>("POST", "/api/coach/execute", { command }),
+  getCoachAudit: (limit = 50) =>
+    request<{ entries: Array<Record<string, unknown>>; count: number }>("GET", `/api/coach/audit?limit=${limit}`),
 } as const;

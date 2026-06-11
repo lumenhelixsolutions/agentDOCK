@@ -16,6 +16,9 @@ const https = require('https');
 const { advisorAnalyze } = require('./advisor');
 const { processChatMessage, getChatHistory, clearChat } = require('./chat');
 const { executeCoachCommand } = require('./coach-operator');
+const { gatherOperatorContext, listOperatorTools } = require('./coach-mcp');
+const { appendOperatorLog, listOperatorLog } = require('./hoot-operator-log');
+const { listCoachActions } = require('./coach-actions');
 const { resolveHootBrain, getPullState } = require('./hoot-brain');
 const { buildCoachHints } = require('./coach-hints');
 const { getViewGuide, ORCHESTRATION_LOOP } = require('./coach-guides');
@@ -36,6 +39,10 @@ const { runAgentRadar } = require('./agent-radar');
 const { buildTokenBurnReport, refreshRtkGain } = require('./token-burn');
 const { checkAuth, generateToken, hashToken, getAuthSettings, isAuthPublicPath } = require('./hoot-auth');
 const { createActivityLog } = require('./activity-log');
+const { buildActivityAnalytics, formatDiaryMarkdown } = require('./activity-analytics');
+const { hydrateLastScan, attachCacheMeta } = require('./scan-cache');
+const { createProjectRegistryCache } = require('./project-registry-cache');
+const { enrichProfilesSummary } = require('./profile-summary');
 
 const ROOT = __dirname;
 function resolveBindHost() {
@@ -69,6 +76,7 @@ const FILES = {
   modulesState: path.join(DIRS.state, 'modules-state.json'),
   activityLog: path.join(DIRS.state, 'activity-log.json'),
   userSession: path.join(DIRS.state, 'user-session.json'),
+  hootOperatorLog: path.join(DIRS.state, 'hoot-operator-log.json'),
 };
 const DIARY_DIR = path.join(ROOT, 'diary');
 
@@ -84,6 +92,12 @@ const DEFAULT_USER_SETTINGS = {
   auth: { enabled: false, token_hash: null, created_at: null },
   network: { lan_enabled: LAN_MODE },
   hoot_brain: { mode: 'auto', ollama_model: '', cloud_provider: 'gemini' },
+  operator_policy: {
+    native_tools: true,
+    mcp_git: true,
+    mcp_filesystem: true,
+    audit_log: true,
+  },
 };
 const activityLog = createActivityLog({ stateFile: FILES.activityLog, diaryDir: DIARY_DIR, root: ROOT });
 const UI_DIST = path.join(ROOT, 'ui', 'dist');
@@ -93,7 +107,16 @@ const SKILLS_CATALOG = path.join(SKILLS_DIR, 'skills-catalog.json');
 let lastScan = null;
 let lastAgentRadar = null;
 let lastAgentRadarAt = 0;
+let radarReconciled = false;
 const AGENT_RADAR_TTL_MS = 8000;
+
+function dockSessionsByPid() {
+  const map = new Map();
+  for (const s of sessions.values()) {
+    if (s.status === 'running' && s.pid) map.set(Number(s.pid), s.id);
+  }
+  return map;
+}
 let activeProject = null;
 const sessions = new Map();
 
@@ -102,6 +125,12 @@ const sessions = new Map();
   const proj = readJSON(FILES.projects, { projects: [], active: null });
   if (proj.active && fs.existsSync(proj.active)) activeProject = path.normalize(proj.active);
 })();
+
+(function initLastScan() {
+  const hydrated = hydrateLastScan(DIRS.logs);
+  if (hydrated?.scan) lastScan = hydrated.scan;
+})();
+
 harvestFromProcessEnv();
 
 function nowStamp() { return new Date().toISOString().replace(/[:.]/g, '-'); }
@@ -331,7 +360,7 @@ function readGitStatus(repoPath) {
   return result;
 }
 
-function readProjectRegistry() {
+function readProjectRegistryUncached() {
   const data = readJSON(FILES.projects, { projects: [], active: null });
   const discovered = discoverProjects();
   const merged = [];
@@ -350,14 +379,34 @@ function readProjectRegistry() {
   return data;
 }
 
+let projectRegistryCache = null;
+
+function readProjectRegistry(force = false) {
+  if (!projectRegistryCache) {
+    projectRegistryCache = createProjectRegistryCache({ readRegistry: readProjectRegistryUncached });
+  }
+  return projectRegistryCache.get(force);
+}
+
+function getCachedScanResponse() {
+  if (lastScan) return attachCacheMeta(lastScan, { cached: true, source: 'memory' });
+  const hydrated = hydrateLastScan(DIRS.logs);
+  if (hydrated?.scan) {
+    lastScan = hydrated.scan;
+    return attachCacheMeta(hydrated.scan, { cached: true, source: hydrated.meta.source, file: hydrated.meta.file });
+  }
+  return null;
+}
+
 function setActiveProject(projectPath) {
   const normPath = path.normalize(projectPath || '');
-  const data = readProjectRegistry();
+  const data = readProjectRegistry(true);
   data.active = normPath;
   activeProject = normPath;
   const proj = data.projects.find(p => path.normalize(p.path || '') === normPath);
   if (proj) { proj.lastOpened = new Date().toISOString(); proj.git = readGitStatus(normPath); }
   writeJSON(FILES.projects, data);
+  if (projectRegistryCache) projectRegistryCache.bust();
   return data;
 }
 
@@ -384,6 +433,7 @@ function loadUserSettings() {
     auth: { ...DEFAULT_USER_SETTINGS.auth, ...(stored.auth || {}) },
     network: { ...DEFAULT_USER_SETTINGS.network, ...(stored.network || {}), lan_enabled: LAN_MODE },
     hoot_brain: { ...DEFAULT_USER_SETTINGS.hoot_brain, ...(stored.hoot_brain || {}) },
+    operator_policy: { ...DEFAULT_USER_SETTINGS.operator_policy, ...(stored.operator_policy || {}) },
   };
 }
 
@@ -403,6 +453,7 @@ function saveUserSettings(partial) {
     auth: { ...current.auth, ...(partial.auth || {}) },
     network: { ...current.network, ...(partial.network || {}) },
     hoot_brain: { ...current.hoot_brain, ...(partial.hoot_brain || {}) },
+    operator_policy: { ...current.operator_policy, ...(partial.operator_policy || {}) },
   };
   writeJSON(FILES.userSettings, next);
   return next;
@@ -1259,8 +1310,7 @@ function buildMcpPayload() {
   };
 }
 
-function buildPortfolioHealth() {
-  const data = readProjectRegistry();
+function buildPortfolioHealthFromRegistry(data) {
   const items = [];
   for (const p of data.projects) {
     const issues = [];
@@ -1271,6 +1321,11 @@ function buildPortfolioHealth() {
   }
   return items;
 }
+
+function buildPortfolioHealth(force = false) {
+  return buildPortfolioHealthFromRegistry(readProjectRegistry(force));
+}
+
 function createSession(profile, script, options = {}) {
   const id = `s-${nowStamp()}-${Math.random().toString(16).slice(2, 8)}`;
   const scriptPath = path.join(DIRS.sessions, `${id}.ps1`);
@@ -1468,7 +1523,50 @@ async function route(req, res) {
     }
     if (pathName === '/api/scan' && req.method === 'GET') {
       const repo = url.searchParams.get('repo') || process.cwd();
-      return send(res, 200, await runScanner(repo));
+      const wantCached = url.searchParams.get('cached') === '1';
+      const forceRefresh = url.searchParams.get('refresh') === '1';
+      if (wantCached && !forceRefresh) {
+        const cached = getCachedScanResponse();
+        if (cached) return send(res, 200, cached);
+        return send(res, 200, { empty: true, _cache: { cached: true, source: 'none', stale: true }, message: 'No scan cached yet — run a full scan from Readiness.' });
+      }
+      const fresh = await runScanner(repo);
+      return send(res, 200, attachCacheMeta(fresh, { cached: false, source: 'live' }));
+    }
+    if (pathName === '/api/bootstrap' && req.method === 'GET') {
+      const refreshRegistry = url.searchParams.get('refresh_registry') === '1';
+      const registry = readProjectRegistry(refreshRegistry);
+      const profiles = listProfiles();
+      const memory = readMemory();
+      const settings = loadUserSettings();
+      const scan = getCachedScanResponse();
+      const summary = enrichProfilesSummary(profiles, {
+        evaluateProfile,
+        auditProfile,
+        detectTaskMode,
+        buildProfileTelemetry,
+        lastScan,
+        memory,
+      });
+      const usage = readJSON(FILES.usage, { launches: [], outcomes: [] });
+      const active = registry.active;
+      const activeProj = active ? registry.projects.find((p) => path.normalize(p.path || '') === path.normalize(active)) : null;
+      let tokenBurn = null;
+      try {
+        tokenBurn = buildTokenBurnReport({ scan: lastScan, profiles, settings });
+      } catch { /* optional */ }
+      return send(res, 200, {
+        version: 1,
+        generated_at: new Date().toISOString(),
+        scan,
+        profiles: summary,
+        usage,
+        memory: { text: memory },
+        projects: { projects: registry.projects, active: registry.active, _cache: registry._cache },
+        portfolio: { items: buildPortfolioHealthFromRegistry(registry) },
+        activeProject: { active, project: activeProj },
+        tokenBurn,
+      });
     }
     if (pathName === '/api/token-burn' && req.method === 'GET') {
       const refresh = url.searchParams.get('refresh') === '1';
@@ -1492,12 +1590,17 @@ async function route(req, res) {
       const force = url.searchParams.get('force') === '1';
       const dockPids = [...sessions.values()].filter((s) => s.status === 'running' && s.pid).map((s) => s.pid);
       const stale = !lastAgentRadar || Date.now() - lastAgentRadarAt > AGENT_RADAR_TTL_MS;
+      const dockByPid = dockSessionsByPid();
       if (force || stale) {
         const prevRadar = lastAgentRadar;
         lastAgentRadar = await runAgentRadar({ dockPids });
         lastAgentRadarAt = Date.now();
         try {
-          activityLog.diffRadarSnapshots(prevRadar, lastAgentRadar, { project: activeProject });
+          if (!radarReconciled) {
+            activityLog.reconcileRadarSessions(lastAgentRadar, { project: activeProject, dockSessionsByPid: dockByPid });
+            radarReconciled = true;
+          }
+          activityLog.diffRadarSnapshots(prevRadar, lastAgentRadar, { project: activeProject, dockSessionsByPid: dockByPid });
         } catch { /* non-fatal */ }
       }
       return send(res, 200, { ...lastAgentRadar, dock_sessions: dockPids.length, cached: !force && !stale });
@@ -1510,6 +1613,50 @@ async function route(req, res) {
     }
     if (pathName === '/api/activity/today' && req.method === 'GET') {
       return send(res, 200, activityLog.todaySummary());
+    }
+    if (pathName === '/api/activity/analytics' && req.method === 'GET') {
+      const days = Math.min(90, Math.max(7, Number(url.searchParams.get('days') || 30)));
+      const toDate = url.searchParams.get('to') || undefined;
+      const data = activityLog.load();
+      const usage = readJSON(FILES.usage, { launches: [], outcomes: [] });
+      let tokenBurn = null;
+      try {
+        tokenBurn = buildTokenBurnReport({
+          scan: lastScan,
+          profiles: listProfiles(),
+          settings: readJSON(FILES.userSettings, DEFAULT_USER_SETTINGS),
+        });
+      } catch { /* optional */ }
+      const live = lastAgentRadar
+        ? {
+            running: lastAgentRadar.summary?.total ?? 0,
+            dock: lastAgentRadar.summary?.dock ?? 0,
+            external: lastAgentRadar.summary?.external ?? 0,
+            scanned_at: lastAgentRadar.scanned_at,
+            agents: lastAgentRadar.agents ?? [],
+          }
+        : null;
+      return send(res, 200, buildActivityAnalytics({ activityData: data, usage, tokenBurn, days, toDate, live }));
+    }
+    if (pathName === '/api/activity/export' && req.method === 'GET') {
+      const days = Math.min(90, Math.max(7, Number(url.searchParams.get('days') || 30)));
+      const data = activityLog.load();
+      const usage = readJSON(FILES.usage, { launches: [], outcomes: [] });
+      let tokenBurn = null;
+      try {
+        tokenBurn = buildTokenBurnReport({ scan: lastScan, profiles: listProfiles(), settings: readJSON(FILES.userSettings, DEFAULT_USER_SETTINGS) });
+      } catch { /* optional */ }
+      const live = lastAgentRadar
+        ? {
+            running: lastAgentRadar.summary?.total ?? 0,
+            dock: lastAgentRadar.summary?.dock ?? 0,
+            external: lastAgentRadar.summary?.external ?? 0,
+            scanned_at: lastAgentRadar.scanned_at,
+            agents: lastAgentRadar.agents ?? [],
+          }
+        : null;
+      const analytics = buildActivityAnalytics({ activityData: data, usage, tokenBurn, days, live });
+      return send(res, 200, { ok: true, exported_at: new Date().toISOString(), analytics });
     }
     if (pathName === '/api/activity/emit' && req.method === 'POST') {
       const body = await readBody(req);
@@ -1525,8 +1672,27 @@ async function route(req, res) {
     }
     if (pathName === '/api/activity/diary' && req.method === 'POST') {
       const body = await readBody(req);
-      const file = activityLog.writeDiary(body.date);
-      return send(res, 200, { ok: true, file, markdown: activityLog.generateDiaryMarkdown(body.date) });
+      const day = body.date || new Date().toISOString().slice(0, 10);
+      const usage = readJSON(FILES.usage, { launches: [], outcomes: [] });
+      let tokenBurn = null;
+      try {
+        tokenBurn = buildTokenBurnReport({ scan: lastScan, profiles: listProfiles(), settings: readJSON(FILES.userSettings, DEFAULT_USER_SETTINGS) });
+      } catch { /* optional */ }
+      const live = lastAgentRadar
+        ? {
+            running: lastAgentRadar.summary?.total ?? 0,
+            dock: lastAgentRadar.summary?.dock ?? 0,
+            external: lastAgentRadar.summary?.external ?? 0,
+            scanned_at: lastAgentRadar.scanned_at,
+            agents: lastAgentRadar.agents ?? [],
+          }
+        : null;
+      const analytics = buildActivityAnalytics({ activityData: activityLog.load(), usage, tokenBurn, days: 30, toDate: day, live });
+      const markdown = formatDiaryMarkdown(day, analytics);
+      fs.mkdirSync(DIARY_DIR, { recursive: true });
+      const file = path.join(DIARY_DIR, `${day}.md`);
+      fs.writeFileSync(file, markdown, 'utf8');
+      return send(res, 200, { ok: true, file, markdown });
     }
     if (pathName === '/api/user-session' && req.method === 'GET') {
       return send(res, 200, readJSON(FILES.userSession, { clients: [], last_active_at: null, last_project: activeProject }));
@@ -1543,6 +1709,7 @@ async function route(req, res) {
       writeJSON(FILES.userSession, next);
       return send(res, 200, next);
     }
+    if (pathName === '/api/compatibility-rules' && req.method === 'GET') return send(res, 200, loadCompatibilityRules());
     if (pathName === '/api/catalog' && req.method === 'GET') return send(res, 200, loadCatalog());
     if (pathName === '/api/prefab' && req.method === 'GET') {
       const inventory = await getPrefabInventory({ root: ROOT, moduleManager, lastScan });
@@ -1627,9 +1794,33 @@ async function route(req, res) {
       return send(res, 200, skill);
     }
     if (pathName === '/api/suggestions' && req.method === 'GET') return send(res, 200, { suggestions: buildSuggestions(lastScan) });
-    if (pathName === '/api/profiles' && req.method === 'GET') {
+    if (pathName === '/api/profiles/summary' && req.method === 'GET') {
       const profiles = listProfiles();
       const memory = readMemory();
+      const summary = enrichProfilesSummary(profiles, {
+        evaluateProfile,
+        auditProfile,
+        detectTaskMode,
+        buildProfileTelemetry,
+        lastScan,
+        memory,
+      });
+      return send(res, 200, summary);
+    }
+    if (pathName === '/api/profiles' && req.method === 'GET') {
+      const summaryOnly = url.searchParams.get('summary') === '1';
+      const profiles = listProfiles();
+      const memory = readMemory();
+      if (summaryOnly) {
+        return send(res, 200, enrichProfilesSummary(profiles, {
+          evaluateProfile,
+          auditProfile,
+          detectTaskMode,
+          buildProfileTelemetry,
+          lastScan,
+          memory,
+        }));
+      }
       const enriched = profiles.map(p => {
         const ev = evaluateProfile(p, lastScan, memory);
         const audit = auditProfile(p, profiles);
@@ -1758,11 +1949,13 @@ async function route(req, res) {
     }
     if (pathName === '/api/usage' && req.method === 'GET') return send(res, 200, readJSON(FILES.usage, { launches: [] }));
     if (pathName === '/api/projects' && req.method === 'GET') {
-      const data = readProjectRegistry();
-      return send(res, 200, { projects: data.projects, active: data.active });
+      const force = url.searchParams.get('refresh') === '1';
+      const data = readProjectRegistry(force);
+      return send(res, 200, { projects: data.projects, active: data.active, _cache: data._cache });
     }
     if (pathName === '/api/projects/discover' && req.method === 'POST') {
-      const data = readProjectRegistry();
+      if (projectRegistryCache) projectRegistryCache.bust();
+      const data = readProjectRegistry(true);
       return send(res, 200, { projects: data.projects, active: data.active, discovered: data.projects.length });
     }
     if (pathName === '/api/active-project' && req.method === 'POST') {
@@ -1848,7 +2041,8 @@ async function route(req, res) {
       return send(res, 200, { ok: true, settings: saved });
     }
     if (pathName === '/api/portfolio/health' && req.method === 'GET') {
-      return send(res, 200, { items: buildPortfolioHealth() });
+      const force = url.searchParams.get('refresh') === '1';
+      return send(res, 200, { items: buildPortfolioHealth(force) });
     }
     if (pathName === '/api/race' && req.method === 'POST') {
       const body = await readBody(req);
@@ -1869,14 +2063,39 @@ async function route(req, res) {
       const brain = resolveHootBrain({ scan: lastScan, settings });
       return send(res, 200, { brain, pull: getPullState(), scan: lastScan ? { ollama: lastScan.tools?.ollama, llamacpp: (lastScan.local_models?.backends || []).find(b => b.id === 'llamacpp') } : null });
     }
+    if (pathName === '/api/coach/tools' && req.method === 'GET') {
+      const settings = loadUserSettings();
+      const tools = listOperatorTools();
+      const coachActions = listCoachActions();
+      let mcpPreview = null;
+      try {
+        mcpPreview = await gatherOperatorContext({ hootRoot: ROOT, activeProject, settings });
+      } catch { /* optional */ }
+      return send(res, 200, { tools, coachActions, mcpPreview });
+    }
+    if (pathName === '/api/coach/audit' && req.method === 'GET') {
+      const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit') || 50)));
+      const entries = listOperatorLog(FILES.hootOperatorLog, limit);
+      return send(res, 200, { entries, count: entries.length });
+    }
     if (pathName === '/api/coach/execute' && req.method === 'POST') {
       const body = await readBody(req);
+      const settings = loadUserSettings();
       const deps = buildCoachDeps();
       const items = body.commands || (body.command ? [body.command] : []);
       if (!items.length) return send(res, 400, { error: 'command or commands required' });
       const results = [];
       for (const cmd of items) {
         const result = await executeCoachCommand(cmd, deps);
+        if (settings.operator_policy?.audit_log !== false) {
+          appendOperatorLog(FILES.hootOperatorLog, {
+            source: 'coach-execute',
+            tool: cmd.type,
+            ok: Boolean(result.ok),
+            blocked: !result.ok,
+            error: result.error || null,
+          });
+        }
         results.push(result);
       }
       const last = results[results.length - 1] || {};
@@ -1897,6 +2116,10 @@ async function route(req, res) {
       const coachView = body.coachView || body.view || '/';
       const pageContext = body.pageContext || {};
       const viewGuide = getViewGuide(coachView);
+      let mcpContext = null;
+      try {
+        mcpContext = await gatherOperatorContext({ hootRoot: ROOT, activeProject, settings });
+      } catch { /* optional */ }
       const context = {
         activeProject: proj,
         installedAgents: (lastScan?.coders || []).filter(c => c.detection?.present).map(c => c.id),
@@ -1910,7 +2133,9 @@ async function route(req, res) {
         viewGuide,
         orchestration: ORCHESTRATION_LOOP,
         sessions: [...sessions.values()].map(publicSession).slice(0, 8),
+        mcpContext,
       };
+      const coachDeps = buildCoachDeps();
       const result = await processChatMessage({
         sessionId: body.sessionId || 'default',
         text: body.text,
@@ -1921,6 +2146,13 @@ async function route(req, res) {
         apiKey: body.apiKey,
         customEndpoint: body.customEndpoint,
         settings,
+        operatorRuntime: {
+          hootRoot: ROOT,
+          activeProject,
+          policy: settings.operator_policy,
+          deps: { executeCoachCommand, coachDeps },
+          appendLog: (entry) => appendOperatorLog(FILES.hootOperatorLog, entry),
+        },
       });
       return send(res, 200, result);
     }
@@ -2006,6 +2238,9 @@ if (require.main === module) {
           if (r.ran) console.log(`Module auto-sync: ${JSON.stringify(r.results)}`);
         }).catch(() => {});
       }, 3000);
+      setTimeout(() => {
+        runScanner(process.cwd()).catch(() => {});
+      }, 5000);
     })
     .catch((err) => {
       console.error(`AgentDock server error: ${err.message}`);

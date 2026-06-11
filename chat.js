@@ -2,10 +2,17 @@
  * HOOT AI Coach chat — multi-provider with local brain + operator commands.
  */
 
-const { providerChat, toGeminiContents, toOpenAIMessages, getApiKey } = require('./advisor');
+const { providerChat, toGeminiContents, toOpenAIMessages, getApiKey, ollamaChatCompletion } = require('./advisor');
 const { resolveProviderKey, isLocalProvider } = require('./key-vault');
 const { resolveHootBrain } = require('./hoot-brain');
 const { buildCoachChatResponse, summarizeCoachContext } = require('./coach-chat');
+const { listCoachActions } = require('./coach-actions');
+const {
+  MAX_TOOL_ROUNDS,
+  buildOperatorToolSchemas,
+  executeNativeTool,
+  toolRunsFromResults,
+} = require('./coach-tools');
 
 const MAX_HISTORY = 50;
 const chats = new Map();
@@ -44,8 +51,11 @@ function trimHistory(chat) {
 
 function buildCommandPrompt(context) {
   const summary = summarizeCoachContext(context);
+  const mcpBlock = context.mcpContext
+    ? `\n\nLive read-only context (git + HOOT files — cite when answering repo/memory questions):\n${JSON.stringify(context.mcpContext, null, 2)}`
+    : '';
   return `Current screen context (use this — do NOT invent state):
-${JSON.stringify(summary, null, 2)}
+${JSON.stringify(summary, null, 2)}${mcpBlock}
 
 App commands (optional \`\`\`json commands\`\`\` block — server executes allowlisted tools):
 - navigate { route } — e.g. /scan, /profiles, /terminal, /memory
@@ -56,11 +66,15 @@ App commands (optional \`\`\`json commands\`\`\` block — server executes allow
 - readMemory {}
 - appendMemory { title, kind, observed, reason, profileId? }
 - makePlan { goal }
-- coachAction { target } — scan-run, launch-staged, module-sync
+- coachAction { target } — UI actions: ${listCoachActions().map((a) => a.id).join(', ')}
 - getPrefab {}, getActivity {}
 - showMessage { text }, openUrl { url }
 
 Aliases: launch→launchProfile, generatePlan→makePlan, setMemory→appendMemory
+
+Operator loop via chat: runScan → getStatus → recommend safe profile → launchProfile → navigate /terminal.
+Use coachAction for in-page buttons (scan-run, launch-staged-go, wizard-agent, modules-auto-sync, etc.).
+When mcpContext is present, cite git/memory excerpts — do not invent repo state.
 
 Respond to the user's message directly. Reference the screen they are on.`;
 }
@@ -75,6 +89,84 @@ function extractCommands(aiText) {
   } catch { /* ignore */ }
   const text = aiText.replace(/```json commands\s*\n[\s\S]*?```/i, '').trim();
   return { text, commands };
+}
+
+function operatorPolicy(settings) {
+  const p = settings?.operator_policy || {};
+  return {
+    native_tools: p.native_tools !== false,
+    mcp_git: p.mcp_git !== false,
+    mcp_filesystem: p.mcp_filesystem !== false,
+    audit_log: p.audit_log !== false,
+  };
+}
+
+async function runOllamaNativeToolLoop({
+  endpoint,
+  model,
+  messages,
+  operatorRuntime,
+  sessionId,
+}) {
+  const tools = buildOperatorToolSchemas();
+  const toolCallLog = [];
+  let workingMessages = [...messages];
+  let finalContent = '';
+  let rounds = 0;
+
+  while (rounds < MAX_TOOL_ROUNDS) {
+    rounds += 1;
+    const res = await ollamaChatCompletion(endpoint, model, workingMessages, { tools });
+    const assistantMsg = res.message || { role: 'assistant', content: '' };
+    finalContent = res.content || assistantMsg.content || '';
+
+    if (!res.tool_calls?.length) break;
+
+    workingMessages.push({
+      role: 'assistant',
+      content: assistantMsg.content || '',
+      tool_calls: res.tool_calls,
+    });
+
+    for (const tc of res.tool_calls) {
+      const fn = tc.function || {};
+      const name = fn.name;
+      const args = fn.arguments;
+      const result = await executeNativeTool(name, args, {
+        deps: operatorRuntime.deps,
+        hootRoot: operatorRuntime.hootRoot,
+        activeProject: operatorRuntime.activeProject,
+        policy: operatorRuntime.policy,
+      });
+      toolCallLog.push({ name, args, result });
+
+      if (operatorRuntime.appendLog && operatorRuntime.policy?.audit_log !== false) {
+        operatorRuntime.appendLog({
+          source: 'chat-native-loop',
+          sessionId,
+          tool: name,
+          ok: Boolean(result?.ok),
+          blocked: Boolean(result?.blocked),
+          error: result?.error || null,
+        });
+      }
+
+      workingMessages.push({
+        role: 'tool',
+        tool_call_id: tc.id,
+        content: JSON.stringify(result),
+      });
+    }
+  }
+
+  const toolRuns = toolRunsFromResults(toolCallLog.map((c) => ({ name: c.name, result: c.result })));
+  return {
+    text: finalContent,
+    toolCallLog,
+    toolRuns,
+    nativeTools: toolCallLog.length > 0,
+    rounds,
+  };
 }
 
 function resolveEffectiveBrain({ provider, context, settings }) {
@@ -101,7 +193,18 @@ function resolveEffectiveBrain({ provider, context, settings }) {
   return brain;
 }
 
-async function processChatMessage({ sessionId, text, event, context, provider, model, apiKey, customEndpoint, settings }) {
+async function processChatMessage({
+  sessionId,
+  text,
+  event,
+  context,
+  provider,
+  model,
+  apiKey,
+  customEndpoint,
+  settings,
+  operatorRuntime,
+}) {
   const chat = getChat(sessionId);
 
   if (event) {
@@ -146,30 +249,57 @@ async function processChatMessage({ sessionId, text, event, context, provider, m
 
   let aiText = '';
   let commands = [];
+  let toolRuns = [];
+  let nativeTools = false;
+  const policy = operatorPolicy(settings);
 
   try {
-    if (effectiveProvider === 'gemini') {
+    const openAiMessages = toOpenAIMessages([
+      { role: 'system', text: `${systemMsg}\n\n${commandPrompt}` },
+      ...history,
+    ]);
+
+    if (
+      effectiveProvider === 'ollama'
+      && policy.native_tools
+      && operatorRuntime?.deps
+    ) {
+      const loop = await runOllamaNativeToolLoop({
+        endpoint: effectiveEndpoint,
+        model: effectiveModel,
+        messages: openAiMessages,
+        operatorRuntime: { ...operatorRuntime, policy },
+        sessionId,
+      });
+      aiText = loop.text;
+      toolRuns = loop.toolRuns;
+      nativeTools = loop.nativeTools;
+      if (!nativeTools) {
+        const extracted = extractCommands(aiText);
+        aiText = extracted.text;
+        commands = extracted.commands;
+      }
+    } else if (effectiveProvider === 'gemini') {
       const contents = toGeminiContents([
         { role: 'system', text: `${systemMsg}\n\n${commandPrompt}` },
         ...history,
       ]);
       aiText = await providerChat({ provider: 'gemini', model: effectiveModel || 'gemini-2.0-flash', apiKey: resolvedKey, contents });
+      const extracted = extractCommands(aiText);
+      aiText = extracted.text;
+      commands = extracted.commands;
     } else {
-      const messages = toOpenAIMessages([
-        { role: 'system', text: `${systemMsg}\n\n${commandPrompt}` },
-        ...history,
-      ]);
       aiText = await providerChat({
         provider: effectiveProvider,
         model: effectiveModel,
         apiKey: resolvedKey === '__local__' ? undefined : resolvedKey,
         customEndpoint: effectiveEndpoint,
-        messages,
+        messages: openAiMessages,
       });
+      const extracted = extractCommands(aiText);
+      aiText = extracted.text;
+      commands = extracted.commands;
     }
-    const extracted = extractCommands(aiText);
-    aiText = extracted.text;
-    commands = extracted.commands;
   } catch (e) {
     const local = buildCoachChatResponse({ text, context: context || {} });
     const shortErr = String(e.message || 'unavailable').split('\n')[0].slice(0, 120);
@@ -183,7 +313,14 @@ async function processChatMessage({ sessionId, text, event, context, provider, m
   chat.messages.push({ role: 'model', text: aiText });
   trimHistory(chat);
 
-  return { text: aiText, commands, source: effectiveProvider, brain: { provider: effectiveProvider, model: effectiveModel, endpoint: effectiveEndpoint } };
+  return {
+    text: aiText,
+    commands,
+    toolRuns,
+    nativeTools,
+    source: effectiveProvider,
+    brain: { provider: effectiveProvider, model: effectiveModel, endpoint: effectiveEndpoint },
+  };
 }
 
 function getChatHistory(sessionId) {

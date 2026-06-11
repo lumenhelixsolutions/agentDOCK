@@ -95,20 +95,86 @@ function buildCoachChatResponse({ text, context = {} }) {
   };
 }
 
+function viewOperatorSnapshot(view, pageContext = {}, context = {}) {
+  const pc = pageContext;
+  const snap = { view };
+
+  if (view === '/' || view === '/dashboard') {
+    snap.readyCount = pc.readyCount;
+    snap.blockedCount = pc.blockedCount;
+    snap.scanPresent = pc.scanPresent;
+    snap.runningCount = pc.runningCount;
+    snap.portfolioIssues = pc.portfolioIssues;
+  } else if (view === '/scan') {
+    snap.scanLoaded = pc.scanLoaded;
+    snap.ollamaPresent = pc.ollamaPresent;
+    snap.missingAgents = pc.missingAgents;
+    snap.tokenBurnRisk = pc.tokenBurnRisk;
+    snap.agentRadarExternal = pc.agentRadarExternal;
+    snap.agentRadarTotal = pc.agentRadarTotal;
+  } else if (view === '/profiles') {
+    snap.viewMode = pc.viewMode;
+    snap.easyStep = pc.easyStep;
+    snap.easyTopPickId = pc.easyTopPickId;
+    snap.easyTopPickName = pc.easyTopPickName;
+    snap.blockedCount = pc.blockedCount;
+  } else if (view === '/builder' || view === '/stack') {
+    snap.stackScore = pc.stackScore;
+    snap.stackIssues = pc.stackIssues?.slice?.(0, 3);
+    snap.wizardStep = pc.wizardStep;
+    snap.hasAgent = pc.hasAgent;
+    snap.hasLlm = pc.hasLlm;
+    snap.nodeCount = pc.nodeCount;
+  } else if (view === '/launch') {
+    snap.recommendedCount = pc.recommendedCount;
+    snap.previewProfileId = pc.previewProfileId;
+    snap.stagedProfileId = pc.stagedProfileId;
+    snap.hasAuditWarnings = pc.hasAuditWarnings;
+  } else if (view === '/modules') {
+    snap.modulesTab = pc.modulesTab;
+    snap.modulesOutdated = pc.modulesOutdated;
+    snap.modulesNeedSync = pc.modulesNeedSync;
+    snap.modulesReady = pc.modulesReady;
+    snap.cePluginDetected = pc.cePluginDetected;
+  } else if (view === '/terminal' || view === '/launch') {
+    snap.runningCount = pc.runningCount;
+    snap.activeSessionId = pc.activeSessionId;
+    snap.errorCount = pc.errorCount;
+  }
+
+  const ready = (context.profiles || []).filter((p) => p.state === 'READY');
+  if (ready.length) snap.readyProfileIds = ready.slice(0, 5).map((p) => p.id);
+
+  return snap;
+}
+
 function summarizeCoachContext(context) {
   const guide = context.viewGuide || getViewGuide(context.coachView);
+  const pageContext = context.pageContext || {};
   return {
     coachView: context.coachView,
     screen: guide.title,
     screenSummary: guide.summary,
     features: guide.features,
     orchestration: ORCHESTRATION_LOOP.compose,
-    pageContext: context.pageContext,
-    activeProject: context.activeProject?.name || null,
+    recommendedNext: guide.nextActions?.[0] || null,
+    pageContext,
+    operatorSnapshot: viewOperatorSnapshot(context.coachView, pageContext, context),
+    activeProject: context.activeProject?.name || context.activeProject?.path || null,
     ollamaPresent: context.scan?.tools?.ollama?.present || false,
     installedAgents: context.installedAgents?.slice(0, 8),
+    missingAgents: context.missingAgents?.slice(0, 6),
     readyProfiles: (context.profiles || []).filter((p) => p.state === 'READY').length,
+    blockedProfiles: (context.profiles || []).filter((p) => p.state === 'BLOCKED').length,
+    sessionsRunning: (context.sessions || []).filter((s) => s.status === 'running').length,
+    mcpContext: context.mcpContext ? {
+      activeRepo: context.mcpContext.activeRepo,
+      gitBranch: context.mcpContext.git?.branch || null,
+      gitStatus: context.mcpContext.git?.status || null,
+      recentCommits: context.mcpContext.git?.recentCommits || null,
+      memoryExcerpt: context.mcpContext.filesystem?.find((f) => f.path === 'memory.md')?.excerpt?.slice(0, 400) || null,
+    } : null,
   };
 }
 
-module.exports = { buildCoachChatResponse, summarizeCoachContext, suggestCommands };
+module.exports = { buildCoachChatResponse, summarizeCoachContext, suggestCommands, viewOperatorSnapshot };

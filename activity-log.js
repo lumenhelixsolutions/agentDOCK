@@ -7,6 +7,13 @@ const path = require('path');
 
 const DEFAULT_STATE = { version: 1, events: [], sessions: {}, daily: {} };
 const MAX_EVENTS = 5000;
+const MAX_DURATION_MS = 24 * 60 * 60 * 1000;
+
+function capDurationMs(duration_ms, meta = {}) {
+  const ms = Math.max(0, Number(duration_ms) || 0);
+  if (ms <= MAX_DURATION_MS) return { duration_ms: ms, meta };
+  return { duration_ms: MAX_DURATION_MS, meta: { ...meta, capped: true } };
+}
 
 function readJSON(file, fallback) {
   try {
@@ -70,7 +77,43 @@ function createActivityLog({ stateFile, diaryDir, root }) {
     return entry;
   }
 
-  function diffRadarSnapshots(prev, next, { project = null } = {}) {
+  function reconcileRadarSessions(liveRadar, { project = null, dockSessionsByPid = new Map() } = {}) {
+    const livePids = new Set((liveRadar?.processes || []).map((p) => Number(p.pid)).filter((p) => p > 0));
+    const now = liveRadar?.scanned_at || new Date().toISOString();
+    const data = load();
+    let changed = false;
+
+    for (const key of Object.keys(data.sessions)) {
+      const sess = data.sessions[key];
+      if (!sess?.pid || livePids.has(Number(sess.pid))) continue;
+      delete data.sessions[key];
+      changed = true;
+    }
+
+    for (const proc of liveRadar?.processes || []) {
+      const pid = Number(proc.pid);
+      if (!pid) continue;
+      const key = `radar-${pid}`;
+      if (data.sessions[key]) continue;
+      const sessionRef = dockSessionsByPid.get(pid) || null;
+      data.sessions[key] = {
+        pid,
+        agent_id: proc.agent_id,
+        agent_name: proc.agent_name,
+        source: proc.source,
+        started_at: now,
+        project,
+        session_ref: sessionRef,
+        resumed: true,
+      };
+      changed = true;
+    }
+
+    if (changed) save(data);
+    return { pruned: true, open: Object.keys(data.sessions).length };
+  }
+
+  function diffRadarSnapshots(prev, next, { project = null, dockSessionsByPid = new Map() } = {}) {
     const prevMap = new Map();
     for (const p of prev?.processes || []) {
       if (p.pid) prevMap.set(Number(p.pid), p);
@@ -80,11 +123,13 @@ function createActivityLog({ stateFile, diaryDir, root }) {
       if (p.pid) nextMap.set(Number(p.pid), p);
     }
     const now = next?.scanned_at || new Date().toISOString();
+    const scanTime = new Date(now).getTime();
     const started = [];
     const stopped = [];
 
     for (const [pid, proc] of nextMap) {
       if (!prevMap.has(pid)) {
+        const sessionRef = dockSessionsByPid.get(pid) || null;
         const data = load();
         const key = `radar-${pid}`;
         data.sessions[key] = {
@@ -94,6 +139,7 @@ function createActivityLog({ stateFile, diaryDir, root }) {
           source: proc.source,
           started_at: now,
           project,
+          session_ref: sessionRef,
         };
         save(data);
         const ev = appendEvent({
@@ -103,6 +149,7 @@ function createActivityLog({ stateFile, diaryDir, root }) {
           agent_name: proc.agent_name,
           source: proc.source,
           project,
+          session_ref: sessionRef,
           meta: { pid },
         });
         started.push(ev);
@@ -114,8 +161,9 @@ function createActivityLog({ stateFile, diaryDir, root }) {
         const data = load();
         const key = `radar-${pid}`;
         const sess = data.sessions[key];
-        const startedAt = sess?.started_at ? new Date(sess.started_at).getTime() : Date.now();
-        const duration_ms = Math.max(0, Date.now() - startedAt);
+        const sessionRef = sess?.session_ref || dockSessionsByPid.get(pid) || null;
+        const startedAt = sess?.started_at ? new Date(sess.started_at).getTime() : scanTime;
+        const { duration_ms, meta } = capDurationMs(scanTime - startedAt, { pid });
         delete data.sessions[key];
         save(data);
         const ev = appendEvent({
@@ -125,8 +173,9 @@ function createActivityLog({ stateFile, diaryDir, root }) {
           agent_name: proc.agent_name,
           source: proc.source,
           project: sess?.project || project,
+          session_ref: sessionRef,
           duration_ms,
-          meta: { pid },
+          meta,
         });
         stopped.push(ev);
       }
@@ -223,6 +272,7 @@ function createActivityLog({ stateFile, diaryDir, root }) {
   return {
     load,
     appendEvent,
+    reconcileRadarSessions,
     diffRadarSnapshots,
     recordLaunch,
     recordLaunchEnd,
@@ -233,4 +283,4 @@ function createActivityLog({ stateFile, diaryDir, root }) {
   };
 }
 
-module.exports = { createActivityLog, DEFAULT_STATE };
+module.exports = { createActivityLog, DEFAULT_STATE, capDurationMs, MAX_DURATION_MS };

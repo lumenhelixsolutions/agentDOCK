@@ -21,5 +21,17 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('recharts') || id.includes('d3-')) return 'recharts';
+            if (id.includes('@assistant-ui')) return 'coach';
+            if (id.includes('react-router') || id.includes('react-dom') || id.includes('/react/')) return 'vendor';
+          }
+        },
+      },
+    },
   },
 })

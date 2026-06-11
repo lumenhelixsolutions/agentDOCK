@@ -1,12 +1,14 @@
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import {
   BookOpen,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  Command,
   Compass,
   Layers3,
+  Menu,
   PanelLeft,
   PlayCircle,
   Radar,
@@ -15,15 +17,21 @@ import {
   Sparkles,
   TerminalSquare,
   Wrench,
+  X,
 } from "lucide-react";
+import ThemeToggle from "./ThemeToggle";
+import CommandPalette from "./CommandPalette";
+import ShortcutHelp from "./ShortcutHelp";
 import HootMascot from "./hoot/HootMascot";
 import HootMark from "./HootMark";
 import HootWordmark from "./HootWordmark";
-import { BRAND, BRAND_COLORS } from "@/lib/brand";
+import { BRAND } from "@/lib/brand";
 import HelpTooltip from "./HelpTooltip";
 import ViewGuideBar from "./ViewGuideBar";
 import { ToastProvider } from "./Toast";
 import { getViewDoc } from "@/lib/app-docs";
+import { toggleTheme } from "@/lib/theme";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const priorityRoutes = ["/", "/scan", "/profiles", "/terminal"];
 
@@ -55,9 +63,18 @@ const navGroups = [
   },
 ];
 
+function isTypingTarget(el: EventTarget | null): boolean {
+  if (!(el instanceof HTMLElement)) return false;
+  return el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable;
+}
+
 export default function AppLayout() {
   const location = useLocation();
+  const isMobile = useIsMobile();
   const [collapsed, setCollapsed] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const current = useMemo(() => {
     for (const group of navGroups) {
@@ -77,325 +94,302 @@ export default function AppLayout() {
     [],
   );
 
+  // Close the mobile drawer on navigation
+  useEffect(() => {
+    setDrawerOpen(false);
+  }, [location.pathname]);
+
+  // Global keyboard shortcuts: Ctrl/Cmd+K palette, ? help, Ctrl/Cmd+B sidebar
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+        setHelpOpen(false);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        if (isMobile) setDrawerOpen((v) => !v);
+        else setCollapsed((v) => !v);
+      } else if ((e.ctrlKey || e.metaKey) && e.key === "/") {
+        e.preventDefault();
+        setHelpOpen((v) => !v);
+      } else if ((e.ctrlKey || e.metaKey) && e.key === ".") {
+        e.preventDefault();
+        toggleTheme();
+      } else if (e.key === "?" && !isTypingTarget(e.target) && !paletteOpen) {
+        e.preventDefault();
+        setHelpOpen((v) => !v);
+      } else if (e.key === "Escape") {
+        setHelpOpen(false);
+        setDrawerOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isMobile, paletteOpen]);
+
+  const toggleSidebar = () => {
+    if (isMobile) setDrawerOpen((v) => !v);
+    else setCollapsed((v) => !v);
+  };
+
+  const sidebar = (
+    <SidebarContent
+      collapsed={!isMobile && collapsed}
+      pathname={location.pathname}
+      focusItems={focusItems}
+      onCollapseToggle={() => setCollapsed((v) => !v)}
+      showCollapseToggle={!isMobile}
+      onNavigate={() => setDrawerOpen(false)}
+    />
+  );
+
   return (
     <ToastProvider>
-      <div
-        style={{
-          display: "flex",
-          minHeight: "100vh",
-          background:
-            "radial-gradient(circle at top left, rgba(255,176,66,0.08), transparent 28%), linear-gradient(180deg, #090909 0%, #0d0d0d 100%)",
-          color: "#ece8e1",
-          fontFamily: "'Inter', sans-serif",
-        }}
-      >
-        <aside
-          style={{
-            width: collapsed ? 88 : 280,
-            flexShrink: 0,
-            borderRight: "1px solid rgba(255,255,255,0.08)",
-            background: "linear-gradient(180deg, rgba(10,10,10,0.95) 0%, rgba(12,12,12,0.92) 100%)",
-            backdropFilter: "blur(18px)",
-            display: "flex",
-            flexDirection: "column",
-            position: "fixed",
-            inset: "0 auto 0 0",
-            zIndex: 50,
-            boxShadow: "20px 0 60px rgba(0,0,0,0.28)",
-            transition: "width 0.25s ease",
-          }}
-        >
-          <div style={{ padding: collapsed ? "18px 16px" : "22px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: collapsed ? 2 : 0,
-                }}
-              >
-                <HootMark size={collapsed ? 40 : 52} mood="idle" />
-              </div>
-              {!collapsed && <HootWordmark />}
-            </div>
-            {!collapsed && (
-              <div
-                style={{
-                  marginTop: 18,
-                  padding: "14px 14px 15px",
-                  borderRadius: 18,
-                  background: "linear-gradient(180deg, rgba(255,176,66,0.12) 0%, rgba(255,255,255,0.03) 100%)",
-                  border: "1px solid rgba(255,176,66,0.14)",
-                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
-                }}
-              >
-                <div style={{ fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(255,211,154,0.8)" }}>
-                  Active focus
-                </div>
-                <div style={{ marginTop: 8, fontSize: 15, fontWeight: 600, color: "#fff7ed", lineHeight: 1.3 }}>
-                  Keep overview, readiness, profiles, and sessions in one operating loop.
-                </div>
-                <div style={{ marginTop: 8, fontSize: 12, lineHeight: 1.5, color: "rgba(236,232,225,0.62)" }}>
-                  Prioritize what is healthy, who is configured, and which sessions need action next.
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div style={{ flex: 1, overflow: "auto", padding: "16px 10px 20px" }}>
-            {navGroups.map((group) => (
-              <div key={group.title} style={{ marginBottom: 18 }}>
-                {!collapsed && (
-                  <div style={{ padding: "0 10px 8px", fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", opacity: 0.38 }}>
-                    {group.title}
-                  </div>
-                )}
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {group.items.map((item) => {
-                    const Icon = item.icon;
-                    const active = location.pathname === item.path;
-                    return (
-                      <Link
-                        key={item.path}
-                        to={item.path}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 12,
-                          borderRadius: 16,
-                          padding: collapsed ? "12px" : "12px 14px",
-                          textDecoration: "none",
-                          color: active ? "#fff7ed" : "rgba(236,232,225,0.78)",
-                          background: active ? "linear-gradient(180deg, rgba(255,176,66,0.18), rgba(255,176,66,0.08))" : "rgba(255,255,255,0.01)",
-                          border: active ? "1px solid rgba(255,176,66,0.22)" : "1px solid transparent",
-                          boxShadow: active ? "inset 0 1px 0 rgba(255,255,255,0.06), 0 14px 24px rgba(0,0,0,0.18)" : "none",
-                        }}
-                      >
-                        <Icon size={18} strokeWidth={1.8} color={active ? "#ffb042" : undefined} />
-                        {!collapsed && (
-                          <div style={{ minWidth: 0, flex: 1 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                              <div style={{ fontSize: 13, fontWeight: active ? 600 : 500 }}>{item.label}</div>
-                              <span onClick={(e) => e.preventDefault()} style={{ display: "inline-flex" }}>
-                                <HelpTooltip title={item.label} body={item.desc} size={11} />
-                              </span>
-                            </div>
-                            <div style={{ fontSize: 11, opacity: 0.48, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                              {item.desc}
-                            </div>
-                          </div>
-                        )}
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-
-            {!collapsed && (
-              <div
-                style={{
-                  marginTop: 8,
-                  padding: "14px",
-                  borderRadius: 18,
-                  border: "1px solid rgba(255,255,255,0.06)",
-                  background: "rgba(255,255,255,0.02)",
-                }}
-              >
-                <div style={{ fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", opacity: 0.44, marginBottom: 10 }}>
-                  Core views
-                </div>
-                <div style={{ display: "grid", gap: 8 }}>
-                  {focusItems.map((item, index) => {
-                    const active = location.pathname === item.path;
-                    return (
-                      <Link
-                        key={item.path}
-                        to={item.path}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: 12,
-                          textDecoration: "none",
-                          color: "inherit",
-                          padding: "10px 0",
-                          borderTop: index === 0 ? "none" : "1px solid rgba(255,255,255,0.05)",
-                        }}
-                      >
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: active ? 600 : 500, color: active ? "#fff7ed" : "#ece8e1" }}>{item.label}</div>
-                          <div style={{ fontSize: 11, color: "rgba(236,232,225,0.5)", marginTop: 2 }}>{item.desc}</div>
-                        </div>
-                        <Compass size={15} color={active ? "#ffb042" : "rgba(236,232,225,0.38)"} />
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <button
-            onClick={() => setCollapsed((v) => !v)}
-            style={{
-              padding: "14px 16px",
-              border: "none",
-              borderTop: "1px solid rgba(255,255,255,0.06)",
-              background: "transparent",
-              color: "#cfc8bc",
-              cursor: "pointer",
-              display: "flex",
-              justifyContent: collapsed ? "center" : "flex-end",
-              alignItems: "center",
-              gap: 8,
-            }}
+      <div className="hoot-app-shell flex min-h-screen bg-background font-sans text-foreground">
+        {/* Desktop sidebar */}
+        {!isMobile && (
+          <aside
+            className="fixed inset-y-0 left-0 z-50 flex flex-col border-r border-border bg-card/95 shadow-[20px_0_60px_rgba(0,0,0,0.28)] backdrop-blur-xl transition-[width] duration-200"
+            style={{ width: collapsed ? 88 : 280 }}
+            aria-label="Primary navigation"
           >
-            {!collapsed && <span style={{ fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", opacity: 0.5 }}>Dock</span>}
-            {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-          </button>
-        </aside>
+            {sidebar}
+          </aside>
+        )}
+
+        {/* Mobile drawer */}
+        {isMobile && drawerOpen && (
+          <div className="hoot-backdrop fixed inset-0 z-[80]" onMouseDown={() => setDrawerOpen(false)}>
+            <aside
+              className="flex h-full w-[280px] flex-col border-r border-border bg-card shadow-2xl"
+              aria-label="Primary navigation"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-end p-2">
+                <button onClick={() => setDrawerOpen(false)} aria-label="Close navigation" className="p-2 opacity-70">
+                  <X size={18} />
+                </button>
+              </div>
+              {sidebar}
+            </aside>
+          </div>
+        )}
 
         <main
-          style={{
-            flex: 1,
-            marginLeft: collapsed ? 88 : 280,
-            transition: "margin-left 0.25s ease",
-            minHeight: "100vh",
-            display: "flex",
-            flexDirection: "column",
-          }}
+          className="flex min-h-screen flex-1 flex-col transition-[margin-left] duration-200"
+          style={{ marginLeft: isMobile ? 0 : collapsed ? 88 : 280 }}
         >
-          <header
-            style={{
-              position: "sticky",
-              top: 0,
-              zIndex: 40,
-              backdropFilter: "blur(18px)",
-              background: "linear-gradient(180deg, rgba(9,9,9,0.88) 0%, rgba(9,9,9,0.72) 100%)",
-              borderBottom: "1px solid rgba(255,255,255,0.06)",
-              padding: "22px 30px 20px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 18,
-            }}
-          >
-            <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                <div style={{ fontSize: 11, opacity: 0.46, letterSpacing: "0.18em", textTransform: "uppercase" }}>{current.group}</div>
-                <div
-                  style={{
-                    padding: "5px 10px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(255,176,66,0.18)",
-                    background: "rgba(255,176,66,0.08)",
-                    color: "#ffd39a",
-                    fontSize: 10,
-                    letterSpacing: "0.16em",
-                    textTransform: "uppercase",
-                  }}
-                >
+          <header className="sticky top-0 z-40 flex items-center justify-between gap-4 border-b border-border bg-background/80 px-4 py-4 backdrop-blur-xl md:px-7 md:py-5">
+            <div className="flex min-w-0 flex-col gap-3">
+              <div className="flex flex-wrap items-center gap-2.5">
+                {isMobile && (
+                  <button
+                    onClick={() => setDrawerOpen(true)}
+                    aria-label="Open navigation"
+                    className="-ml-1 p-1.5 text-muted-foreground"
+                  >
+                    <Menu size={20} />
+                  </button>
+                )}
+                <div className="text-[11px] uppercase tracking-[0.18em] opacity-50">{current.group}</div>
+                <div className="hoot-gold-chip rounded-full px-2.5 py-1 text-[10px] uppercase tracking-[0.16em]">
                   {BRAND.mascotTagline}
                 </div>
               </div>
               <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ fontSize: 28, fontWeight: 650, letterSpacing: "-0.04em", color: "#ffffff" }}>{current.label}</div>
+                <div className="flex items-center gap-2.5">
+                  <h1 className="font-serif text-xl font-semibold tracking-[-0.02em] md:text-[28px]">{current.label}</h1>
                   <HelpTooltip title={viewDoc.title} body={viewDoc.summary} features={viewDoc.features} size={16} />
                 </div>
-                <div style={{ fontSize: 14, opacity: 0.72, marginTop: 4, maxWidth: 760 }}>{current.desc}</div>
+                <div className="mt-1 hidden max-w-3xl text-sm opacity-70 sm:block">{current.desc}</div>
               </div>
-              <div style={{ display: "flex", alignItems: "stretch", gap: 12, flexWrap: "wrap" }}>
+              <div className="hidden flex-wrap items-stretch gap-3 lg:flex">
                 <TopMetric
-                  icon={<Radar size={16} strokeWidth={1.9} color="#ffb042" />}
+                  icon={<Radar size={16} strokeWidth={1.9} className="hoot-gold-text" />}
                   label="Primary loop"
                   value="Overview → Readiness → Profiles → Sessions"
                 />
                 <TopMetric
-                  icon={<PanelLeft size={16} strokeWidth={1.9} color="#86efac" />}
+                  icon={<PanelLeft size={16} strokeWidth={1.9} className="text-green-300" />}
                   label="Operator focus"
                   value="Resolve blockers, launch with intent, stay in context"
                 />
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-              <StatusPill label="127.0.0.1 active" tone="green" />
-              <StatusPill label={BRAND.subtitle} tone="gold" />
-              <StatusPill label="Profiles + sessions" tone="slate" />
+            <div className="flex shrink-0 flex-col items-end gap-2 md:flex-row md:items-center md:gap-3">
+              <button
+                onClick={() => setPaletteOpen(true)}
+                aria-label="Open command palette"
+                className="hoot-card-soft flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground"
+              >
+                <Command size={13} />
+                <span className="hidden sm:inline">Search</span>
+                <kbd className="border border-border px-1.5 py-0.5 text-[10px]">Ctrl K</kbd>
+              </button>
+              <div className="hidden items-center gap-2 xl:flex">
+                <StatusPill label="127.0.0.1 active" tone="green" />
+                <StatusPill label={BRAND.subtitle} tone="gold" />
+                <StatusPill label="Profiles + sessions" tone="slate" />
+              </div>
             </div>
           </header>
 
-          <div style={{ padding: "28px 30px 34px", flex: 1 }}>
+          <div className="flex-1 px-4 py-6 md:px-7 md:py-7">
             <ViewGuideBar />
             <Outlet />
           </div>
         </main>
 
+        <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onToggleSidebar={toggleSidebar} />
+        <ShortcutHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
         <HootMascot />
       </div>
     </ToastProvider>
   );
 }
 
+function SidebarContent({
+  collapsed,
+  pathname,
+  focusItems,
+  onCollapseToggle,
+  showCollapseToggle,
+  onNavigate,
+}: {
+  collapsed: boolean;
+  pathname: string;
+  focusItems: Array<{ label: string; path: string; desc: string }>;
+  onCollapseToggle: () => void;
+  showCollapseToggle: boolean;
+  onNavigate: () => void;
+}) {
+  return (
+    <>
+      <div className={`border-b border-border ${collapsed ? "px-4 py-[18px]" : "px-5 py-[22px]"}`}>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center">
+            <HootMark size={collapsed ? 40 : 52} mood="idle" />
+          </div>
+          {!collapsed && <HootWordmark />}
+        </div>
+        {!collapsed && (
+          <div className="hoot-focus-card mt-[18px] rounded-[18px] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+            <div className="hoot-gold-text text-[10px] uppercase tracking-[0.18em] opacity-80">Active focus</div>
+            <div className="mt-2 text-[15px] font-semibold leading-snug">
+              Keep overview, readiness, profiles, and sessions in one operating loop.
+            </div>
+            <div className="mt-2 text-xs leading-relaxed opacity-60">
+              Prioritize what is healthy, who is configured, and which sessions need action next.
+            </div>
+          </div>
+        )}
+      </div>
+
+      <nav className="flex-1 overflow-auto px-2.5 pb-5 pt-4" aria-label="Sections">
+        {navGroups.map((group) => (
+          <div key={group.title} className="mb-[18px]">
+            {!collapsed && (
+              <div className="px-2.5 pb-2 text-[10px] uppercase tracking-[0.18em] opacity-40">{group.title}</div>
+            )}
+            <div className="flex flex-col gap-1">
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const active = pathname === item.path;
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={onNavigate}
+                    aria-current={active ? "page" : undefined}
+                    className={`flex items-center gap-3 rounded-2xl no-underline ${
+                      collapsed ? "justify-center p-3" : "px-3.5 py-3"
+                    } ${active ? "hoot-active-item text-foreground" : "border border-transparent text-foreground/80 hover:bg-foreground/[0.03]"}`}
+                  >
+                    <Icon size={18} strokeWidth={1.8} className={active ? "hoot-gold-text" : undefined} />
+                    {!collapsed && (
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <div className={`text-[13px] ${active ? "font-semibold" : "font-medium"}`}>{item.label}</div>
+                          <span onClick={(e) => e.preventDefault()} className="inline-flex">
+                            <HelpTooltip title={item.label} body={item.desc} size={11} />
+                          </span>
+                        </div>
+                        <div className="truncate text-[11px] opacity-50">{item.desc}</div>
+                      </div>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+
+        {!collapsed && (
+          <div className="hoot-card-soft mt-2 rounded-[18px] p-3.5">
+            <div className="mb-2.5 text-[10px] uppercase tracking-[0.18em] opacity-45">Core views</div>
+            <div className="grid gap-2">
+              {focusItems.map((item, index) => {
+                const active = pathname === item.path;
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={onNavigate}
+                    className={`flex items-center justify-between gap-3 py-2.5 no-underline ${
+                      index === 0 ? "" : "border-t border-border"
+                    } text-foreground`}
+                  >
+                    <div>
+                      <div className={`text-[13px] ${active ? "font-semibold" : "font-medium"}`}>{item.label}</div>
+                      <div className="mt-0.5 text-[11px] opacity-50">{item.desc}</div>
+                    </div>
+                    <Compass size={15} className={active ? "hoot-gold-text" : "opacity-40"} />
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </nav>
+
+      <ThemeToggle collapsed={collapsed} />
+
+      {showCollapseToggle && (
+        <button
+          onClick={onCollapseToggle}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className={`flex items-center gap-2 border-t border-border px-4 py-3.5 text-muted-foreground ${
+            collapsed ? "justify-center" : "justify-end"
+          }`}
+        >
+          {!collapsed && <span className="text-[11px] uppercase tracking-[0.14em] opacity-50">Dock</span>}
+          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+        </button>
+      )}
+    </>
+  );
+}
+
 function TopMetric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
-    <div
-      style={{
-        minWidth: 220,
-        padding: "12px 14px",
-        borderRadius: 16,
-        border: "1px solid rgba(255,255,255,0.07)",
-        background: "rgba(255,255,255,0.03)",
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 10,
-      }}
-    >
-      <div
-        style={{
-          width: 32,
-          height: 32,
-          borderRadius: 12,
-          background: "rgba(255,255,255,0.03)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-        }}
-      >
-        {icon}
-      </div>
+    <div className="hoot-card-soft flex min-w-[220px] items-start gap-2.5 rounded-2xl px-3.5 py-3">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-foreground/[0.03]">{icon}</div>
       <div>
-        <div style={{ fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", opacity: 0.46 }}>{label}</div>
-        <div style={{ fontSize: 13, color: "#f5f1ea", marginTop: 5, lineHeight: 1.45 }}>{value}</div>
+        <div className="text-[10px] uppercase tracking-[0.16em] opacity-45">{label}</div>
+        <div className="mt-1 text-[13px] leading-relaxed">{value}</div>
       </div>
     </div>
   );
 }
 
 function StatusPill({ label, tone }: { label: string; tone: "green" | "gold" | "slate" }) {
-  const styles = {
-    green: { bg: "rgba(74,222,128,0.08)", color: "#86efac", border: "rgba(74,222,128,0.18)" },
-    gold: { bg: "rgba(255,176,66,0.08)", color: "#ffd39a", border: "rgba(255,176,66,0.18)" },
-    slate: { bg: "rgba(255,255,255,0.05)", color: "#ddd6cb", border: "rgba(255,255,255,0.08)" },
+  const toneClass = {
+    green: "border-green-400/20 bg-green-400/10 text-green-300",
+    gold: "hoot-gold-chip",
+    slate: "border-border bg-foreground/5 text-muted-foreground",
   }[tone];
-
   return (
-    <div
-      style={{
-        padding: "8px 12px",
-        borderRadius: 999,
-        border: `1px solid ${styles.border}`,
-        background: styles.bg,
-        color: styles.color,
-        fontSize: 11,
-        letterSpacing: "0.08em",
-        textTransform: "uppercase",
-      }}
-    >
-      {label}
-    </div>
+    <div className={`rounded-full border px-3 py-2 text-[11px] uppercase tracking-[0.08em] ${toneClass}`}>{label}</div>
   );
 }

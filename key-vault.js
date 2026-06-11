@@ -8,7 +8,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = __dirname;
-const VAULT_FILE = path.join(ROOT, 'state', 'key-vault.json');
+const VAULT_FILE = process.env.AGENTDOCK_KEY_VAULT_FILE || path.join(ROOT, 'state', 'key-vault.json');
 
 const KNOWN_KEYS = [
   'OPENAI_API_KEY',
@@ -81,7 +81,8 @@ function saveVault(vault) {
 function getVaultKey(name) {
   const entry = loadVault().keys[name];
   if (!entry?.value) return null;
-  return decode(entry.value);
+  const decoded = decode(entry.value);
+  return decoded ? decoded.trim() : null;
 }
 
 function setVaultKey(name, value, source = 'manual', { force = false } = {}) {

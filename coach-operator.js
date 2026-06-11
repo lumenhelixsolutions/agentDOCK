@@ -11,16 +11,13 @@ const BLOCKED_ALIASES = new Set([
   'shell', 'writefile', 'editfile', 'launchcodingprofile', 'exec', 'npm', 'git', 'gitpush', 'runshell', 'deletefile',
 ]);
 
-const COACH_ACTION_TARGETS = new Set([
-  'scan-run',
-  'launch-staged',
-  'launch-staged-go',
-  'module-sync',
-  'hoot-dismiss',
-  'profile-launch',
-  'stack-template-local-audit',
-  'stack-template-cloud-refactor',
-]);
+const {
+  COACH_ACTION_TARGETS,
+  normalizeCoachActionTarget,
+  isCoachActionAllowed,
+  coachActionLabel,
+  listCoachActions,
+} = require('./coach-actions');
 
 function normalizeType(cmd) {
   const raw = String(cmd?.type || '').trim();
@@ -99,11 +96,12 @@ async function executeCoachCommand(cmd, deps) {
     case 'openUrl':
       return { ok: true, type, url: String(cmd.url || '') };
     case 'coachAction': {
-      const target = String(cmd.target || cmd.action || '');
-      if (!COACH_ACTION_TARGETS.has(target)) {
-        return { ok: false, blocked: true, error: `coachAction target not allowlisted: ${target}` };
+      const raw = String(cmd.target || cmd.action || '');
+      const target = normalizeCoachActionTarget(raw);
+      if (!isCoachActionAllowed(raw)) {
+        return { ok: false, blocked: true, error: `coachAction target not allowlisted: ${raw}` };
       }
-      return { ok: true, type, target };
+      return { ok: true, type, target, label: coachActionLabel(target) };
     }
     case 'readMemory':
       return { ok: true, type, text: deps.readMemory() };
@@ -205,4 +203,5 @@ module.exports = {
   isBlockedCommand,
   executeCoachCommand,
   formatEvidenceBlock,
+  listCoachActions,
 };

@@ -176,6 +176,24 @@ describe('api', () => {
     }
   });
 
+  it('GET /api/coach/tools returns operator tool list', async () => {
+    const res = await get('/api/coach/tools');
+    assert.strictEqual(res.status, 200);
+    const json = JSON.parse(res.body);
+    assert.ok(Array.isArray(json.tools?.app));
+    assert.ok(Array.isArray(json.tools?.mcp));
+    assert.ok(json.tools.mcp.some((t) => t.id === 'filesystem-hoot'));
+    assert.ok(json.coachActions.some((a) => a.id === 'scan-run'));
+  });
+
+  it('GET /api/coach/audit returns operator log entries', async () => {
+    const res = await get('/api/coach/audit?limit=5');
+    assert.strictEqual(res.status, 200);
+    const json = JSON.parse(res.body);
+    assert.ok(Array.isArray(json.entries));
+    assert.strictEqual(typeof json.count, 'number');
+  });
+
   it('GET /api/coach/docs returns view guide', async () => {
     const res = await get('/api/coach/docs?view=/profiles');
     assert.strictEqual(res.status, 200);
@@ -218,6 +236,45 @@ describe('api', () => {
     const json = JSON.parse(res.body);
     assert.ok(json.date);
     assert.ok(Array.isArray(json.events));
+  });
+
+  it('GET /api/activity/analytics returns telemetry report', async () => {
+    const res = await get('/api/activity/analytics?days=14');
+    assert.strictEqual(res.status, 200);
+    const json = JSON.parse(res.body);
+    assert.strictEqual(json.version, 2);
+    assert.ok(json.range);
+    assert.ok(Array.isArray(json.daily_series));
+    assert.ok(Array.isArray(json.calendar_weeks));
+    assert.ok(Array.isArray(json.drivers));
+    assert.ok(json.kpis);
+  });
+
+  it('GET /api/scan?cached=1 returns without blocking', async () => {
+    const res = await get('/api/scan?cached=1');
+    assert.strictEqual(res.status, 200);
+    const json = JSON.parse(res.body);
+    assert.ok(json._cache || json.empty);
+  });
+
+  it('GET /api/bootstrap returns dashboard payload', async () => {
+    const res = await get('/api/bootstrap');
+    assert.strictEqual(res.status, 200);
+    const json = JSON.parse(res.body);
+    assert.strictEqual(json.version, 1);
+    assert.ok(Array.isArray(json.profiles));
+    assert.ok(json.projects);
+    assert.ok(json.portfolio);
+    const first = json.profiles[0];
+    if (first) assert.strictEqual(first.body, undefined);
+  });
+
+  it('GET /api/profiles/summary omits body', async () => {
+    const res = await get('/api/profiles/summary');
+    assert.strictEqual(res.status, 200);
+    const json = JSON.parse(res.body);
+    assert.ok(Array.isArray(json));
+    if (json[0]) assert.strictEqual(json[0].body, undefined);
   });
 
   it('GET /api/token-burn returns burn report', async () => {

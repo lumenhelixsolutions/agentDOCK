@@ -6,7 +6,8 @@ yarn-error.log*
 package-lock.json
 yarn.lock
 
-# Runtime logs
+# Runtime logs / diary
+diary/
 logs/*.log
 logs/*.json
 logs/*.md
@@ -21,6 +22,10 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+.cursor/
+
+# Agent worktrees / best-of-n artifacts
+agent-tools/
 *.swp
 *.swo
 

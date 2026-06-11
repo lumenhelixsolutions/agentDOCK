@@ -32,7 +32,7 @@ export default {
       },
       fontFamily: {
         sans: ['Inter', 'sans-serif'],
-        mono: ['GeistMono', 'monospace'],
+        mono: ['Fira Code', 'monospace'],
         serif: ['EB Garamond', 'serif'],
       },
     },

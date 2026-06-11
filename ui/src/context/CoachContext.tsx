@@ -255,12 +255,13 @@ export function CoachProvider({ children }: { children: ReactNode }) {
           if (!cancelled) setPageContextState((prev) => (prev.radarLoading ? { ...prev, radarLoading: false } : prev));
         });
     };
-    poll();
+    const bootTimer = setTimeout(() => poll(), 3000);
     const id = setInterval(() => poll(), 20000);
     const onVisible = () => poll(true);
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       cancelled = true;
+      clearTimeout(bootTimer);
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVisible);
     };

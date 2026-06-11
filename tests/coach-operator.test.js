@@ -108,6 +108,18 @@ describe('coach-operator execution', () => {
     assert.strictEqual(res.ok, true);
     assert.strictEqual(res.target, 'scan-run');
   });
+
+  it('coachAction normalizes stack template alias', async () => {
+    const res = await executeCoachCommand({ type: 'coachAction', target: 'stack-template-local-audit' }, deps);
+    assert.strictEqual(res.ok, true);
+    assert.strictEqual(res.target, 'template-local-audit');
+  });
+
+  it('coachAction allows modules-auto-sync', async () => {
+    const res = await executeCoachCommand({ type: 'coachAction', target: 'modules-auto-sync' }, deps);
+    assert.strictEqual(res.ok, true);
+    assert.strictEqual(res.target, 'modules-auto-sync');
+  });
 });
 
 describe('hoot-brain resolver', () => {

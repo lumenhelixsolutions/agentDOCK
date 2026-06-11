@@ -87,12 +87,39 @@ async function customChat(endpoint, apiKey, model, messages) {
 }
 
 /* ── Ollama (local OpenAI-compatible) ── */
-async function ollamaChat(endpoint, model, messages) {
+function ollamaEndpointUrl(endpoint) {
+  const base = String(endpoint || 'http://127.0.0.1:11434').replace(/\/$/, '');
+  return base.endsWith('/v1/chat/completions') ? base : `${base}/v1/chat/completions`;
+}
+
+async function ollamaChatCompletion(endpoint, model, messages, options = {}) {
   if (!endpoint) throw new Error('No Ollama endpoint');
-  const body = JSON.stringify({ model: model || 'llama3.2:3b', messages, temperature: 0.3, max_tokens: 4096, stream: false });
-  const json = await postJSON(endpoint, {}, body, 120000);
+  const payload = {
+    model: model || 'llama3.2:3b',
+    messages,
+    temperature: options.temperature ?? 0.3,
+    max_tokens: options.max_tokens ?? 4096,
+    stream: false,
+  };
+  if (options.tools?.length) {
+    payload.tools = options.tools;
+    payload.tool_choice = options.tool_choice || 'auto';
+  }
+  const body = JSON.stringify(payload);
+  const json = await postJSON(ollamaEndpointUrl(endpoint), {}, body, 120000);
   if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
-  return json.choices?.[0]?.message?.content || '';
+  const choice = json.choices?.[0];
+  return {
+    content: choice?.message?.content || '',
+    message: choice?.message || { role: 'assistant', content: '' },
+    tool_calls: choice?.message?.tool_calls || [],
+    raw: json,
+  };
+}
+
+async function ollamaChat(endpoint, model, messages) {
+  const res = await ollamaChatCompletion(endpoint, model, messages);
+  return res.content || '';
 }
 
 /* ── llama.cpp server (OpenAI-compatible) ── */
@@ -361,4 +388,19 @@ async function advisorAnalyze({ scan, project, profiles, sessions, question, use
   }
 }
 
-module.exports = { advisorAnalyze, geminiChat, openaiChat, customChat, ollamaChat, llamacppChat, providerChat, toGeminiContents, toOpenAIMessages, getApiKey, buildSystemContext, postJSON };
+module.exports = {
+  advisorAnalyze,
+  geminiChat,
+  openaiChat,
+  customChat,
+  ollamaChat,
+  ollamaChatCompletion,
+  ollamaEndpointUrl,
+  llamacppChat,
+  providerChat,
+  toGeminiContents,
+  toOpenAIMessages,
+  getApiKey,
+  buildSystemContext,
+  postJSON,
+};

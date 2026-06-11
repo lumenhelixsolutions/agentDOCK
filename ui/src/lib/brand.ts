@@ -9,12 +9,16 @@ export const BRAND = {
   legacyName: "AgentDock",
 } as const;
 
+/**
+ * Brand colors resolve through the theme token layer (ui/src/index.css),
+ * so they adapt to dark/light. Hex fallbacks preserve the dark-theme values.
+ */
 export const BRAND_COLORS = {
-  gold: "#ffb042",
-  goldLight: "#f5c878",
-  goldMid: "#e8a050",
-  goldDark: "#c8872e",
-  ink: "#0a0a0a",
-  face: "#12100e",
-  glow: "rgba(255,176,66,0.28)",
+  gold: "var(--hoot-gold, #ffb042)",
+  goldLight: "var(--hoot-gold-light, #f5c878)",
+  goldMid: "var(--hoot-gold-mid, #e8a050)",
+  goldDark: "var(--hoot-gold-dark, #c8872e)",
+  ink: "var(--hoot-ink, #0a0a0a)",
+  face: "var(--hoot-face, #12100e)",
+  glow: "var(--hoot-glow, rgba(255,176,66,0.28))",
 } as const;

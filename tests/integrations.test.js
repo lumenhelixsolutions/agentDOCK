@@ -18,6 +18,10 @@ describe('integrations catalog files', () => {
     const fetchSrv = data.servers.find(s => s.id === 'fetch');
     assert.ok(fetchSrv);
     assert.strictEqual(fetchSrv.enabled_by_default, false);
+    const fsHoot = data.servers.find(s => s.id === 'filesystem-hoot');
+    assert.ok(fsHoot);
+    assert.strictEqual(fsHoot.operator_allowed, true);
+    assert.strictEqual(fsHoot.read_only, true);
   });
 
   it('user-settings.json has llamacpp block', () => {

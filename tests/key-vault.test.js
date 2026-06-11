@@ -1,7 +1,13 @@
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+
+const testVaultPath = path.join(os.tmpdir(), `hoot-key-vault-test-${process.pid}.json`);
+process.env.AGENTDOCK_KEY_VAULT_FILE = testVaultPath;
+delete require.cache[require.resolve('../key-vault')];
+
 const {
   VAULT_FILE,
   setVaultKey,

@@ -1,6 +1,6 @@
 # Plan: HOOT Local Operator — Always-On, MCP Powers, No Coding
 
-**Status:** PR1 executed (local brain + command executor)
+**Status:** PR1–PR4 executed (local brain, app ops, MCP read bridge, native tool loop + audit)
 **Date:** 2026-06-10  
 **Goal:** HOOT always works on **local AI**, with **MCP-level situational awareness** and **exceptional app operation** — reasoning and orchestration, **not** a coding agent.
 
