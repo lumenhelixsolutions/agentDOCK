@@ -1,6 +1,6 @@
 # HOOT Coach Graph (Phase 4 sidecar)
 
-Status: **spec + scaffold** (M10 prep). Runtime not wired — kernel remains source of truth.
+Status: **spec + runtime** (Phase 4 active). Kernel remains launch authority; graph is optional sidecar.
 
 ## Purpose
 
@@ -54,8 +54,8 @@ See `D:/projects/docs/PHASE_4_COACH_GRAPH_PREP.md`:
 
 - [x] M2 HOOT Kernel GA
 - [x] M9 bench + Coach confirm gates
-- [ ] 10 launch-approval flows logged without manual recovery
-- [ ] Graph spec reviewed against `AI_OS_ARCHITECTURE.md`
+- [x] 10 launch-approval flows logged (`phase4Ready: true`)
+- [x] Graph spec reviewed against `AI_OS_ARCHITECTURE.md`
 
 ## Related
 
