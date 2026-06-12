@@ -43,6 +43,33 @@ describe('coach-chat', () => {
     assert.ok(!res.text.includes('=== AgentDock Operations Report ==='));
   });
 
+  it('explicit openai with placeholder vault key falls back to ollama when available', async () => {
+    clearChat('test-openai-fallback');
+    const res = await processChatMessage({
+      sessionId: 'test-openai-fallback',
+      text: 'hello',
+      context: {
+        coachView: '/',
+        viewGuide: { title: 'Overview', summary: 'Dashboard.', features: [], nextActions: [] },
+        pageContext: {},
+        scanFull: {
+          tools: { ollama: { present: true } },
+          ollama: { list_raw: 'NAME\nqwen2.5:7b-instruct\n' },
+        },
+      },
+      provider: 'openai',
+      settings: {
+        localInference: { ollama: { host: 'http://127.0.0.1:11434' } },
+        hoot_brain: { mode: 'auto' },
+        operator_policy: { native_tools: false },
+      },
+      operatorRuntime: null,
+    });
+    assert.strictEqual(res.brain?.provider, 'ollama');
+    assert.ok(!String(res.text).includes('your-ope'));
+    assert.ok(!String(res.text).includes('Incorrect API key'));
+  });
+
   it('processChatMessage without API key uses local coach', async () => {
     clearChat('test-local');
     const res = await processChatMessage({

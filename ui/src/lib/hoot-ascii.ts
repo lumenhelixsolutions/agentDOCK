@@ -20,7 +20,19 @@ export type HootMood =
 
 export type PupilOffset = { lx: number; ly: number; rx: number; ry: number };
 
-const WIDTH = 11;
+export const WIDTH = 11;
+export const HOOT_FACE_ROWS = 3;
+export const BROW_L_COL = 4;
+export const THIRD_EYE_COL = 5;
+export const BROW_R_COL = 6;
+export const BEAK_L_COL = 4;
+export const BEAK_GLYPH_COL = 5;
+export const BEAK_R_COL = 6;
+
+/** Single-glyph slots advance this many domain steps per mascot frame (L→R march) */
+export const CASCADE_TICK_MULT = 4;
+/** Beak trails the brow lead (col 4) by this many fast-tick steps */
+export const BEAK_CASCADE_LAG = 3;
 const BRAND_WIDTH = 19;
 const PUPIL_CHARS = ["·", "o", "O", "●"] as const;
 const EYE_GLOW_CHARS = new Set(["●", "o", "O", "·", "◎", "◉", "◔", "◕", "×", "-", "!", "^", "○", "◠", "◡", "◎", "◕"]);
@@ -188,7 +200,9 @@ export type CognitivePhase = "idle" | "perceive" | "think" | "intent" | "act" | 
 export type CognitiveDomain =
   | "idle"
   | "alert"
+  | "chatting"
   | "coding"
+  | "computing"
   | "scanning"
   | "thinking"
   | "launching"
@@ -198,109 +212,95 @@ export type CognitiveDomain =
   | "celebrating";
 
 type DomainVocab = {
+  /** SEEING — eye row glyphs */
   perceive: string[];
-  thinkingBand: string[][];
-  act: string[];
-  emit: string[];
-  pulse: {
-    eyes?: string[][];
-    band?: string[][];
-    beak?: string[][];
-    emit?: string[][];
-  };
+  /** L/R headband slots — single-char cycle (A–Z, 1↔0, O↔0, …) */
+  flanks: string[];
+  /** Center badge while holding steady state */
+  holdCenter: string;
   tickMs: number;
 };
 
+const CHAT_FLANKS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+const COMPUTE_FLANKS = "9876543210".split("");
+
 const COGNITIVE_DOMAINS: Record<CognitiveDomain, DomainVocab> = {
   idle: {
-    perceive: ["( · · )", "( - - )", "( · · )"],
-    thinkingBand: [["  · · ·  "], ["  A · !  "], ["  · · ·  "]],
-    act: ["▽"],
-    emit: [" "],
-    pulse: { eyes: [["( · · )", "( - - )"]], band: [["  · · ·  ", "  A · !  "]] },
+    perceive: ["( ◕ ◕ )", "( · · )", "( - - )"],
+    flanks: ["·", "-"],
+    holdCenter: "·",
     tickMs: 800,
   },
   alert: {
-    perceive: ["( ! ! )", "( ! ! )", "( ! ! )"],
-    thinkingBand: [["  · · ·  "], ["  ! · ·  "], ["  ! @ !  "], ["  · @ ·  "]],
-    act: ["@", "!!"],
-    emit: ["@", "!", " "],
-    pulse: { eyes: [["( ! ! )", "( ! !!)"]], band: [["  ! @ !  ", "  ! @!! "]], beak: [["@", "!!"]] },
+    perceive: ["( ! ! )", "( ! ! )", "( O ! )"],
+    flanks: ["!", "X", "?", "!"],
+    holdCenter: "!",
     tickMs: 300,
   },
+  chatting: {
+    perceive: ["( ◕ ◕ )", "( ◉ ◉ )", "( ◕ ◕ )"],
+    flanks: CHAT_FLANKS,
+    holdCenter: "~",
+    tickMs: 380,
+  },
   coding: {
-    perceive: ["(1 0)", "(0 1)", "(1 0)"],
-    thinkingBand: [["  1 0 1  "], ["  0 1 0  "], ["  1 0 1  "]],
-    act: [">", ";"],
-    emit: ["0", "1", " "],
-    pulse: {
-      eyes: [["(1 0)", "(0 1)"]],
-      band: [["  1 0 1  ", "  0 1 0  "]],
-      beak: [[">", ";"]],
-      emit: [["0", "1"]],
-    },
+    perceive: ["( ◉ ◉ )", "(1 0)", "( ◉ ◉ )"],
+    flanks: ["1", "0"],
+    holdCenter: ">",
     tickMs: 400,
   },
+  computing: {
+    perceive: ["( ◉ ◉ )", "( ◕ ◕ )", "( ◉ ◉ )"],
+    flanks: COMPUTE_FLANKS,
+    holdCenter: "=",
+    tickMs: 420,
+  },
   scanning: {
-    perceive: ["(◎ ◎)", "(◎ ◎)", "(◎ ◎)"],
-    thinkingBand: [["  ~ · ~  "], ["  ~ > ~  "], ["  ~ =>  "]],
-    act: [".", "..", "..."],
-    emit: [".", "..", "..."],
-    pulse: { band: [["  ~ > ~  ", "  ~ =>  "]], emit: [[".", "..", "..."]] },
+    perceive: ["( O 0 )", "( ◉ ◉ )", "( O 0 )"],
+    flanks: ["O", "0", ".", ">"],
+    holdCenter: "◎",
     tickMs: 350,
   },
   thinking: {
     perceive: ["( - o )", "( o - )", "( o o )"],
-    thinkingBand: [["  · · ·  "], ["  . . .  "], ["  · @ ·  "], ["  . @ .  "]],
-    act: ["?", "‥"],
-    emit: ["@", ".", " "],
-    pulse: { eyes: [["( - o )", "( o - )", "( o o )"]], band: [["  . . .  ", "  · @ ·  "]] },
+    flanks: ["!", "?"],
+    holdCenter: "?",
     tickMs: 450,
   },
   launching: {
-    perceive: ["(◎ ◎)", "( ◎ ◎ )", "(◎ ◎)"],
-    thinkingBand: [["  · @ ·  "], ["  ! @ !  "], ["  · > ·  "]],
-    act: [">", ">^"],
-    emit: [">", "@", " "],
-    pulse: { band: [["  · @ ·  ", "  · > ·  "]], beak: [[">", ">^"]] },
+    perceive: ["( ◎ ◎ )", "( ◉ ◉ )", "( ◎ ◎ )"],
+    flanks: [">", ">>", ">", "^"],
+    holdCenter: ">",
     tickMs: 300,
   },
   reading: {
-    perceive: ["( ◡ ◡ )", "( · · )", "( ◡ ◡ )"],
-    thinkingBand: [["  · · ·  "], ["  A · !  "], ["  · · ·  "]],
-    act: ["▽", "‾"],
-    emit: [" ", "·"],
-    pulse: { eyes: [["( ◡ ◡ )", "( · · )"]] },
+    perceive: ["( O 0 )", "( ◡ ◡ )", "( O 0 )"],
+    flanks: ["O", "0", "@", "#"],
+    holdCenter: "◎",
     tickMs: 500,
   },
   monitoring: {
     perceive: ["( ● ● )", "( o o )", "( ● ● )"],
-    thinkingBand: [["  · · ·  "], ["  : : :  "], ["  · · ·  "]],
-    act: ["--", "::"],
-    emit: ["●", "○", " "],
-    pulse: { eyes: [["( ● ● )", "( o o )", "( ● ○ )"]] },
+    flanks: ["●", "○"],
+    holdCenter: ":",
     tickMs: 500,
   },
   syncing: {
     perceive: ["( ◉ ◉ )", "( ● ○ )", "( ◉ ◉ )"],
-    thinkingBand: [["  [~~]  "], ["  [=>]  "], ["  [~~]  "]],
-    act: ["~▽~", "=▽="],
-    emit: ["=>", "~", " "],
-    pulse: { band: [["  [~~]  ", "  [=>]  "]] },
+    flanks: ["~", "=", "~", "="],
+    holdCenter: "~",
     tickMs: 280,
   },
   celebrating: {
     perceive: ["( ^ ^ )", "( ◠ ◠ )", "( ^ ^ )"],
-    thinkingBand: [["  · ★ ·  "], ["  ! @ !  "], ["  · ^ ·  "]],
-    act: ["^", "★"],
-    emit: ["★", "^", " "],
-    pulse: { eyes: [["( ^ ^ )", "( ◠ ◠ )"]], beak: [["^", "★"]] },
+    flanks: ["^", "★", "^", "★"],
+    holdCenter: "^",
     tickMs: 400,
   },
 };
 
 const CASCADE_PHASES: CognitivePhase[] = ["perceive", "think", "intent", "act", "hold"];
-const FRAMES_PER_CASCADE_PHASE = 4;
+const FRAMES_PER_CASCADE_PHASE = 2;
 
 export function gapCenterFromEyeLine(eyeLine: string): number {
   const open = eyeLine.indexOf("(");
@@ -329,20 +329,148 @@ export function faceCenterCol(eyeLine: string): number {
   return gapCenterFromEyeLine(fit(eyeLine));
 }
 
+/** Fixed-width face row — glyphs at stable columns so frames never shift */
+export function fixedFaceRow(slots: Record<number, string>, width = WIDTH): string {
+  const row = Array(width).fill(" ");
+  for (const [col, ch] of Object.entries(slots)) {
+    const idx = Number(col);
+    if (idx >= 0 && idx < width) row[idx] = ch.slice(0, 1);
+  }
+  return row.join("");
+}
+
+/** One brow row: owl tufts `/\_LGR/\` — L/R slots carry the L→R cascade trail */
+export function buildBrowLine(
+  thirdEye: string,
+  width = WIDTH,
+  browFlanks?: { left?: string; right?: string },
+): string {
+  const g = (thirdEye || "·").slice(0, 1);
+  const left = (browFlanks?.left ?? "_").slice(0, 1);
+  const right = (browFlanks?.right ?? "_").slice(0, 1);
+  return fixedFaceRow({ 2: "/", 3: "\\", 4: left, 5: g, 6: right, 7: "/", 8: "\\" }, width);
+}
+
+export function parseEyePair(eyeTemplate: string): { left: string; right: string } {
+  const m = eyeTemplate.match(/\(\s*(\S)\s+(\S)\s*\)/);
+  return { left: m?.[1] ?? "·", right: m?.[2] ?? "·" };
+}
+
+/** Owl eyes — wide spacing (owl, not cat) */
+export function buildEyesLine(left: string, right: string, width = WIDTH): string {
+  return fixedFaceRow(
+    {
+      1: "(",
+      3: (left || "·").slice(0, 1),
+      7: (right || "·").slice(0, 1),
+      9: ")",
+    },
+    width,
+  );
+}
+
+/** Beak port — `\ G /` with single glyph G (`▽` standby or action emit) */
+export function buildBeakLine(glyph: string, width = WIDTH): string {
+  const g = (glyph || "▽").slice(0, 1);
+  return fixedFaceRow({ [BEAK_L_COL]: "\\", [BEAK_GLYPH_COL]: g, [BEAK_R_COL]: "/" }, width);
+}
+
+export function resolvePhaseCenter(phase: CognitivePhase, domain: CognitiveDomain): string {
+  if (phase === "perceive" || phase === "think") return "?";
+  if (phase === "intent") return "@";
+  if (phase === "act") return ">";
+  return COGNITIVE_DOMAINS[domain].holdCenter;
+}
+
+export function flankPairForFrame(flanks: string[], frame: number): { left: string; right: string } {
+  if (!flanks.length) return { left: "·", right: "·" };
+  const n = flanks.length;
+  const leadIdx = ((frame % n) + n) % n;
+  const trailIdx = (leadIdx - 1 + n) % n;
+  return { left: flanks[trailIdx]!, right: flanks[leadIdx]! };
+}
+
+/** L→R flank march — index advances forward through the domain alphabet */
+export function flankGlyphLtr(flanks: string[], fastIndex: number, fallback = "·"): string {
+  if (!flanks.length) return fallback;
+  const n = flanks.length;
+  const idx = ((fastIndex % n) + n) % n;
+  return flanks[idx]!;
+}
+
 function pickCycle<T>(items: T[] | undefined, frame: number, fallback: T): T {
   if (!items?.length) return fallback;
   return items[frame % items.length]!;
 }
 
-function pickPulseRow(rows: string[][] | undefined, frame: number, fallback: string): string {
-  if (!rows?.length) return fallback;
-  const row = rows[frame % rows.length]!;
-  return row[Math.floor(frame / rows.length) % row.length] ?? row[0] ?? fallback;
+export type CascadeGlyphs = {
+  /** Col 4 — lead entry (newest symbol in the L→R wave) */
+  browLeft: string;
+  /** Col 5 — 3rd eye / intent preview */
+  thirdEye: string;
+  /** Col 6 — mid-trail between brow and beak */
+  browRight: string;
+  /** Beak emit — trails the brow lead */
+  beak: string;
+};
+
+/**
+ * Cascade readout: domain symbols march L→R (col4 → col5 → col6 → beak).
+ * Phase drip: ? → @ → > rolls top-down; hold shows the full spatial wave at a glance.
+ */
+export function resolveCascadeGlyphs(
+  phase: CognitivePhase,
+  domain: CognitiveDomain,
+  flanks: string[],
+  frame: number,
+): CascadeGlyphs {
+  const fast = frame * CASCADE_TICK_MULT;
+  const idleFlank = "_";
+
+  if (phase === "perceive") {
+    return { browLeft: idleFlank, thirdEye: "?", browRight: idleFlank, beak: "▽" };
+  }
+  if (phase === "think") {
+    return { browLeft: idleFlank, thirdEye: "?", browRight: idleFlank, beak: "?" };
+  }
+  if (phase === "intent") {
+    return { browLeft: idleFlank, thirdEye: "@", browRight: idleFlank, beak: "?" };
+  }
+  if (phase === "act") {
+    return { browLeft: idleFlank, thirdEye: ">", browRight: idleFlank, beak: "@" };
+  }
+
+  const holdFallback = COGNITIVE_DOMAINS[domain].holdCenter;
+  return {
+    browLeft: flankGlyphLtr(flanks, fast, holdFallback),
+    thirdEye: flankGlyphLtr(flanks, fast - 1, holdFallback),
+    browRight: flankGlyphLtr(flanks, fast - 2, holdFallback),
+    beak: flankGlyphLtr(flanks, fast - BEAK_CASCADE_LAG, "▽"),
+  };
+}
+
+export function resolveThirdEyeGlyph(
+  phase: CognitivePhase,
+  domain: CognitiveDomain,
+  flanks: string[],
+  frame: number,
+): string {
+  return resolveCascadeGlyphs(phase, domain, flanks, frame).thirdEye;
+}
+
+export function resolveBeakGlyph(
+  phase: CognitivePhase,
+  domain: CognitiveDomain,
+  flanks: string[],
+  frame: number,
+): string {
+  return resolveCascadeGlyphs(phase, domain, flanks, frame).beak;
 }
 
 function emotionToDomain(emotion: HootEmotion, ctx: HootMoodContext): CognitiveDomain {
   const id = emotion.triggerId;
   if (ctx.hasError || emotion.mood === "error") return "alert";
+  if (emotion.mood === "talking" || id === "coach:talking") return "chatting";
   if (ctx.coachOpen && ctx.chatLoading) return "thinking";
   if (id.startsWith("coach:") && emotion.mood === "thinking") return "thinking";
   if (id === "chat:loading") return "thinking";
@@ -351,9 +479,11 @@ function emotionToDomain(emotion: HootEmotion, ctx: HootMoodContext): CognitiveD
   if (id === "path:/activity" || emotion.mood === "logging") return "monitoring";
   if (emotion.mood === "syncing" || emotion.mood === "installing") return "syncing";
   if (emotion.mood === "celebrating" || emotion.mood === "proud") return "celebrating";
-  if (id === "launch:running" || id === "path:terminal" || emotion.mood === "building" || emotion.mood === "launching") {
-    return ctx.pathname === "/terminal" || ctx.pathname === "/launch" || id === "launch:running" ? "coding" : "launching";
+  if (id === "launch:running" || ctx.pathname === "/terminal" || ctx.pathname === "/launch") {
+    return id === "launch:running" || Number(ctx.pageContext.runningCount) > 0 ? "coding" : "launching";
   }
+  if (emotion.mood === "building" || id === "path:builder" || id === "path:stack") return "computing";
+  if (emotion.mood === "launching") return "launching";
   if (emotion.mood === "reading" || emotion.mood === "curious") return "reading";
   if (emotion.mood === "monitoring" || emotion.mood === "watchful") return "monitoring";
   return "idle";
@@ -397,53 +527,19 @@ export class CognitiveRuntime {
 
     const vocab = COGNITIVE_DOMAINS[cognitiveState.domain];
     const phase = cognitiveState.phase;
-    const pulseFrame = frame;
+    const cascade = resolveCascadeGlyphs(phase, cognitiveState.domain, vocab.flanks, frame);
+    const eyeTemplate = pickCycle(vocab.perceive, Math.floor(frame / 2), "( ◕ ◕ )");
+    const { left: eyeL, right: eyeR } = parseEyePair(eyeTemplate);
 
-    let eyes: string;
-    let band: string;
-    let beak: string;
-    let emit: string;
-
-    if (phase === "hold") {
-      eyes = pickPulseRow(vocab.pulse.eyes, pulseFrame, pickCycle(vocab.perceive, pulseFrame, "( · · )"));
-      band = pickPulseRow(vocab.pulse.band, pulseFrame, vocab.thinkingBand[0]?.[0] ?? "  · · ·  ");
-      beak = pickPulseRow(vocab.pulse.beak, pulseFrame, pickCycle(vocab.act, pulseFrame, "▽"));
-      emit = pickPulseRow(vocab.pulse.emit, pulseFrame, " ");
-    } else {
-      const bandFrames = vocab.thinkingBand;
-      if (phase === "perceive") {
-        eyes = pickCycle(vocab.perceive, 0, "( · · )");
-        band = bandFrames[0]?.[0] ?? "  · · ·  ";
-        beak = "▽";
-        emit = " ";
-      } else if (phase === "think") {
-        eyes = pickCycle(vocab.perceive, 0, "( · · )");
-        band = bandFrames[1]?.[0] ?? bandFrames[0]?.[0] ?? "  ! · ·  ";
-        beak = "▽";
-        emit = " ";
-      } else if (phase === "intent") {
-        eyes = pickCycle(vocab.perceive, 0, "( · · )");
-        band = bandFrames[2]?.[0] ?? bandFrames[bandFrames.length - 1]?.[0] ?? "  ! @ !  ";
-        beak = "▽";
-        emit = " ";
-      } else {
-        eyes = pickCycle(vocab.perceive, 0, "( · · )");
-        band = bandFrames[Math.max(0, bandFrames.length - 2)]?.[0] ?? "  · @ ·  ";
-        beak = pickCycle(vocab.act, 0, "@");
-        emit = pickCycle(vocab.emit, 0, "@");
-      }
-    }
-
-    const eyesLine = fit(eyes);
-    const center = faceCenterCol(eyesLine);
-    const bandLine = alignRow(band.trim(), WIDTH, center);
-    const beakLineStr = alignRow(beak, WIDTH, center);
-    const emitLine = emit.trim() ? alignRow(emit, WIDTH, center) : null;
+    const browLine = buildBrowLine(cascade.thirdEye, WIDTH, {
+      left: cascade.browLeft,
+      right: cascade.browRight,
+    });
+    const eyesLine = buildEyesLine(eyeL, eyeR);
+    const beakLineStr = buildBeakLine(cascade.beak);
     const caption = fit((emotion.caption || statusCaption(emotion.mood, frame, null)).slice(0, WIDTH));
 
-    const lines = [bandLine, eyesLine, beakLineStr];
-    if (emitLine && emit.trim()) lines.push(emitLine);
-    lines.push(caption);
+    const lines = [browLine, eyesLine, beakLineStr, caption];
 
     return { lines, domain: cognitiveState.domain, phase };
   }
@@ -464,6 +560,18 @@ export function renderCognitiveCompactLines(
   return next;
 }
 
+export function minimalMoodContext(mood: HootMood, pathname = "/"): HootMoodContext {
+  return {
+    pathname,
+    pageContext: {},
+    hasError: mood === "error",
+    coachOpen: mood === "talking" || mood === "thinking",
+    chatLoading: mood === "thinking",
+    topHintTone: mood === "alert" ? "warning" : null,
+    hasTopHint: mood === "peeking" || mood === "curious",
+  };
+}
+
 export function renderCompactLines(
   mood: HootMood,
   offset: PupilOffset,
@@ -471,13 +579,8 @@ export function renderCompactLines(
   statusOverride?: string | null,
   ctx?: HootMoodContext,
 ): string[] {
-  if (ctx) return renderCognitiveCompactLines(ctx, offset, frame, statusOverride);
-  return [
-    earLine(mood, frame),
-    eyeLine(offset, mood, frame),
-    beakLine(mood, frame),
-    statusCaption(mood, frame, statusOverride),
-  ];
+  const effectiveCtx = ctx ?? minimalMoodContext(mood);
+  return renderCognitiveCompactLines(effectiveCtx, offset, frame, statusOverride);
 }
 
 function brandEyeLine(offset: PupilOffset, mood: HootMood, frame: number): string {
@@ -603,12 +706,15 @@ export function moodColor(mood: HootMood): string {
   return colors[mood];
 }
 
-export function moodFrameInterval(mood: HootMood): number {
-  if (mood === "idle" || mood === "peeking" || mood === "curious") return 800;
-  if (mood === "monitoring" || mood === "watchful" || mood === "reading" || mood === "logging") return 500;
-  if (mood === "syncing" || mood === "installing") return 280;
-  if (mood === "alert" || mood === "launching") return 300;
-  return 400;
+export function moodFrameInterval(mood: HootMood, cognitive = false): number {
+  let ms: number;
+  if (mood === "idle" || mood === "peeking" || mood === "curious") ms = 800;
+  else if (mood === "monitoring" || mood === "watchful" || mood === "reading" || mood === "logging") ms = 500;
+  else if (mood === "syncing" || mood === "installing") ms = 280;
+  else if (mood === "alert" || mood === "launching") ms = 300;
+  else ms = 400;
+  if (cognitive) return Math.max(100, Math.floor(ms * 0.38));
+  return ms;
 }
 
 export type HootMoodContext = {

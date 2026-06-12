@@ -3,7 +3,7 @@
  */
 
 const { providerChat, toGeminiContents, toOpenAIMessages, getApiKey, ollamaChatCompletion } = require('./advisor');
-const { resolveProviderKey, isLocalProvider } = require('./key-vault');
+const { resolveProviderKey, isLocalProvider, isPlaceholderKey } = require('./key-vault');
 const { resolveHootBrain } = require('./hoot-brain');
 const { buildCoachChatResponse, summarizeCoachContext } = require('./coach-chat');
 const { listCoachActions } = require('./coach-actions');
@@ -23,7 +23,7 @@ function resolveChatApiKey({ apiKey, effectiveProvider }) {
   const vaultKey = resolveProviderKey(effectiveProvider);
   if (vaultKey && vaultKey !== '__local__') return vaultKey;
   const clientKey = String(apiKey || '').trim();
-  if (clientKey) return clientKey;
+  if (clientKey && !isPlaceholderKey(clientKey)) return clientKey;
   if (effectiveProvider === 'gemini') {
     const legacy = getApiKey();
     return legacy ? String(legacy).trim() : undefined;
@@ -184,28 +184,62 @@ async function runOllamaNativeToolLoop({
   };
 }
 
+function hasValidCloudKey(provider) {
+  const key = resolveProviderKey(provider);
+  return Boolean(key && key !== '__local__');
+}
+
 function resolveEffectiveBrain({ provider, context, settings }) {
   const scan = context?.scanFull || context?.scan;
   const brainCfg = settings?.hoot_brain || {};
   const mode = String(brainCfg.mode || 'auto').toLowerCase();
+  const clientProvider = provider && provider !== 'auto' ? String(provider).toLowerCase() : null;
 
-  if (provider && provider !== 'auto') {
-    if (isLocalProvider(provider)) {
-      const brain = resolveHootBrain({ scan, settings, providerOverride: provider });
-      return { ...brain, provider };
-    }
-    return { provider, model: null, endpoint: null, available: Boolean(resolveProviderKey(provider)), source: 'explicit' };
+  if (clientProvider && isLocalProvider(clientProvider)) {
+    const brain = resolveHootBrain({ scan, settings, providerOverride: clientProvider });
+    return { ...brain, provider: clientProvider };
   }
 
-  if (mode === 'cloud') {
+  // Auto mode: local brain wins over stale browser cloud provider picks
+  if (mode === 'auto' && clientProvider && !isLocalProvider(clientProvider)) {
+    const localBrain = resolveHootBrain({ scan, settings });
+    if (localBrain.available || localBrain.pulling) return localBrain;
+  }
+
+  if (mode === 'auto' && !clientProvider) {
+    const brain = resolveHootBrain({ scan, settings });
+    if (brain.available || brain.pulling) return brain;
     const cloudProvider = brainCfg.cloud_provider || 'gemini';
-    return { provider: cloudProvider, model: null, endpoint: null, available: Boolean(resolveProviderKey(cloudProvider)), source: 'cloud' };
+    if (hasValidCloudKey(cloudProvider)) {
+      return { provider: cloudProvider, model: null, endpoint: null, available: true, source: 'cloud-fallback' };
+    }
+    return brain;
   }
 
-  const brain = resolveHootBrain({ scan, settings });
-  if (brain.available) return brain;
-  if (brain.pulling) return brain;
-  return brain;
+  if (mode === 'cloud' && !clientProvider) {
+    const cloudProvider = brainCfg.cloud_provider || 'gemini';
+    if (hasValidCloudKey(cloudProvider)) {
+      return { provider: cloudProvider, model: null, endpoint: null, available: true, source: 'cloud' };
+    }
+    const localBrain = resolveHootBrain({ scan, settings });
+    if (localBrain.available || localBrain.pulling) {
+      return { ...localBrain, source: 'local-fallback' };
+    }
+    return { provider: cloudProvider, model: null, endpoint: null, available: false, source: 'cloud-no-key' };
+  }
+
+  if (clientProvider) {
+    if (hasValidCloudKey(clientProvider)) {
+      return { provider: clientProvider, model: null, endpoint: null, available: true, source: 'explicit' };
+    }
+    const localBrain = resolveHootBrain({ scan, settings });
+    if (localBrain.available || localBrain.pulling) {
+      return { ...localBrain, source: 'local-fallback', requestedProvider: clientProvider };
+    }
+    return { provider: clientProvider, model: null, endpoint: null, available: false, source: 'explicit-no-key' };
+  }
+
+  return resolveHootBrain({ scan, settings });
 }
 
 async function processChatMessage({
@@ -318,7 +352,8 @@ async function processChatMessage({
   } catch (e) {
     const local = buildCoachChatResponse({ text, context: context || {} });
     const shortErr = String(e.message || 'unavailable').split('\n')[0].slice(0, 120);
-    aiText = `${local.text}\n\n_(LLM unavailable — ${shortErr}. Answering from your screen.)_`;
+    const localHint = isLocalProvider(effectiveProvider) ? 'Local LLM' : 'LLM';
+    aiText = `${local.text}\n\n_(${localHint} unavailable — ${shortErr}. Answering from your screen.)_`;
     commands = local.commands;
     chat.messages.push({ role: 'model', text: aiText });
     trimHistory(chat);

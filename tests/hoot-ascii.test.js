@@ -1,93 +1,111 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert');
 
-// Mirror alignment helpers — keep in sync with ui/src/lib/hoot-ascii.ts
 const WIDTH = 11;
+const BROW_L_COL = 4;
+const THIRD_EYE_COL = 5;
+const BROW_R_COL = 6;
+const BEAK_L_COL = 4;
+const BEAK_GLYPH_COL = 5;
+const BEAK_R_COL = 6;
+const CASCADE_TICK_MULT = 4;
+const BEAK_CASCADE_LAG = 3;
 
-function fit(line, width = WIDTH) {
-  if (line.length === width) return line;
-  if (line.length > width) return line.slice(0, width);
-  const pad = width - line.length;
-  const left = Math.floor(pad / 2);
-  return ' '.repeat(left) + line + ' '.repeat(width - line.length - left);
+function fixedFaceRow(slots, width = WIDTH) {
+  const row = Array(width).fill(' ');
+  for (const [col, ch] of Object.entries(slots)) {
+    const idx = Number(col);
+    if (idx >= 0 && idx < width) row[idx] = String(ch).slice(0, 1);
+  }
+  return row.join('');
 }
 
-function gapCenterFromEyeLine(eyeLine) {
-  const open = eyeLine.indexOf('(');
-  const close = eyeLine.indexOf(')', open + 1);
-  if (open < 0 || close < 0) return Math.floor(eyeLine.length / 2);
-  const inner = eyeLine.slice(open + 1, close);
-  const tokens = inner.trim().split(/\s+/).filter(Boolean);
-  if (tokens.length < 2) return Math.floor(eyeLine.length / 2);
-  const firstStart = eyeLine.indexOf(tokens[0], open + 1);
-  const firstEnd = firstStart + tokens[0].length;
-  const secondStart = eyeLine.indexOf(tokens[1], firstEnd);
-  return Math.floor((firstEnd + secondStart) / 2);
+function buildBrowLine(thirdEye, width = WIDTH, browFlanks) {
+  const g = (thirdEye || '·').slice(0, 1);
+  const left = (browFlanks?.left ?? '_').slice(0, 1);
+  const right = (browFlanks?.right ?? '_').slice(0, 1);
+  return fixedFaceRow({ 2: '/', 3: '\\', 4: left, 5: g, 6: right, 7: '/', 8: '\\' }, width);
 }
 
-function alignRow(glyph, width = WIDTH, centerCol) {
-  const text = String(glyph || '').trim();
-  if (!text) return ' '.repeat(width);
-  const center = centerCol ?? Math.floor(width / 2);
-  const start = Math.max(0, Math.round(center - (text.length - 1) / 2));
-  const line = ' '.repeat(start) + text;
-  if (line.length >= width) return line.slice(0, width);
-  return line + ' '.repeat(width - line.length);
+function buildBeakLine(glyph, width = WIDTH) {
+  const g = (glyph || '▽').slice(0, 1);
+  return fixedFaceRow({ [BEAK_L_COL]: '\\', [BEAK_GLYPH_COL]: g, [BEAK_R_COL]: '/' }, width);
 }
 
-function faceCenterCol(eyeLine) {
-  return gapCenterFromEyeLine(fit(eyeLine));
+function flankGlyphLtr(flanks, fastIndex, fallback = '·') {
+  if (!flanks.length) return fallback;
+  const n = flanks.length;
+  const idx = ((fastIndex % n) + n) % n;
+  return flanks[idx];
 }
 
-function beakLineFromEyes(glyph, eyeLine, width = 11) {
-  return alignRow(glyph, width, gapCenterFromEyeLine(eyeLine));
+function resolveCascadeGlyphs(phase, holdCenter, flanks, frame) {
+  const fast = frame * CASCADE_TICK_MULT;
+  const idleFlank = '_';
+
+  if (phase === 'perceive') {
+    return { browLeft: idleFlank, thirdEye: '?', browRight: idleFlank, beak: '▽' };
+  }
+  if (phase === 'think') {
+    return { browLeft: idleFlank, thirdEye: '?', browRight: idleFlank, beak: '?' };
+  }
+  if (phase === 'intent') {
+    return { browLeft: idleFlank, thirdEye: '@', browRight: idleFlank, beak: '?' };
+  }
+  if (phase === 'act') {
+    return { browLeft: idleFlank, thirdEye: '>', browRight: idleFlank, beak: '@' };
+  }
+
+  return {
+    browLeft: flankGlyphLtr(flanks, fast, holdCenter),
+    thirdEye: flankGlyphLtr(flanks, fast - 1, holdCenter),
+    browRight: flankGlyphLtr(flanks, fast - 2, holdCenter),
+    beak: flankGlyphLtr(flanks, fast - BEAK_CASCADE_LAG, '▽'),
+  };
 }
 
-describe('hoot ascii beak alignment', () => {
-  it('centers single-char beak under eye gap (compact owl)', () => {
-    const eyes = '  ( · · )  ';
-    const beak = beakLineFromEyes('▽', eyes);
-    assert.strictEqual(beak.length, 11);
-    assert.strictEqual(beak.indexOf('▽'), 5);
-    assert.strictEqual(gapCenterFromEyeLine(eyes), 5);
+describe('hoot cascade glyphs', () => {
+  it('phase drip cascades top → beak: ? → @ → >', () => {
+    assert.deepStrictEqual(resolveCascadeGlyphs('perceive', '~', ['A', 'B'], 0), {
+      browLeft: '_', thirdEye: '?', browRight: '_', beak: '▽',
+    });
+    assert.deepStrictEqual(resolveCascadeGlyphs('think', '~', ['A', 'B'], 0), {
+      browLeft: '_', thirdEye: '?', browRight: '_', beak: '?',
+    });
+    assert.deepStrictEqual(resolveCascadeGlyphs('intent', '~', ['A', 'B'], 0), {
+      browLeft: '_', thirdEye: '@', browRight: '_', beak: '?',
+    });
+    assert.deepStrictEqual(resolveCascadeGlyphs('act', '~', ['A', 'B'], 0), {
+      browLeft: '_', thirdEye: '>', browRight: '_', beak: '@',
+    });
   });
 
-  it('centers multi-char beak under eye gap', () => {
-    const eyes = '  ( · · )  ';
-    const beak = beakLineFromEyes('~▽~', eyes);
-    assert.strictEqual(beak.indexOf('~'), 4);
-    assert.strictEqual(beak.indexOf('▽'), 5);
-    assert.strictEqual(beak.indexOf('~', 6), 6);
+  it('hold marches flanks L→R across brow with beak trailing lead', () => {
+    const flanks = ['A', 'B', 'C', 'D'];
+    const f = 2;
+    const fast = f * CASCADE_TICK_MULT;
+    const cascade = resolveCascadeGlyphs('hold', '~', flanks, f);
+    assert.strictEqual(cascade.browLeft, flankGlyphLtr(flanks, fast));
+    assert.strictEqual(cascade.thirdEye, flankGlyphLtr(flanks, fast - 1));
+    assert.strictEqual(cascade.browRight, flankGlyphLtr(flanks, fast - 2));
+    assert.strictEqual(cascade.beak, flankGlyphLtr(flanks, fast - BEAK_CASCADE_LAG));
+    assert.notStrictEqual(cascade.browLeft, cascade.beak);
   });
 
-  it('centers alert spaced beaks under eyes', () => {
-    const eyes = '  ( ! ! )  ';
-    const bangs = beakLineFromEyes('! !', eyes);
-    assert.strictEqual(bangs[4], '!');
-    assert.strictEqual(bangs[5], ' ');
-    assert.strictEqual(bangs[6], '!');
-
-    const question = beakLineFromEyes(' ? ', eyes);
-    assert.strictEqual(question[5], '?');
+  it('brow L→R wave renders in tuft slots without shifting layout', () => {
+    const cascade = resolveCascadeGlyphs('hold', '~', ['X', 'Y', 'Z'], 5);
+    const brow = buildBrowLine(cascade.thirdEye, WIDTH, { left: cascade.browLeft, right: cascade.browRight });
+    assert.strictEqual(brow[BROW_L_COL], cascade.browLeft);
+    assert.strictEqual(brow[THIRD_EYE_COL], cascade.thirdEye);
+    assert.strictEqual(brow[BROW_R_COL], cascade.browRight);
+    assert.strictEqual(brow.length, WIDTH);
   });
 
-  it('faceCenterCol matches gap center on fitted eyes', () => {
-    const eyes = '  ( ! ! )  ';
-    assert.strictEqual(faceCenterCol(eyes), gapCenterFromEyeLine(eyes));
-  });
-});
-
-describe('hoot cognitive layout', () => {
-  it('builds 7-line stack order: band above eyes, emit below beak', () => {
-    const eyes = fit('( ! ! )');
-    const center = faceCenterCol(eyes);
-    const band = alignRow('! @ !', WIDTH, center);
-    const beak = alignRow('▽', WIDTH, center);
-    const emit = alignRow('@', WIDTH, center);
-    const lines = [band, eyes, beak, emit, fit('watching')];
-    assert.strictEqual(lines[0].trim(), '! @ !');
-    assert.ok(lines[1].includes('!'));
-    assert.strictEqual(lines[2].trim(), '▽');
-    assert.strictEqual(lines[3].trim(), '@');
+  it('beak uses \\ G / frame with single cycling glyph', () => {
+    const { beak } = resolveCascadeGlyphs('hold', '~', ['X', 'Y', 'Z'], 5);
+    const row = buildBeakLine(beak);
+    assert.strictEqual(row[BEAK_L_COL], '\\');
+    assert.strictEqual(row[BEAK_GLYPH_COL], beak);
+    assert.strictEqual(row[BEAK_R_COL], '/');
   });
 });

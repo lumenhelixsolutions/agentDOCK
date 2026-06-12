@@ -18,13 +18,13 @@ export default function HootOwl({
   showWordmark?: boolean;
 }) {
   const [frame, setFrame] = useState(0);
-  const px = size === "lg" ? (showWordmark ? 200 : 96) : 64;
+  const px = size === "lg" ? (showWordmark ? 200 : 108) : 84;
   const color = moodColor(mood);
 
   useEffect(() => {
-    const id = setInterval(() => setFrame((f) => f + 1), moodFrameInterval(mood));
+    const id = setInterval(() => setFrame((f) => f + 1), moodFrameInterval(mood, Boolean(moodContext)));
     return () => clearInterval(id);
-  }, [mood]);
+  }, [mood, moodContext]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>

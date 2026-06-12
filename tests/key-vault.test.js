@@ -15,8 +15,11 @@ const {
   deleteVaultKey,
   listMaskedKeys,
   maskKey,
+  isPlaceholderKey,
+  isExampleEnvFile,
   harvestFromScan,
   resolveProviderKey,
+  purgePlaceholderKeys,
   keyAvailable,
 } = require('../key-vault');
 
@@ -34,13 +37,13 @@ describe('key-vault', () => {
   });
 
   it('stores and retrieves keys without exposing full value in masked list', () => {
-    setVaultKey('OPENAI_API_KEY', 'sk-test-openai-key-xyz', 'manual', { force: true });
-    assert.strictEqual(getVaultKey('OPENAI_API_KEY'), 'sk-test-openai-key-xyz');
+    setVaultKey('OPENAI_API_KEY', 'sk-proj-validtestkey1234567890abcdef', 'manual', { force: true });
+    assert.strictEqual(getVaultKey('OPENAI_API_KEY'), 'sk-proj-validtestkey1234567890abcdef');
     const list = listMaskedKeys();
     const row = list.find((k) => k.name === 'OPENAI_API_KEY');
     assert.ok(row);
-    assert.ok(!JSON.stringify(list).includes('sk-test-openai-key-xyz'));
-    assert.ok(row.masked.endsWith('xyz'));
+    assert.ok(!JSON.stringify(list).includes('sk-proj-validtestkey1234567890abcdef'));
+    assert.ok(row.masked.endsWith('ef'));
   });
 
   it('maskKey shows last 3 characters only', () => {
@@ -73,5 +76,52 @@ describe('key-vault', () => {
     const k = keyAvailable('GROQ_API_KEY');
     assert.strictEqual(k.available, true);
     assert.strictEqual(k.source, 'vault');
+  });
+
+  it('rejects placeholder keys from vault read and harvest', () => {
+    deleteVaultKey('OPENAI_API_KEY');
+    const prior = process.env.OPENAI_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+    try {
+      assert.strictEqual(setVaultKey('OPENAI_API_KEY', 'your-openai-key', 'manual', { force: true }), false);
+      assert.strictEqual(getVaultKey('OPENAI_API_KEY'), null);
+      assert.strictEqual(resolveProviderKey('openai'), null);
+      assert.strictEqual(isPlaceholderKey('your-openai-key'), true);
+      assert.strictEqual(isPlaceholderKey('sk-proj-real-looking-key-1234567890'), false);
+    } finally {
+      if (prior !== undefined) process.env.OPENAI_API_KEY = prior;
+      else delete process.env.OPENAI_API_KEY;
+    }
+  });
+
+  it('skips .env.example files during harvest', () => {
+    deleteVaultKey('ANTHROPIC_API_KEY');
+    const examplePath = path.join(__dirname, 'fixtures', '.env.example.test');
+    fs.writeFileSync(examplePath, 'ANTHROPIC_API_KEY=your-anthropic-key\n', 'utf8');
+    try {
+      const result = harvestFromScan({
+        env_files: [{ path: examplePath, key_names: ['ANTHROPIC_API_KEY'] }],
+      });
+      assert.strictEqual(getVaultKey('ANTHROPIC_API_KEY'), null);
+      assert.ok(isExampleEnvFile(examplePath));
+      assert.ok(result.count >= 0);
+    } finally {
+      fs.unlinkSync(examplePath);
+      deleteVaultKey('ANTHROPIC_API_KEY');
+    }
+  });
+
+  it('purgePlaceholderKeys removes template keys', () => {
+    const vault = require('../key-vault').loadVault();
+    vault.keys.PLACEHOLDER_TEST_KEY = {
+      value: Buffer.from('your-api-key-here').toString('base64'),
+      source: 'test',
+      updatedAt: new Date().toISOString(),
+      provider: 'unknown',
+    };
+    require('fs').writeFileSync(VAULT_FILE, JSON.stringify(vault, null, 2), 'utf8');
+    const purged = purgePlaceholderKeys();
+    assert.ok(purged >= 1);
+    assert.strictEqual(getVaultKey('PLACEHOLDER_TEST_KEY'), null);
   });
 });

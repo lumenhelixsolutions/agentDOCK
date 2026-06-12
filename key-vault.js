@@ -67,6 +67,43 @@ function maskKey(value) {
   return `${'•'.repeat(Math.min(8, v.length - 3))}${v.slice(-3)}`;
 }
 
+const PLACEHOLDER_KEY_PATTERNS = [
+  /^your[-_]/i,
+  /^changeme$/i,
+  /^placeholder$/i,
+  /^insert[-_]/i,
+  /^replace[-_]?me$/i,
+  /^xxx+$/i,
+  /^sk-test/i,
+  /^sk-your/i,
+  /^sk-xxx/i,
+  /^test[-_]?key$/i,
+  /^example/i,
+  /^dummy/i,
+  /^fake[-_]/i,
+  /^<.*>$/,
+];
+
+function isPlaceholderKey(value) {
+  const v = String(value || '').trim();
+  if (!v) return true;
+  if (v.length < 12) return true;
+  if (/^[*•.]+$/.test(v)) return true;
+  if (/your[-_]?(openai|anthropic|gemini|api|secret|key)/i.test(v)) return true;
+  return PLACEHOLDER_KEY_PATTERNS.some((p) => p.test(v));
+}
+
+function isExampleEnvFile(filePath) {
+  const base = path.basename(String(filePath || '')).toLowerCase();
+  return (
+    base.includes('.example')
+    || base.endsWith('.sample')
+    || base === '.env.template'
+    || base === 'env.example'
+    || base.includes('.env.example')
+  );
+}
+
 function loadVault() {
   const data = readJSON(VAULT_FILE, { version: 1, keys: {} });
   if (!data.keys) data.keys = {};
@@ -82,12 +119,14 @@ function getVaultKey(name) {
   const entry = loadVault().keys[name];
   if (!entry?.value) return null;
   const decoded = decode(entry.value);
-  return decoded ? decoded.trim() : null;
+  const trimmed = decoded ? decoded.trim() : null;
+  if (!trimmed || isPlaceholderKey(trimmed)) return null;
+  return trimmed;
 }
 
 function setVaultKey(name, value, source = 'manual', { force = false } = {}) {
   const trimmed = String(value || '').trim();
-  if (!trimmed || trimmed === '[present-redacted]') return false;
+  if (!trimmed || trimmed === '[present-redacted]' || isPlaceholderKey(trimmed)) return false;
   const vault = loadVault();
   const existing = vault.keys[name];
   if (existing && !force && existing.source === 'manual') return false;
@@ -166,10 +205,26 @@ function resolveProviderKey(provider) {
     grok: ['XAI_API_KEY'],
   };
   for (const name of map[p] || []) {
-    const v = getVaultKey(name) || process.env[name] || null;
-    if (v) return v;
+    const vaultVal = getVaultKey(name);
+    if (vaultVal) return vaultVal;
+    const envVal = process.env[name] ? String(process.env[name]).trim() : null;
+    if (envVal && !isPlaceholderKey(envVal)) return envVal;
   }
   return null;
+}
+
+function purgePlaceholderKeys() {
+  const vault = loadVault();
+  let purged = 0;
+  for (const name of Object.keys(vault.keys)) {
+    const plain = decode(vault.keys[name]?.value);
+    if (isPlaceholderKey(plain)) {
+      delete vault.keys[name];
+      purged += 1;
+    }
+  }
+  if (purged) saveVault(vault);
+  return purged;
 }
 
 function parseEnvFile(content) {
@@ -199,7 +254,7 @@ function harvestFromEnvFiles(envFiles = []) {
   let count = 0;
   for (const f of envFiles) {
     const filePath = f.path;
-    if (!filePath || !fs.existsSync(filePath)) continue;
+    if (!filePath || !fs.existsSync(filePath) || isExampleEnvFile(filePath)) continue;
     try {
       const content = fs.readFileSync(filePath, 'utf8');
       const parsed = parseEnvFile(content);
@@ -228,6 +283,8 @@ module.exports = {
   VAULT_FILE,
   LOCAL_PROVIDERS,
   maskKey,
+  isPlaceholderKey,
+  isExampleEnvFile,
   loadVault,
   getVaultKey,
   setVaultKey,
@@ -237,6 +294,7 @@ module.exports = {
   keyAvailable,
   isLocalProvider,
   resolveProviderKey,
+  purgePlaceholderKeys,
   harvestFromScan,
   harvestFromProcessEnv,
   hasVaultKey,

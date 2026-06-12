@@ -300,7 +300,7 @@ function SidebarContent({
       <div className={`border-b border-border ${collapsed ? "px-4 py-[18px]" : "px-5 py-[22px]"}`}>
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center">
-            <HootMark size={collapsed ? 40 : 52} mood="idle" />
+            <HootMark size={collapsed ? 48 : 60} />
           </div>
           {!collapsed && <HootWordmark />}
         </div>

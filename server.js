@@ -25,6 +25,7 @@ const { getViewGuide, ORCHESTRATION_LOOP } = require('./coach-guides');
 const {
   harvestFromScan,
   harvestFromProcessEnv,
+  purgePlaceholderKeys,
   listMaskedKeys,
   setVaultKey,
   deleteVaultKey,
@@ -172,6 +173,7 @@ const sessions = new Map();
 })();
 
 harvestFromProcessEnv();
+purgePlaceholderKeys();
 
 function nowStamp() { return new Date().toISOString().replace(/[:.]/g, '-'); }
 function isWindows() { return process.platform === 'win32'; }

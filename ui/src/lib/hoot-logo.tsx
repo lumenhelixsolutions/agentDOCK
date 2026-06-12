@@ -8,6 +8,12 @@ import {
   moodFrameInterval,
   renderBrandLines,
   renderCompactLines,
+  BEAK_GLYPH_COL,
+  BROW_L_COL,
+  BROW_R_COL,
+  HOOT_FACE_ROWS,
+  THIRD_EYE_COL,
+  WIDTH,
   type HootMood,
   type HootMoodContext,
   type PupilOffset,
@@ -31,7 +37,14 @@ export type HootLogoProps = {
 
 const ZERO_OFFSET: PupilOffset = { lx: 0, ly: 0, rx: 0, ry: 0 };
 
-function colorizeLine(line: string, mood: HootMood, frame: number, isWordmarkLine: boolean): ReactNode[] {
+function colorizeLine(
+  line: string,
+  mood: HootMood,
+  frame: number,
+  row: number,
+  isWordmarkLine: boolean,
+  fixedCells: boolean,
+): ReactNode[] {
   const glow = eyeGlowColor(mood);
   const pulse = 0.75 + Math.sin(frame * 0.4) * 0.25;
   let inEyes = false;
@@ -49,28 +62,41 @@ function colorizeLine(line: string, mood: HootMood, frame: number, isWordmarkLin
       color = glow;
       shadow = `0 0 ${6 + pulse * 6}px ${glow}, 0 0 2px #FFF176`;
       weight = 600;
-    } else if (ch === "@") {
-      color = "#FFF176";
-      shadow = `0 0 ${8 + pulse * 8}px #ffb042, 0 0 3px #FFF176`;
+    } else if (ch === "@" || ch === "?" || ch === ">" || ch === "~" || ch === "=" || ch === "◎") {
+      const phaseHue =
+        ch === "@" ? "#FFF176" : ch === "?" ? "#c4b5fd" : ch === ">" ? "#4ade80" : ch === "~" ? "#93c5fd" : "#f59e0b";
+      color = phaseHue;
+      shadow = `0 0 ${6 + pulse * 6}px ${phaseHue}, 0 0 2px ${phaseHue}`;
       weight = 700;
     } else if (isWordmarkLine) {
       color = LINE_COLOR;
       weight = 700;
-    } else if (ch === "~" || ch === "=" || ch === ">") {
-      color = glow;
+    } else if (ch === "▽" || ch === "v") {
+      color = "#ffb042";
+      weight = 600;
     } else if (ch === " ") {
       color = "transparent";
     } else if (/[|_\\/\\^]/.test(ch)) {
       color = DIM_COLOR;
     }
 
+    const isCascadeGlyph =
+      (row === 0 && (i === BROW_L_COL || i === THIRD_EYE_COL || i === BROW_R_COL) && ch !== "_" && ch !== "·" && ch !== " ") ||
+      (row === 2 && i === BEAK_GLYPH_COL && ch !== "▽" && ch !== "·" && ch !== " ");
+
     return (
       <span
-        key={`${i}-${ch}`}
+        key={`${row}-${i}`}
+        className={[
+          fixedCells ? "hoot-ascii-cell" : undefined,
+          isCascadeGlyph ? "hoot-ascii-emit-glyph" : undefined,
+        ]
+          .filter(Boolean)
+          .join(" ")}
         style={{
           color: ch === " " ? "transparent" : color,
           textShadow: shadow,
-          fontWeight: weight,
+          fontWeight: weight ?? (fixedCells ? 500 : undefined),
         }}
       >
         {ch === " " ? "\u00a0" : ch}
@@ -83,20 +109,20 @@ function AsciiBlock({
   lines,
   mood,
   frame,
-  fontSize,
   wordmarkStart,
+  fixedCells,
 }: {
   lines: string[];
   mood: HootMood;
   frame: number;
-  fontSize: number;
   wordmarkStart: number;
+  fixedCells: boolean;
 }) {
   return (
     <>
       {lines.map((line, row) => (
         <div key={row} className="hoot-ascii-line" aria-hidden={row >= wordmarkStart}>
-          {colorizeLine(line, mood, frame, row >= wordmarkStart)}
+          {colorizeLine(line, mood, frame, row, row >= wordmarkStart, fixedCells)}
         </div>
       ))}
     </>
@@ -120,19 +146,24 @@ export default function HootLogo({
   const [offset, setOffset] = useState<PupilOffset>(ZERO_OFFSET);
 
   const frame = frameProp ?? frameInternal;
-  const lines = showWordmark
+  const allLines = showWordmark
     ? renderBrandLines(mood, offset, frame)
     : renderCompactLines(mood, offset, frame, statusLine, moodContext);
 
-  const lineCount = lines.length;
-  const fontSize = showWordmark ? size / (lineCount + 1) : size / (lineCount + 0.5);
-  const wordmarkStart = showWordmark ? lineCount - 2 : lineCount;
+  const faceLines = showWordmark ? allLines : allLines.slice(0, HOOT_FACE_ROWS);
+  const captionLine = !showWordmark && allLines.length > HOOT_FACE_ROWS ? allLines[HOOT_FACE_ROWS] : null;
+  const lines = showWordmark ? allLines : faceLines;
+
+  const lineCount = showWordmark ? allLines.length : HOOT_FACE_ROWS;
+  const fontSize = showWordmark ? size / (lineCount + 1) : size / (HOOT_FACE_ROWS - 0.05);
+  const wordmarkStart = showWordmark ? allLines.length - 2 : HOOT_FACE_ROWS;
 
   useEffect(() => {
     if (frameProp !== undefined) return;
-    const id = setInterval(() => setFrameInternal((f) => f + 1), moodFrameInterval(mood));
+    const cognitive = !showWordmark;
+    const id = setInterval(() => setFrameInternal((f) => f + 1), moodFrameInterval(mood, cognitive));
     return () => clearInterval(id);
-  }, [frameProp, mood]);
+  }, [frameProp, mood, showWordmark]);
 
   const onMouseMove = useCallback(
     (e: React.MouseEvent) => {
@@ -149,15 +180,15 @@ export default function HootLogo({
 
   const style: CSSProperties = {
     margin: 0,
-    padding: showWordmark ? "10px 12px" : "4px 6px",
+    padding: showWordmark ? "10px 12px" : "2px 4px",
     border: "none",
     background: showWordmark ? "rgba(18,18,18,0.92)" : "transparent",
     borderRadius: showWordmark ? 12 : 8,
     cursor: onClick ? "pointer" : "default",
     fontFamily: "'Fira Code', 'Cascadia Mono', 'Consolas', monospace",
     fontSize,
-    lineHeight: 1.15,
-    letterSpacing: "0.02em",
+    lineHeight: 1,
+    letterSpacing: 0,
     color: moodColor(mood),
     textAlign: "center",
     position: "relative",
@@ -165,8 +196,10 @@ export default function HootLogo({
     boxShadow: showWordmark ? "inset 0 0 0 1px rgba(232,213,163,0.08)" : undefined,
   };
 
-  const motionClass = asciiMotionClass(mood);
-  const hasEmit = Boolean(moodContext && lines.length >= 5 && lines[lines.length - 2]?.trim());
+  const motionClass = showWordmark ? asciiMotionClass(mood) : "hoot-ascii--cognitive";
+  const beakRow = faceLines[2] ?? "";
+  const beakGlyph = beakRow[BEAK_GLYPH_COL] ?? "";
+  const hasEmit = Boolean(!showWordmark && beakGlyph && beakGlyph !== "▽" && beakGlyph !== "·");
   const Tag = onClick ? "button" : "div";
 
   return (
@@ -183,7 +216,27 @@ export default function HootLogo({
       {(mood === "scanning" || mood === "syncing" || mood === "monitoring" || mood === "watchful" || mood === "logging") && !showWordmark && (
         <span className="hoot-ascii-scan" aria-hidden />
       )}
-      <AsciiBlock lines={lines} mood={mood} frame={frame} fontSize={fontSize} wordmarkStart={wordmarkStart} />
+      <div
+        className="hoot-ascii-face-grid"
+        style={{ width: `${WIDTH}ch`, minWidth: `${WIDTH}ch`, fontSize, lineHeight: 1 }}
+      >
+        <AsciiBlock
+          lines={lines}
+          mood={mood}
+          frame={frame}
+          wordmarkStart={wordmarkStart}
+          fixedCells={!showWordmark}
+        />
+      </div>
+      {captionLine && (
+        <div
+          className="hoot-ascii-caption"
+          style={{ fontSize: Math.max(7, fontSize * 0.58), lineHeight: 1.1, marginTop: 2, opacity: 0.5 }}
+          aria-hidden
+        >
+          {captionLine.trim()}
+        </div>
+      )}
     </Tag>
   );
 }

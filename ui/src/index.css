@@ -173,6 +173,42 @@
 
   .hoot-ascii-line {
     display: block;
+    height: 0.92em;
+    line-height: 0.92;
+  }
+
+  .hoot-ascii-face-grid {
+    display: inline-block;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  .hoot-ascii-cell {
+    display: inline-block;
+    width: 1ch;
+    min-width: 1ch;
+    max-width: 1ch;
+    text-align: center;
+    vertical-align: top;
+  }
+
+  .hoot-ascii--cognitive {
+    animation: hootAsciiBreathe 4s ease-in-out infinite;
+    transform: none;
+  }
+
+  .hoot-ascii--cognitive .hoot-ascii-line {
+    transform: none;
+  }
+
+  .hoot-ascii-emit-glyph {
+    animation: hootEmitGlow 0.22s ease-in-out infinite alternate;
+    transform: none;
+  }
+
+  @keyframes hootEmitGlow {
+    0%, 100% { opacity: 0.68; filter: brightness(0.88); }
+    50% { opacity: 1; filter: brightness(1.45); }
   }
 
   .hoot-ascii--idle {
@@ -231,18 +267,8 @@
     50% { transform: translateY(-3px); }
   }
 
-  .hoot-ascii--emit .hoot-ascii-line:nth-last-child(2) {
-    animation: hootEmitDrop 0.45s ease-out;
-  }
-
-  @keyframes hootEmitDrop {
-    0% { opacity: 0; transform: translateY(-4px); }
-    40% { opacity: 1; }
-    100% { opacity: 0.85; transform: translateY(2px); }
-  }
-
   @media (prefers-reduced-motion: reduce) {
-    .hoot-ascii--emit .hoot-ascii-line:nth-last-child(2) {
+    .hoot-ascii-emit-glyph {
       animation: none;
     }
   }

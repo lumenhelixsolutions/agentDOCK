@@ -14,7 +14,7 @@ export function AppBootShell() {
       }}
     >
       <div style={{ textAlign: "center" }}>
-        <HootMark size={64} mood="idle" />
+        <HootMark size={72} />
         <div style={{ marginTop: 18, fontFamily: "'EB Garamond', serif", fontSize: 24, color: "#f5e6d0" }}>{BRAND.name}</div>
         <div style={{ marginTop: 8, fontSize: 12, opacity: 0.5 }}>Starting local command center…</div>
         <div className="spin" style={{ margin: "20px auto 0", width: 28, height: 28, borderRadius: "50%", border: "2px solid rgba(255,176,66,0.16)", borderTopColor: "#ffb042" }} />
