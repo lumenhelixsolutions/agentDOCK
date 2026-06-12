@@ -87,6 +87,12 @@ const {
 const { transactionsToLangfuseBatch } = require('./core/langfuse-export');
 const { postJSON, getApiKey } = require('./advisor');
 const { buildVersionInfo } = require('./version-info');
+const {
+  loadBenchResults,
+  applyBenchToProfile,
+  runBenchScript,
+  DEFAULT_CSV: BENCH_CSV,
+} = require('./bench-results');
 
 const ROOT = __dirname;
 const SERVER_STARTED_AT = new Date().toISOString();
@@ -314,7 +320,11 @@ function corsHeaders() {
 }
 
 function send(res, status, body, contentType = 'application/json') {
-  const data = contentType === 'application/json' ? JSON.stringify(body, null, 2) : body;
+  // Buffers/strings are already serialized (e.g. static manifest.json); only stringify plain objects.
+  const data =
+    contentType === 'application/json' && body !== null && typeof body === 'object' && !Buffer.isBuffer(body)
+      ? JSON.stringify(body, null, 2)
+      : body;
   res.writeHead(status, {
     'Content-Type': contentType,
     'X-Content-Type-Options': 'nosniff',
@@ -866,7 +876,8 @@ function evaluateProfile(profile, scan, memory) {
     else if (score >= 40) state = 'DEGRADED';
     else state = 'UNKNOWN';
   }
-  return { state, score: Math.max(0, Math.min(100, score)), reasons, stats };
+  const base = { state, score: Math.max(0, Math.min(100, score)), reasons, stats };
+  return applyBenchToProfile(base, profile, loadBenchResults(BENCH_CSV));
 }
 
 function buildSuggestions(scan = lastScan) {
@@ -2605,6 +2616,19 @@ async function route(req, res) {
     if (pathName === '/api/portfolio/health' && req.method === 'GET') {
       const force = url.searchParams.get('refresh') === '1';
       return send(res, 200, { items: buildPortfolioHealth(force) });
+    }
+    if (pathName === '/api/bench/results' && req.method === 'GET') {
+      return send(res, 200, loadBenchResults(BENCH_CSV));
+    }
+    if (pathName === '/api/bench/run' && req.method === 'POST') {
+      const body = await readBody(req);
+      const models = Array.isArray(body.models) ? body.models : [];
+      try {
+        const data = await runBenchScript(models, BENCH_CSV);
+        return send(res, 200, { ok: true, ...data });
+      } catch (err) {
+        return send(res, 500, { ok: false, error: err.message });
+      }
     }
     if (pathName === '/api/race' && req.method === 'POST') {
       const body = await readBody(req);

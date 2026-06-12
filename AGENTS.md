@@ -100,6 +100,25 @@ No linter is configured by design (zero dependencies). Follow the existing style
 
 Sample profiles: `local-safe-audit-llamacpp.md`, `compound-core-claude-rtk.md`
 
+## Upstream AgentDock framework (reference only)
+
+HOOT is **not** [AgentDock/AgentDock](https://github.com/AgentDock/AgentDock) on GitHub. That repo ships `agentdock-core` (TypeScript nodes, orchestration, evaluation) and a Next.js hub client. Portfolio policy: borrow patterns, never vendor the monorepo or add `agentdock-core` as a runtime dependency.
+
+| Topic | Local HOOT | Upstream reference |
+|-------|------------|-------------------|
+| Launch / profiles | `profiles/*.md` PowerShell blocks | `agents/*/config.yaml` templates |
+| Evaluation | `bench-results.js`, `/api/bench/*` | `docs/evaluations/` harness |
+| Orchestration | Phase 4 `coach-graph/` (planned) | `docs/architecture/orchestration/` |
+| UI | `ui/` Vite/React | Next.js hub at hub.agentdock.ai |
+
+| Doc / skill | Path |
+|-------------|------|
+| External capability | `D:\projects\docs\external-capabilities\agentdock-upstream.md` |
+| Portfolio skill | `D:\projects\skills\agentdock-framework\SKILL.md` |
+| ECC copy | `D:\projects\ecc\skills\agentdock-framework\SKILL.md` |
+
+**M9 bench lane:** `scripts/bench-local-models.mjs` writes `state/bench-results.csv`; `applyBenchToProfile()` adjusts stack scores for Ollama/llama.cpp models.
+
 ## Chatbot / Coach UI
 
 Build or upgrade conversational UI with **[assistant-ui](https://github.com/assistant-ui/assistant-ui)** — portfolio standard.
