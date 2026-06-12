@@ -16,7 +16,8 @@ export type HootMood =
   | "monitoring"
   | "watchful"
   | "alert"
-  | "logging";
+  | "logging"
+  | "coding";
 
 export type PupilOffset = { lx: number; ly: number; rx: number; ry: number };
 
@@ -507,6 +508,7 @@ function emotionToDomain(emotion: HootEmotion, ctx: HootMoodContext): CognitiveD
   if (id === "path:/activity" || emotion.mood === "logging") return "monitoring";
   if (emotion.mood === "syncing" || emotion.mood === "installing") return "syncing";
   if (emotion.mood === "celebrating" || emotion.mood === "proud") return "celebrating";
+  if (emotion.mood === "coding" || id.startsWith("production:")) return "coding";
   if (id === "launch:running" || ctx.pathname === "/terminal" || ctx.pathname === "/launch") {
     return id === "launch:running" || Number(ctx.pageContext.runningCount) > 0 ? "coding" : "launching";
   }
@@ -707,6 +709,7 @@ export function moodLabel(mood: HootMood): string {
     watchful: "on watch",
     alert: "heads up!",
     logging: "logging activity",
+    coding: "coding live",
   };
   return labels[mood];
 }
@@ -731,6 +734,7 @@ export function moodColor(mood: HootMood): string {
     watchful: "#34d399",
     alert: "#fb923c",
     logging: "#34d399",
+    coding: "#4ade80",
   };
   return colors[mood];
 }
@@ -901,4 +905,322 @@ export function formatHootError(message: string, source?: string): string {
   const short = message.split("\n")[0].slice(0, 200);
   const src = source ? ` (${source})` : "";
   return `Something went wrong${src}: ${short}. Want me to walk you through a fix?`;
+}
+
+// ── Grand silhouette (instrument panel + egress spine) ─────────────────────
+
+export const GRAND_WIDTH = 15;
+export const GRAND_CENTER_COL = 7;
+export const GRAND_IN_COL = 4;
+export const GRAND_ST_COL = 10;
+export const GRAND_EYE_L_COL = 4;
+export const GRAND_EYE_R_COL = 10;
+export const GRAND_TRAIL_ROWS = 2;
+export const GRAND_FACE_ROWS = 8;
+export const GRAND_TICK_MS = 280;
+
+function grandRow(slots: Record<number, string>, width = GRAND_WIDTH): string {
+  const row = Array(width).fill(" ");
+  for (const [col, ch] of Object.entries(slots)) {
+    const idx = Number(col);
+    if (idx >= 0 && idx < width) row[idx] = ch.slice(0, 1);
+  }
+  return row.join("");
+}
+
+function fitCaption(text: string, width: number): string {
+  const t = text.trim().slice(0, width);
+  if (t.length >= width) return t;
+  const pad = width - t.length;
+  const left = Math.floor(pad / 2);
+  return " ".repeat(left) + t + " ".repeat(width - t.length - left);
+}
+
+function tiltForDomain(domain: CognitiveDomain, generation: number): string {
+  const tilts = ["\\", "|", "/"];
+  return tilts[generation % tilts.length]!;
+}
+
+/** Live-data flanks for the IN ticker and spine auto-feed conveyor. */
+export function dataFlanksFromContext(ctx: HootMoodContext, domain: CognitiveDomain): string[] | null {
+  const pc = ctx.pageContext;
+  const vocab = COGNITIVE_DOMAINS[domain];
+  if (domain === "computing" || domain === "coding") {
+    const score = Number(pc.stackScore) || 0;
+    if (score > 0) return String(score).padStart(2, "0").split("");
+    return ["1", "0"];
+  }
+  if (domain === "scanning") return ["◎", ".", ">"];
+  if (domain === "syncing") return ["~", "="];
+  if (domain === "monitoring" || domain === "alert") {
+    const total = Number(pc.agentRadarTotal) || 0;
+    const ext = Number(pc.agentRadarExternal) || 0;
+    if (ext > 0) return ["!", String(ext % 10)];
+    if (total > 0) return String(total).slice(-4).split("");
+    return ["●", "○"];
+  }
+  if (pc.tokenBurnSaved) return String(pc.tokenBurnSaved).slice(-4).split("");
+  return vocab?.flanks ?? null;
+}
+
+export function pupilLevelFromContext(ctx: HootMoodContext): { level: number; special: string | null } {
+  const pc = ctx.pageContext;
+  if (ctx.hasError) return { level: 3, special: "!" };
+  if (Number(pc.errorCount) > 0) return { level: 2, special: "×" };
+  return { level: Math.min(3, Number(pc.runningCount) || 0), special: null };
+}
+
+/** Back-compat alias: the spine register now owns all grand-face state. */
+export function resetGrandState(): void {
+  resetGrandSpine();
+}
+
+/**
+ * Grand instrument-panel face: crown health gauge, spine shift register,
+ * chest load bars, and egress trail rows.
+ */
+export function renderGrandLines(ctx: HootMoodContext, frame: number, statusOverride?: string | null): string[] {
+  const emotion = resolveHootEmotion(ctx);
+  const domain = emotionToDomain(emotion, ctx);
+  const anim = resolveAlternatingAnim(frame);
+  const tilt = tiltForDomain(domain, anim.generation);
+  const { spine, health } = tickGrandSpine(ctx, frame);
+
+  const flanks = dataFlanksFromContext(ctx, domain);
+  const inCh = flanks ? flanks[frame % flanks.length]! : "_";
+
+  const pupil = pupilLevelFromContext(ctx);
+  const perceive = COGNITIVE_DOMAINS[domain].perceive;
+  const eyeTemplate = perceive[anim.eyeIndex % perceive.length]!;
+  const { left: baseL, right: baseR } = parseEyePair(eyeTemplate);
+  const eyeL = pupil.special ?? baseL;
+  const eyeR = pupil.special ?? baseR;
+
+  const pc = ctx.pageContext;
+  let stCh = "_";
+  if (Number(pc.runningCount) > 0) stCh = String(Number(pc.runningCount) % 10);
+  else if (pc.scanLoading || pc.radarLoading) stCh = "~";
+  else if (Number(pc.agentRadarTotal) > 0) stCh = String(Number(pc.agentRadarTotal) % 10);
+
+  let tuftL = "/\\";
+  let tuftR = "/\\";
+  if (domain === "celebrating") {
+    tuftL = "\\/";
+    tuftR = "\\/";
+  } else if (emotion.mood === "error") {
+    tuftL = "..";
+    tuftR = "..";
+  }
+  const gauge = crownGauge(health);
+  const crownSlots: Record<number, string> = { 1: tuftL[0]!, 2: tuftL[1]!, 12: tuftR[0]!, 13: tuftR[1]! };
+  for (let c = 3; c <= 11; c++) crownSlots[c] = gauge[c - 3]!;
+
+  const instrSlots: Record<number, string> = {
+    1: "|",
+    13: "|",
+    [GRAND_IN_COL]: inCh,
+    [GRAND_CENTER_COL]: spine[0] ?? "=",
+    [GRAND_ST_COL]: stCh,
+  };
+
+  const eyeSlots: Record<number, string> = {
+    1: "|",
+    2: "(",
+    [GRAND_EYE_L_COL]: eyeL,
+    6: ")",
+    [GRAND_CENTER_COL]: spine[1] ?? "v",
+    8: "(",
+    [GRAND_EYE_R_COL]: eyeR,
+    12: ")",
+    13: "|",
+  };
+
+  const beakSlots: Record<number, string> = {
+    2: "\\",
+    6: "(",
+    [GRAND_CENTER_COL]: spine[2] ?? "▽",
+    8: ")",
+    12: "/",
+  };
+
+  const flapFast = domain === "launching" || domain === "celebrating";
+  const flap = flapFast ? (frame % 2 === 0 ? "^" : "v") : "|";
+  const chestSlots: Record<number, string> = {
+    1: flap,
+    2: "=",
+    11: "=",
+    12: "=",
+    13: flap,
+    [GRAND_CENTER_COL]: tilt,
+  };
+  for (let c = 3; c <= 10; c++) {
+    if (c === GRAND_CENTER_COL) continue;
+    chestSlots[c] = pupil.level > c - 4 ? "|" : ".";
+  }
+
+  const perchSlots: Record<number, string> = {
+    3: "_",
+    4: "_",
+    5: "_",
+    6: "_",
+    7: "_",
+    8: "_",
+    9: "_",
+    10: "_",
+    11: "_",
+    [GRAND_CENTER_COL]: ":",
+  };
+
+  const lines = [
+    grandRow(crownSlots),
+    grandRow(instrSlots),
+    grandRow(eyeSlots),
+    grandRow(beakSlots),
+    grandRow(chestSlots),
+    grandRow(perchSlots),
+  ];
+  for (let t = 0; t < GRAND_TRAIL_ROWS; t++) {
+    const cell = spine[3 + t];
+    lines.push(grandRow(cell ? { [GRAND_CENTER_COL]: cell } : {}));
+  }
+  const caption = statusOverride
+    ? fitCaption(statusOverride, GRAND_WIDTH)
+    : fitCaption(emotion.caption || statusCaption(emotion.mood, frame, null), GRAND_WIDTH);
+  lines.push(caption);
+  return lines;
+}
+
+// ── Health channel: crown gauge + band-change events ────────────────────────
+
+/** 0–100 system health derived from live context. */
+export function healthFromContext(ctx: HootMoodContext): number {
+  const pc = ctx.pageContext;
+  let h = 100;
+  if (Number(pc.errorCount) > 0) h -= 45;
+  if (ctx.hasError) h = Math.min(h, 30);
+  if (Number(pc.agentRadarExternal) > 0) h -= 25;
+  if (pc.tokenBurnRisk === "high") h -= 20;
+  else if (pc.tokenBurnRisk === "medium") h -= 10;
+  if (Number(pc.modulesNeedSync) > 0 || Number(pc.modulesOutdated) > 0) h -= 10;
+  if (Number(pc.profilesBlocked) > 0) h -= 10;
+  const score = Number(pc.stackScore) || 0;
+  if (score > 0 && score < 50) h -= 20;
+  return Math.max(5, Math.min(100, h));
+}
+
+export const CROWN_GAUGE_CELLS = 9;
+
+/** Crown line doubles as the health gauge: filled '=' cells over '_' track. */
+export function crownGauge(health: number): string[] {
+  const filled = Math.round((health / 100) * CROWN_GAUGE_CELLS);
+  return Array.from({ length: CROWN_GAUGE_CELLS }, (_, i) => (i < filled ? "=" : "_"));
+}
+
+// ── Egress spine: 5-point shift register ─────────────────────────────────────
+
+export const SPINE_POINTS = 5;
+export type SpineRegister = Array<string | null>;
+
+/** Trigger transition → glyphs pushed into the spine queue. */
+export function eventGlyphsForTrigger(triggerId: string): string[] | null {
+  if (triggerId === "idle") return null;
+  if (triggerId.startsWith("launch:running") || triggerId === "launch:active" || triggerId === "stack:launch") return ["◆"];
+  if (
+    triggerId === "hint:celebration" ||
+    triggerId === "module:ready" ||
+    triggerId === "profile:ready" ||
+    triggerId === "stack:strong" ||
+    triggerId === "burn:savings"
+  ) {
+    return ["★", "★"];
+  }
+  if (triggerId === "error" || triggerId === "module:install-fail" || triggerId === "session:error") return ["!", "!"];
+  if (
+    triggerId === "launch:blocked" ||
+    triggerId === "profile:blocked" ||
+    triggerId === "hint:warning" ||
+    triggerId === "radar:external" ||
+    triggerId === "burn:high" ||
+    triggerId === "production:heavy" ||
+    triggerId === "stack:weak" ||
+    triggerId === "modules:stale"
+  ) {
+    return ["!"];
+  }
+  if (triggerId === "module:syncing" || triggerId === "module:installing") return ["~", "~"];
+  if (triggerId === "scan:active") return ["◎"];
+  if (triggerId.startsWith("coach:")) return ["~"];
+  if (triggerId.startsWith("production:")) return ["◆"];
+  return null;
+}
+
+type GrandSpineState = {
+  triggerId: string;
+  domain: CognitiveDomain;
+  spine: SpineRegister;
+  queue: string[];
+  healthBand: number;
+  feedIndex: number;
+};
+
+let grandSpine: GrandSpineState = {
+  triggerId: "idle",
+  domain: "idle",
+  spine: [null, null, null, null, null],
+  queue: [],
+  healthBand: 4,
+  feedIndex: 0,
+};
+
+export function resetGrandSpine(): void {
+  grandSpine = {
+    triggerId: "idle",
+    domain: "idle",
+    spine: [null, null, null, null, null],
+    queue: [],
+    healthBand: 4,
+    feedIndex: 0,
+  };
+}
+
+/** Manual injection point (UI actions can push glyphs through the owl). */
+export function enqueueSpineGlyphs(glyphs: string[]): void {
+  grandSpine.queue.push(...glyphs.map((g) => g.slice(0, 1)));
+}
+
+/**
+ * Advance the spine one tick: handle trigger/health transitions, pick the
+ * next glyph (event queue first, then live-data feed), shift the register.
+ */
+export function tickGrandSpine(
+  ctx: HootMoodContext,
+  frame: number,
+): { spine: SpineRegister; domain: CognitiveDomain; health: number } {
+  const emotion = resolveHootEmotion(ctx);
+  const domain = emotionToDomain(emotion, ctx);
+  const health = healthFromContext(ctx);
+  const band = Math.round(health / 25);
+
+  if (emotion.triggerId !== grandSpine.triggerId) {
+    const glyphs = eventGlyphsForTrigger(emotion.triggerId);
+    if (glyphs) grandSpine.queue.push(...glyphs);
+    grandSpine.triggerId = emotion.triggerId;
+    grandSpine.domain = domain;
+  }
+  if (band < grandSpine.healthBand) grandSpine.queue.push("!");
+  else if (band === 4 && grandSpine.healthBand < 4) grandSpine.queue.push("+");
+  grandSpine.healthBand = band;
+
+  let next: string | null = grandSpine.queue.shift() ?? null;
+  if (next === null) {
+    const flanks = dataFlanksFromContext(ctx, domain);
+    if (flanks && frame % 2 === 0) {
+      next = flanks[grandSpine.feedIndex % flanks.length]!;
+      grandSpine.feedIndex++;
+    } else if (domain === "idle" && frame % 6 === 0) {
+      next = "·";
+    }
+  }
+  grandSpine.spine = [next, ...grandSpine.spine.slice(0, SPINE_POINTS - 1)];
+  return { spine: grandSpine.spine, domain, health };
 }

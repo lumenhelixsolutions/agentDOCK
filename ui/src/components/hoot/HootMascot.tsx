@@ -84,6 +84,17 @@ export default function HootMascot() {
     }
   }, [consumeChatPrompt, setCoachOpen]);
 
+  useEffect(() => {
+    const openCoach = () => setCoachOpen(true);
+    const openPopout = () => setPoppedOut(true);
+    window.addEventListener("hoot:open-coach", openCoach);
+    window.addEventListener("hoot:open-popout", openPopout);
+    return () => {
+      window.removeEventListener("hoot:open-coach", openCoach);
+      window.removeEventListener("hoot:open-popout", openPopout);
+    };
+  }, [setCoachOpen]);
+
   const startDrag = useCallback((e: React.PointerEvent) => {
     if (!poppedOut) return;
     e.preventDefault();
