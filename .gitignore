@@ -40,3 +40,4 @@ temp/
 !memory.md
 !research-sources.md
 .aider*
+coach-graph/__pycache__/

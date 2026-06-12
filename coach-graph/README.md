@@ -20,14 +20,26 @@ scan → score profile → human approve → launch → remember
 | `launch` | `POST /api/launch` with validated profile ID only |
 | `remember` | `memory.md` + `state/stack-usage.json` |
 
-## Planned layout
+## Layout
 
 ```
 coach-graph/
-  README.md           # this file
-  graph.spec.json     # node + edge contract
-  nodes/              # Python LangGraph nodes (Phase 4)
-  server.py           # optional 127.0.0.1 sidecar on PORT+1
+  README.md
+  graph.spec.json
+  graph.py            # LangGraph runtime (shipped)
+  nodes.py
+  hoot_client.py
+  requirements.txt
+```
+
+## Run
+
+```powershell
+pip install -r coach-graph/requirements.txt
+# HOOT kernel on 7777
+$env:HOOT_GRAPH_AUTO_APPROVE='1'   # skip stdin approve for automation
+$env:HOOT_GRAPH_MIN_SCORE='50'    # default gate is 80
+python coach-graph/graph.py --profile local-safe-audit --json
 ```
 
 ## Guardrails
