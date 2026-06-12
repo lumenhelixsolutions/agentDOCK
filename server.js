@@ -16,7 +16,6 @@ const https = require('https');
 const { advisorAnalyze } = require('./advisor');
 const { processChatMessage, getChatHistory, clearChat } = require('./chat');
 const { executeCoachCommand } = require('./coach-operator');
-const { gatherOperatorContext, listOperatorTools } = require('./coach-mcp');
 const { appendOperatorLog, listOperatorLog } = require('./hoot-operator-log');
 const { listCoachActions } = require('./coach-actions');
 const { resolveHootBrain, getPullState } = require('./hoot-brain');
@@ -62,7 +61,13 @@ const {
   parseInboundHandoff,
   writeInboundDraft,
 } = require('./handoff-packet');
-const { gitSnapshot } = require('./coach-mcp');
+const { gitSnapshot, gatherOperatorContext, listOperatorTools } = require('./coach-mcp');
+const {
+  resolveContextMode,
+  getSessionContextCache,
+  setSessionContextCache,
+  isContextCacheFresh,
+} = require('./coach-context-cache');
 const {
   syncTelemetryToDisk,
   importTelemetryFromDisk,
@@ -71,8 +76,21 @@ const {
   hootToTelemetry,
   kernelTelemetryFile,
 } = require('./telemetry-bridge');
+const { createAgentClient } = require('./core');
+const { setCoreClientGetter } = require('./core/bridge');
+const { refreshPricing } = require('./core/pricing-fetch');
+const {
+  listActiveNotifications,
+  markNotificationRead,
+  dismissNotification,
+} = require('./core/notifications');
+const { transactionsToLangfuseBatch } = require('./core/langfuse-export');
+const { postJSON, getApiKey } = require('./advisor');
+const { buildVersionInfo } = require('./version-info');
 
 const ROOT = __dirname;
+const SERVER_STARTED_AT = new Date().toISOString();
+const HOOT_VERSION_INFO = buildVersionInfo({ hootRoot: ROOT, startedAt: SERVER_STARTED_AT });
 function resolveBindHost() {
   if (process.env.AGENTDOCK_LAN === '1') return '0.0.0.0';
   return process.env.AGENTDOCK_HOST || '127.0.0.1';
@@ -160,6 +178,96 @@ function dockSessionsByPid() {
 }
 let activeProject = null;
 const sessions = new Map();
+let coreClient = null;
+
+function getCoreClient() {
+  if (!coreClient) {
+    coreClient = createAgentClient({
+      hootRoot: ROOT,
+      deps: { postJSON, getApiKey },
+    });
+  }
+  return coreClient;
+}
+setCoreClientGetter(getCoreClient);
+
+function resolveCoreProjectId(explicit) {
+  if (explicit) return String(explicit);
+  if (activeProject) return path.basename(activeProject) || activeProject;
+  return 'default';
+}
+
+async function resolveCoachMcpContext({ sessionId, contextMode, settings }) {
+  if (contextMode === 'full' || contextMode === 'heartbeat') {
+    const mcpContext = await gatherOperatorContext({ hootRoot: ROOT, activeProject, settings });
+    setSessionContextCache(sessionId, { mcpContext, contextMode });
+    return mcpContext;
+  }
+  const cached = getSessionContextCache(sessionId);
+  if (isContextCacheFresh(cached) && cached.mcpContext) return cached.mcpContext;
+  return null;
+}
+
+function buildCoachChatContext({
+  contextMode,
+  coachView,
+  pageContext,
+  viewGuide,
+  proj,
+  mcpContext,
+}) {
+  const hybrid = getHybridWorkspaceContext(lastScan);
+  const memory = readMemory();
+  const profiles = listProfiles();
+  const evaluated = profiles.map((p) => ({
+    id: p.id,
+    name: p.name,
+    mode: p.meta.mode,
+    status: p.meta.status,
+    state: evaluateProfile(p, lastScan, memory).state,
+  }));
+  const ready = evaluated.filter((p) => p.state === 'READY').length;
+  const blocked = evaluated.filter((p) => p.state === 'BLOCKED').length;
+  const sessionList = [...sessions.values()].map(publicSession);
+  const running = sessionList.filter((s) => s.status === 'running').length;
+
+  if (contextMode === 'minimal') {
+    return {
+      activeProject: proj,
+      coachView,
+      pageContext: { ...pageContext, hybridWorkspace: hybrid },
+      viewGuide,
+      scan: lastScan ? { tools: { ollama: lastScan.tools?.ollama } } : null,
+      profileCounts: { ready, blocked },
+      sessionCounts: { running },
+      mcpContext,
+      hybridWorkspace: hybrid?.cooldown ? { cooldown: { matrix_line: hybrid.cooldown.matrix_line } } : null,
+      workspaceTerse: hybrid?.terse,
+      contextMode,
+    };
+  }
+
+  return {
+    activeProject: proj,
+    installedAgents: (lastScan?.coders || []).filter((c) => c.detection?.present).map((c) => c.id),
+    missingAgents: (lastScan?.coders || []).filter((c) => !c.detection?.present).map((c) => c.id),
+    envKeys: Object.entries(lastScan?.env || {}).filter(([_, v]) => v?.present).map(([k]) => k),
+    profiles: evaluated,
+    profileCounts: { ready, blocked },
+    scan: lastScan ? { system: lastScan.system, hardware: lastScan.hardware, tools: lastScan.tools, ollama: lastScan.ollama } : null,
+    scanFull: lastScan,
+    coachView,
+    pageContext: { ...pageContext, hybridWorkspace: hybrid },
+    viewGuide,
+    orchestration: ORCHESTRATION_LOOP,
+    sessions: sessionList.slice(0, 8),
+    sessionCounts: { running },
+    mcpContext,
+    hybridWorkspace: hybrid,
+    workspaceTerse: hybrid?.terse,
+    contextMode,
+  };
+}
 
 // Load active project on startup
 (function initActiveProject() {
@@ -1648,10 +1756,14 @@ async function route(req, res) {
       const displayPort = addr && typeof addr === 'object' ? addr.port : PORT;
       return send(res, 200, {
         ok: true,
-        version: '2.3.0',
+        version: HOOT_VERSION_INFO.version,
+        display: HOOT_VERSION_INFO.display,
+        product: HOOT_VERSION_INFO.product,
+        subtitle: HOOT_VERSION_INFO.subtitle,
         bind: { host: HOST, port: displayPort, lan: LAN_MODE },
         urls: getLanUrls(displayPort),
         auth: { enabled: getAuthSettings(settings).enabled },
+        info: HOOT_VERSION_INFO,
       });
     }
     if (pathName === '/api/auth/status' && req.method === 'GET') {
@@ -1923,6 +2035,117 @@ async function route(req, res) {
         agentRadar: lastAgentRadar,
       });
       return send(res, 200, { ...report, refresh: refreshMeta });
+    }
+    if (pathName === '/api/core/traces' && req.method === 'GET') {
+      const client = getCoreClient();
+      const projectId = url.searchParams.get('project_id') || resolveCoreProjectId();
+      const traces = client.getTraces({
+        project_id: projectId || undefined,
+        from: url.searchParams.get('from') || undefined,
+        to: url.searchParams.get('to') || undefined,
+        limit: Number(url.searchParams.get('limit') || 200),
+      });
+      return send(res, 200, { ok: true, project_id: projectId, traces });
+    }
+    if (pathName === '/api/core/rollup' && req.method === 'GET') {
+      const client = getCoreClient();
+      const projectId = url.searchParams.get('project_id') || resolveCoreProjectId();
+      const rollup = client.getRollup({
+        project_id: projectId || undefined,
+        from: url.searchParams.get('from') || undefined,
+        to: url.searchParams.get('to') || undefined,
+      });
+      return send(res, 200, { ok: true, rollup });
+    }
+    if (pathName === '/api/core/usage' && req.method === 'GET') {
+      const client = getCoreClient();
+      const projectId = resolveCoreProjectId(url.searchParams.get('project_id'));
+      const timeframe = url.searchParams.get('timeframe') || 'day';
+      const usage = client.getUsage(projectId, timeframe);
+      return send(res, 200, { ok: true, usage });
+    }
+    if (pathName === '/api/core/budgets' && req.method === 'GET') {
+      const client = getCoreClient();
+      return send(res, 200, { ok: true, budgets: client.getBudgets() });
+    }
+    if (pathName === '/api/core/budgets' && req.method === 'PATCH') {
+      const body = await readBody(req);
+      const client = getCoreClient();
+      const projectId = resolveCoreProjectId(body.project_id);
+      const budgets = client.setBudget(projectId, {
+        daily_usd_cap: body.daily_usd_cap,
+        alert_threshold: body.alert_threshold,
+        hard_stop: body.hard_stop,
+      });
+      return send(res, 200, { ok: true, project_id: projectId, budgets });
+    }
+    if (pathName === '/api/core/pricing' && req.method === 'GET') {
+      const client = getCoreClient();
+      const refresh = url.searchParams.get('refresh') === '1';
+      let meta = null;
+      if (refresh) meta = await refreshPricing(client.coreDir, { force: true });
+      const pricing = client.getPricing();
+      return send(res, 200, { ok: true, pricing, refresh: meta });
+    }
+    if (pathName === '/api/core/pricing/refresh' && req.method === 'POST') {
+      const client = getCoreClient();
+      const meta = await refreshPricing(client.coreDir, { force: true });
+      if (meta.pricing) client.gateway.pricing = meta.pricing;
+      return send(res, 200, { ok: meta.ok, ...meta });
+    }
+    if (pathName === '/api/core/notifications' && req.method === 'GET') {
+      const client = getCoreClient();
+      const projectId = resolveCoreProjectId(url.searchParams.get('project_id'));
+      const items = listActiveNotifications(client.coreDir, {
+        project_id: projectId || undefined,
+        includeRead: url.searchParams.get('all') === '1',
+      });
+      return send(res, 200, { ok: true, project_id: projectId, notifications: items });
+    }
+    if (pathName === '/api/core/notifications/read' && req.method === 'POST') {
+      const body = await readBody(req);
+      const client = getCoreClient();
+      const row = markNotificationRead(client.coreDir, body.id);
+      return send(res, 200, { ok: Boolean(row), notification: row });
+    }
+    if (pathName === '/api/core/notifications/dismiss' && req.method === 'POST') {
+      const body = await readBody(req);
+      const client = getCoreClient();
+      const row = dismissNotification(client.coreDir, body.id);
+      return send(res, 200, { ok: Boolean(row), notification: row });
+    }
+    if (pathName === '/api/core/export/langfuse' && req.method === 'GET') {
+      const client = getCoreClient();
+      const projectId = url.searchParams.get('project_id') || resolveCoreProjectId();
+      const traces = client.getTraces({
+        project_id: projectId || undefined,
+        from: url.searchParams.get('from') || undefined,
+        to: url.searchParams.get('to') || undefined,
+        limit: Number(url.searchParams.get('limit') || 500),
+      });
+      return send(res, 200, { ok: true, ...transactionsToLangfuseBatch(traces) });
+    }
+    if (pathName === '/api/core/query' && req.method === 'POST') {
+      const body = await readBody(req);
+      const client = getCoreClient();
+      const projectId = resolveCoreProjectId(body.project_id);
+      try {
+        const result = await client.query({
+          prompt: body.prompt,
+          project_id: projectId,
+          model_config: body.model_config || {},
+          tags: body.tags,
+        });
+        return send(res, 200, result);
+      } catch (err) {
+        const status = err.name === 'AccessDeniedException' ? 402 : 500;
+        return send(res, status, { ok: false, error: err.message, code: err.code || 'CORE_ERROR' });
+      }
+    }
+    if (pathName === '/api/core/cache/clear' && req.method === 'POST') {
+      const client = getCoreClient();
+      const cleared = client.clearPromptCache();
+      return send(res, 200, { ok: true, cleared });
     }
     if (pathName === '/api/agent-radar' && req.method === 'GET') {
       const force = url.searchParams.get('force') === '1';
@@ -2326,6 +2549,7 @@ async function route(req, res) {
         sessions: [...sessions.values()].map(publicSession),
         question: body.question || '',
         useGemini: body.useGemini !== false,
+        coreClient: getCoreClient(),
       });
       return send(res, 200, result);
     }
@@ -2447,38 +2671,48 @@ async function route(req, res) {
         session: last.session || null,
       });
     }
+    if (pathName === '/api/coach/context/refresh' && req.method === 'POST') {
+      const body = await readBody(req);
+      const settings = loadUserSettings();
+      const sessionId = body.sessionId || 'default';
+      const coachView = body.coachView || body.view || '/';
+      try {
+        const mcpContext = await gatherOperatorContext({ hootRoot: ROOT, activeProject, settings });
+        const cache = setSessionContextCache(sessionId, {
+          mcpContext,
+          coachView,
+          pageContext: body.pageContext || {},
+          contextMode: 'heartbeat',
+        });
+        return send(res, 200, { ok: true, contextMode: 'heartbeat', cached_at: cache.cached_at });
+      } catch (e) {
+        return send(res, 500, { ok: false, error: e.message });
+      }
+    }
     if (pathName === '/api/chat' && req.method === 'POST') {
       const body = await readBody(req);
       const settings = loadUserSettings();
+      const sessionId = body.sessionId || 'default';
       const proj = activeProject ? readProjectRegistry().projects.find(p => p.path === activeProject) : null;
       const coachView = body.coachView || body.view || '/';
       const pageContext = body.pageContext || {};
       const viewGuide = getViewGuide(coachView);
+      const contextMode = resolveContextMode(body);
       let mcpContext = null;
       try {
-        mcpContext = await gatherOperatorContext({ hootRoot: ROOT, activeProject, settings });
+        mcpContext = await resolveCoachMcpContext({ sessionId, contextMode, settings });
       } catch { /* optional */ }
-      const hybrid = getHybridWorkspaceContext(lastScan);
-      const context = {
-        activeProject: proj,
-        installedAgents: (lastScan?.coders || []).filter(c => c.detection?.present).map(c => c.id),
-        missingAgents: (lastScan?.coders || []).filter(c => !c.detection?.present).map(c => c.id),
-        envKeys: Object.entries(lastScan?.env || {}).filter(([_, v]) => v?.present).map(([k]) => k),
-        profiles: listProfiles().map(p => ({ id: p.id, name: p.name, mode: p.meta.mode, status: p.meta.status, state: evaluateProfile(p, lastScan, readMemory()).state })),
-        scan: lastScan ? { system: lastScan.system, hardware: lastScan.hardware, tools: lastScan.tools, ollama: lastScan.ollama } : null,
-        scanFull: lastScan,
+      const context = buildCoachChatContext({
+        contextMode,
         coachView,
-        pageContext: { ...pageContext, hybridWorkspace: hybrid },
+        pageContext,
         viewGuide,
-        orchestration: ORCHESTRATION_LOOP,
-        sessions: [...sessions.values()].map(publicSession).slice(0, 8),
+        proj,
         mcpContext,
-        hybridWorkspace: hybrid,
-        workspaceTerse: hybrid.terse,
-      };
+      });
       const coachDeps = buildCoachDeps();
       const result = await processChatMessage({
-        sessionId: body.sessionId || 'default',
+        sessionId,
         text: body.text,
         event: body.event,
         context,
@@ -2490,13 +2724,14 @@ async function route(req, res) {
         operatorRuntime: {
           hootRoot: ROOT,
           activeProject,
+          coreClient: getCoreClient(),
           policy: settings.operator_policy,
           deps: { executeCoachCommand, coachDeps, lastScan },
           hybridFns: buildHybridFns(),
           appendLog: (entry) => appendOperatorLog(FILES.hootOperatorLog, entry),
         },
       });
-      return send(res, 200, result);
+      return send(res, 200, { ...result, contextMode });
     }
     if (pathName === '/api/chat/history' && req.method === 'GET') {
       const sessionId = url.searchParams.get('session') || 'default';
@@ -2520,6 +2755,12 @@ async function route(req, res) {
       const portfolio = { items: buildPortfolioHealth() };
       const settings = loadUserSettings();
       const tokenBurn = buildTokenBurnReport({ scan: lastScan, profiles, settings, agentRadar: lastAgentRadar });
+      const coreClient = getCoreClient();
+      const coreProjectId = resolveCoreProjectId();
+      const coreBudget = coreClient.getBudgets().projects?.[coreProjectId] || null;
+      const coreUsage = coreBudget?.daily_usd_cap
+        ? { ...coreClient.getUsage(coreProjectId, 'day'), daily_usd_cap: coreBudget.daily_usd_cap }
+        : null;
       const hints = buildCoachHints({
         view,
         pageContext,
@@ -2529,6 +2770,8 @@ async function route(req, res) {
         portfolio,
         agentRadar: lastAgentRadar,
         tokenBurn,
+        activeProject,
+        coreUsage,
       });
       const guide = getViewGuide(view);
       return send(res, 200, { hints, view, guide, orchestration: ORCHESTRATION_LOOP });
@@ -2586,6 +2829,9 @@ if (require.main === module) {
       try {
         syncTelemetryToDisk(telemetryCtx());
       } catch { /* optional */ }
+      refreshPricing(path.join(ROOT, 'state', 'core')).then((r) => {
+        if (r.refreshed) console.log(`C.O.R.E. pricing refreshed (${r.merged || 0} models from ${r.source || 'openrouter'})`);
+      }).catch(() => {});
     })
     .catch((err) => {
       console.error(`AgentDock server error: ${err.message}`);

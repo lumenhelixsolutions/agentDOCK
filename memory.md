@@ -199,3 +199,11 @@ Profile: cloud-architecture-codex
 Status: observed-run
 Observed: exitCode=0
 Reason: Terminal-monitored AgentDock session s-2026-06-10T00-51-00-139Z-4a4478
+
+
+## Evidence: codex-patch-test run
+Date: 2026-06-12T00:34:37.916Z
+Profile: codex-patch-test
+Status: observed-run
+Observed: exitCode=0
+Reason: Terminal-monitored AgentDock session s-2026-06-12T00-34-35-459Z-c74173

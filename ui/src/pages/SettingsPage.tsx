@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Key, Save, CheckCircle, Database, Sparkles, Cpu, Zap, RefreshCw, Wifi, Shield } from "lucide-react";
+import { Key, Save, CheckCircle, Database, Sparkles, Cpu, Zap, RefreshCw, Wifi, Shield, Info } from "lucide-react";
+import type { HootVersionInfo } from "@/lib/api";
 import { api } from "../lib/api";
 import { useCoach } from "@/context/CoachContext";
 import HybridWorkspaceSettings from "@/components/hybrid/HybridWorkspaceSettings";
@@ -62,7 +63,7 @@ export default function SettingsPage() {
   const [customEndpoint, setCustomEndpoint] = useState("");
   const [serverSettings, setServerSettings] = useState<ServerSettings | null>(null);
   const [scanHints, setScanHints] = useState<{ rtk?: { present?: boolean }; wsl?: { present?: boolean }; llamacpp?: { present?: boolean; server?: { reachable?: boolean } } } | null>(null);
-  const [status, setStatus] = useState<{ urls?: string[]; bind?: { lan: boolean; port: number } } | null>(null);
+  const [status, setStatus] = useState<{ urls?: string[]; bind?: { lan: boolean; port: number }; version?: string; display?: string; info?: HootVersionInfo } | null>(null);
   const [authStatus, setAuthStatus] = useState<{ enabled: boolean; authenticated: boolean } | null>(null);
   const [newToken, setNewToken] = useState<string | null>(null);
   const [tokenBusy, setTokenBusy] = useState(false);
@@ -447,6 +448,37 @@ export default function SettingsPage() {
 
       <HybridWorkspaceSettings />
 
+      {status?.info && (
+        <div style={{ padding: 20, borderRadius: 12, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+            <Info size={16} color="#ffb042" />
+            <h3 style={{ fontSize: 14, margin: 0, color: "#f5f5f5" }}>About HOOT</h3>
+          </div>
+          <div style={{ display: "grid", gap: 8, fontSize: 12 }}>
+            <div><span style={{ opacity: 0.5 }}>Release</span><div style={{ marginTop: 2, fontWeight: 600 }}>{status.info.display}</div></div>
+            {status.info.changelog_headline && (
+              <div style={{ opacity: 0.75, lineHeight: 1.5 }}>{status.info.changelog_headline}</div>
+            )}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 4 }}>
+              <VersionRow label="VERSION file" value={status.info.sources?.version_file || "—"} />
+              <VersionRow label="Engine package" value={status.info.sources?.engine_package || "—"} />
+              <VersionRow label="UI package" value={status.info.sources?.ui_package || "—"} />
+              <VersionRow label="C.O.R.E." value={status.info.core ? `${status.info.core.name} v${status.info.core.version}` : "—"} />
+              <VersionRow label="Node" value={status.info.engine?.node || "—"} />
+              <VersionRow label="CE cache" value={status.info.sources?.ce_cache || "—"} />
+            </div>
+            {status.info.git && (
+              <div style={{ fontFamily: "'GeistMono', monospace", fontSize: 11, opacity: 0.7 }}>
+                git {status.info.git.branch} @ {status.info.git.commit}{status.info.git.dirty ? " (dirty)" : ""}
+              </div>
+            )}
+            {status.urls?.[0] && (
+              <div style={{ fontSize: 11, opacity: 0.55 }}>Serving at {status.urls.join(", ")}</div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div style={{ padding: 20, borderRadius: 12, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
           <Zap size={16} color="#fbbf24" />
@@ -480,6 +512,15 @@ export default function SettingsPage() {
           Clear API Keys
         </button>
       </div>
+    </div>
+  );
+}
+
+function VersionRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, opacity: 0.45, textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</div>
+      <div style={{ marginTop: 2, fontFamily: "'GeistMono', monospace", fontSize: 11 }}>{value}</div>
     </div>
   );
 }

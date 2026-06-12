@@ -2,6 +2,8 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import type { AppendMessage, ExternalStoreAdapter, ThreadMessageLike } from "@assistant-ui/core";
 import { useExternalStoreRuntime } from "@assistant-ui/react";
 import { api } from "@/lib/api";
+import { slimCoachPageContext } from "@/lib/coach-context-slim";
+import { wantsLiveCoachContext } from "@/lib/coach-context-intent";
 
 export type AgentDockChatMessage = {
   id: string;
@@ -65,12 +67,16 @@ export function useAgentDockRuntime(
       try {
         const provider = getModelProvider();
         const apiKey = getApiKeyOverride();
+        const view = coachContext?.coachView || "/";
+        const slimContext = slimCoachPageContext(view, coachContext?.pageContext || {});
+        const contextMode = wantsLiveCoachContext(trimmed) ? "full" : "minimal";
         const res = await api.chat(sessionId, trimmed, {
           ...(provider ? { provider } : {}),
           ...(apiKey ? { apiKey } : {}),
           customEndpoint: localStorage.getItem("agentdock_custom_endpoint") || undefined,
-          coachView: coachContext?.coachView,
-          pageContext: coachContext?.pageContext,
+          coachView: view,
+          pageContext: slimContext,
+          contextMode,
         });
         const aiMsg: AgentDockChatMessage = {
           id: nextId(),

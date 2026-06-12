@@ -11,6 +11,8 @@ const path = require('path');
 
 const ROOT = __dirname;
 const ADVISOR_LOG = path.join(ROOT, 'logs', 'advisor.log');
+const { mediatedLlmCall } = require('./core/mediated');
+const { AccessDeniedException } = require('./core/errors');
 
 function readJSON(file, fallback) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
@@ -351,7 +353,19 @@ function ruleBasedAdvice(ctx, question) {
   return { source: 'rule-based', advice: lines.join('\n'), actions: [] };
 }
 
-async function advisorAnalyze({ scan, project, profiles, sessions, question, useGemini = true, provider = 'gemini', model, apiKey, customEndpoint }) {
+async function advisorAnalyze({
+  scan,
+  project,
+  profiles,
+  sessions,
+  question,
+  useGemini = true,
+  provider = 'gemini',
+  model,
+  apiKey,
+  customEndpoint,
+  coreClient,
+}) {
   logAdvisor(`Analyzing: project=${project?.name || 'none'}, question=${question || 'none'}, provider=${provider}`);
   const ctx = buildSystemContext(scan, project, profiles, sessions);
   const fallback = ruleBasedAdvice(ctx, question);
@@ -371,20 +385,70 @@ async function advisorAnalyze({ scan, project, profiles, sessions, question, use
     let text = '';
     if (effectiveProvider === 'gemini') {
       const contents = [{ role: 'user', parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }];
-      text = await geminiChat(contents, model || 'gemini-2.0-flash', apiKey);
+      const res = await mediatedLlmCall({
+        client: coreClient,
+        projectRef: project,
+        provider: 'gemini',
+        model: model || 'gemini-2.0-flash',
+        apiKey,
+        contents,
+        prompt: userPrompt,
+        tags: ['advisor'],
+        source: 'advisor',
+      });
+      if (res.blocked) {
+        logAdvisor(`Budget blocked: ${res.meta?.reason || 'hard-stop'}`);
+        return {
+          ...fallback,
+          geminiAvailable: true,
+          geminiError: res.meta?.reason || 'Budget hard-stop',
+          provider: effectiveProvider,
+          coreBlocked: true,
+        };
+      }
+      text = res.text;
     } else {
       const messages = [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ];
-      text = await providerChat({ provider: effectiveProvider, model, apiKey, customEndpoint, messages });
+      const res = await mediatedLlmCall({
+        client: coreClient,
+        projectRef: project,
+        provider: effectiveProvider,
+        model,
+        apiKey,
+        endpoint: customEndpoint,
+        messages,
+        prompt: userPrompt,
+        tags: ['advisor'],
+        source: 'advisor',
+      });
+      if (res.blocked) {
+        logAdvisor(`Budget blocked: ${res.meta?.reason || 'hard-stop'}`);
+        return {
+          ...fallback,
+          geminiAvailable: true,
+          geminiError: res.meta?.reason || 'Budget hard-stop',
+          provider: effectiveProvider,
+          coreBlocked: true,
+        };
+      }
+      text = res.text;
     }
 
     logAdvisor('AI response received.');
     return { source: effectiveProvider, advice: text, fallback: fallback.advice, geminiAvailable: true, provider: effectiveProvider };
   } catch (e) {
     logAdvisor(`AI error: ${e.message}`);
-    return { ...fallback, geminiAvailable: true, geminiError: e.message, provider: effectiveProvider };
+    const blocked = e instanceof AccessDeniedException;
+    return {
+      ...fallback,
+      geminiAvailable: true,
+      geminiError: e.message,
+      provider: effectiveProvider,
+      coreBlocked: blocked,
+    };
   }
 }
 

@@ -49,8 +49,40 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return data as T;
 }
 
+export type HootVersionInfo = {
+  product: string;
+  package: string;
+  version: string;
+  display: string;
+  legacy_name?: string;
+  subtitle?: string;
+  sources?: {
+    version_file?: string | null;
+    engine_package?: string | null;
+    ui_package?: string | null;
+    ce_cache?: string | null;
+  };
+  engine?: { version: string; package_version?: string | null; node?: string; platform?: string };
+  ui?: { version?: string | null };
+  core?: { version: number; name: string };
+  git?: { commit: string; branch: string; dirty: boolean } | null;
+  changelog_headline?: string | null;
+  started_at?: string | null;
+};
+
 export const api = {
-  getStatus: () => request<{ ok: boolean; version: string; bind?: { host: string; port: number; lan: boolean }; urls?: string[]; auth?: { enabled: boolean } }>("GET", "/api/status"),
+  getStatus: () =>
+    request<{
+      ok: boolean;
+      version: string;
+      display?: string;
+      product?: string;
+      subtitle?: string;
+      bind?: { host: string; port: number; lan: boolean };
+      urls?: string[];
+      auth?: { enabled: boolean };
+      info?: HootVersionInfo;
+    }>("GET", "/api/status"),
   getAuthStatus: () => request<{ enabled: boolean; authenticated: boolean; loopback: boolean; lan: boolean }>("GET", "/api/auth/status"),
   generateAuthToken: (enabled = true) => request<{ ok: boolean; token: string }>("POST", "/api/auth/token", { enabled }),
   clearAuthToken: () => request<{ ok: boolean }>("DELETE", "/api/auth/token"),
@@ -158,8 +190,29 @@ export const api = {
   getActiveProject: () => request<any>("GET", "/api/active-project"),
   setActiveProject: (path: string) => request<void>("POST", "/api/active-project", { path }),
   analyze: (question?: string) => request<any>("POST", "/api/advisor/analyze", { question, useGemini: false }),
-  chat: (sessionId: string, text: string, opts?: { provider?: string; model?: string; apiKey?: string; customEndpoint?: string; coachView?: string; pageContext?: Record<string, unknown> }) =>
-    request<any>("POST", "/api/chat", { sessionId, text, ...opts }),
+  chat: (
+    sessionId: string,
+    text: string,
+    opts?: {
+      provider?: string;
+      model?: string;
+      apiKey?: string;
+      customEndpoint?: string;
+      coachView?: string;
+      pageContext?: Record<string, unknown>;
+      contextMode?: "minimal" | "full" | "heartbeat";
+    },
+  ) => request<any>("POST", "/api/chat", { sessionId, text, contextMode: opts?.contextMode || "minimal", ...opts }),
+  refreshCoachContext: (
+    sessionId: string,
+    coachView: string,
+    pageContext?: Record<string, unknown>,
+  ) =>
+    request<{ ok: boolean; cached_at?: string; contextMode?: string }>("POST", "/api/coach/context/refresh", {
+      sessionId,
+      coachView,
+      pageContext: pageContext || {},
+    }),
   clearChat: (sessionId: string) => request<void>("POST", "/api/chat/clear", { sessionId }),
   getTemplates: () => request<any>("GET", "/api/templates"),
   getResearch: () => request<any>("GET", "/api/research/latest"),

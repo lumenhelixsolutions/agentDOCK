@@ -22,17 +22,27 @@ export type PupilOffset = { lx: number; ly: number; rx: number; ry: number };
 
 export const WIDTH = 11;
 export const HOOT_FACE_ROWS = 3;
+/** Shared vertical spine — brow, pupil gap, and beak glyph all center here. */
+export const FACE_CENTER_COL = 5;
+export const BROW_SLASH_L_COL = 3;
 export const BROW_L_COL = 4;
 export const THIRD_EYE_COL = 5;
 export const BROW_R_COL = 6;
+export const BROW_SLASH_R_COL = 7;
+export const EYE_L_PAREN_COL = 3;
+export const EYE_L_COL = 4;
+export const EYE_R_COL = 6;
+export const EYE_R_PAREN_COL = 7;
 export const BEAK_L_COL = 4;
 export const BEAK_GLYPH_COL = 5;
 export const BEAK_R_COL = 6;
 
-/** Single-glyph slots advance this many domain steps per mascot frame (L→R march) */
-export const CASCADE_TICK_MULT = 4;
-/** Beak trails the brow lead (col 4) by this many fast-tick steps */
-export const BEAK_CASCADE_LAG = 3;
+/** Mascot frames per half-beat (eyes OR thinking, alternating). */
+export const FACE_ANIM_BEAT_FRAMES = 4;
+/** Thinking-band march steps per think beat. */
+export const CASCADE_TICK_MULT = 2;
+/** Beak trails the brow lead by this many think-tick steps */
+export const BEAK_CASCADE_LAG = 2;
 const BRAND_WIDTH = 19;
 const PUPIL_CHARS = ["·", "o", "O", "●"] as const;
 const EYE_GLOW_CHARS = new Set(["●", "o", "O", "·", "◎", "◉", "◔", "◕", "×", "-", "!", "^", "○", "◠", "◡", "◎", "◕"]);
@@ -226,7 +236,7 @@ const COMPUTE_FLANKS = "9876543210".split("");
 
 const COGNITIVE_DOMAINS: Record<CognitiveDomain, DomainVocab> = {
   idle: {
-    perceive: ["( ◕ ◕ )", "( · · )", "( - - )"],
+    perceive: ["( ◉ ◉ )", "( ◕ ◕ )", "( · · )"],
     flanks: ["·", "-"],
     holdCenter: "·",
     tickMs: 800,
@@ -339,7 +349,7 @@ export function fixedFaceRow(slots: Record<number, string>, width = WIDTH): stri
   return row.join("");
 }
 
-/** One brow row: owl tufts `/\_LGR/\` — L/R slots carry the L→R cascade trail */
+/** One brow row: `/ L G R \` — outer tufts only, three glyph slots between */
 export function buildBrowLine(
   thirdEye: string,
   width = WIDTH,
@@ -348,7 +358,10 @@ export function buildBrowLine(
   const g = (thirdEye || "·").slice(0, 1);
   const left = (browFlanks?.left ?? "_").slice(0, 1);
   const right = (browFlanks?.right ?? "_").slice(0, 1);
-  return fixedFaceRow({ 2: "/", 3: "\\", 4: left, 5: g, 6: right, 7: "/", 8: "\\" }, width);
+  return fixedFaceRow(
+    { [BROW_SLASH_L_COL]: "/", [BROW_L_COL]: left, [THIRD_EYE_COL]: g, [BROW_R_COL]: right, [BROW_SLASH_R_COL]: "\\" },
+    width,
+  );
 }
 
 export function parseEyePair(eyeTemplate: string): { left: string; right: string } {
@@ -356,14 +369,14 @@ export function parseEyePair(eyeTemplate: string): { left: string; right: string
   return { left: m?.[1] ?? "·", right: m?.[2] ?? "·" };
 }
 
-/** Owl eyes — wide spacing (owl, not cat) */
+/** Owl eyes — wide binocular pair; gap center aligns with beak spine (cols 2–7) */
 export function buildEyesLine(left: string, right: string, width = WIDTH): string {
   return fixedFaceRow(
     {
-      1: "(",
-      3: (left || "·").slice(0, 1),
-      7: (right || "·").slice(0, 1),
-      9: ")",
+      [EYE_L_PAREN_COL]: "(",
+      [EYE_L_COL]: (left || "·").slice(0, 1),
+      [EYE_R_COL]: (right || "·").slice(0, 1),
+      [EYE_R_PAREN_COL]: ")",
     },
     width,
   );
@@ -401,6 +414,21 @@ export function flankGlyphLtr(flanks: string[], fastIndex: number, fallback = "�
 function pickCycle<T>(items: T[] | undefined, frame: number, fallback: T): T {
   if (!items?.length) return fallback;
   return items[frame % items.length]!;
+}
+
+/** Eyes and thinking band alternate — never race on the same beat. */
+export function resolveAlternatingAnim(frame: number) {
+  const beat = Math.floor(frame / FACE_ANIM_BEAT_FRAMES);
+  const generation = Math.floor(beat / 2);
+  const isThinkBeat = beat % 2 === 1;
+  return {
+    beat,
+    generation,
+    isThinkBeat,
+    isEyeBeat: !isThinkBeat,
+    eyeIndex: generation,
+    cascadeIndex: isThinkBeat ? generation : Math.max(0, generation - 1),
+  };
 }
 
 export type CascadeGlyphs = {
@@ -527,8 +555,9 @@ export class CognitiveRuntime {
 
     const vocab = COGNITIVE_DOMAINS[cognitiveState.domain];
     const phase = cognitiveState.phase;
-    const cascade = resolveCascadeGlyphs(phase, cognitiveState.domain, vocab.flanks, frame);
-    const eyeTemplate = pickCycle(vocab.perceive, Math.floor(frame / 2), "( ◕ ◕ )");
+    const anim = resolveAlternatingAnim(frame);
+    const cascade = resolveCascadeGlyphs(phase, cognitiveState.domain, vocab.flanks, anim.cascadeIndex);
+    const eyeTemplate = pickCycle(vocab.perceive, anim.eyeIndex, "( ◉ ◉ )");
     const { left: eyeL, right: eyeR } = parseEyePair(eyeTemplate);
 
     const browLine = buildBrowLine(cascade.thirdEye, WIDTH, {
@@ -713,7 +742,7 @@ export function moodFrameInterval(mood: HootMood, cognitive = false): number {
   else if (mood === "syncing" || mood === "installing") ms = 280;
   else if (mood === "alert" || mood === "launching") ms = 300;
   else ms = 400;
-  if (cognitive) return Math.max(100, Math.floor(ms * 0.38));
+  if (cognitive) return Math.max(220, Math.floor(ms * 0.52));
   return ms;
 }
 

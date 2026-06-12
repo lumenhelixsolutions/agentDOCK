@@ -217,7 +217,7 @@ function CoachThreadInner({
           {isRunning && (
             <div style={{ display: "flex", gap: 8, alignItems: "center", opacity: 0.6, fontSize: 12 }}>
               <Sparkles size={12} color="#ffb042" />
-              Reading your screen…
+              Thinking…
             </div>
           )}
         </ThreadPrimitive.Viewport>

@@ -1,6 +1,6 @@
 {
   "name": "agentdock",
-  "version": "2.0.0",
+  "version": "2.3.0",
   "description": "HOOT — local AI command center. Project-aware agent stack scanner, planner, terminal monitor, launcher, and memory system.",
   "main": "server.js",
   "scripts": {

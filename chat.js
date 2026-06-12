@@ -2,7 +2,9 @@
  * HOOT AI Coach chat — multi-provider with local brain + operator commands.
  */
 
-const { providerChat, toGeminiContents, toOpenAIMessages, getApiKey, ollamaChatCompletion } = require('./advisor');
+const { toGeminiContents, toOpenAIMessages, getApiKey } = require('./advisor');
+const { mediatedLlmCall, mediatedRawCall } = require('./core/mediated');
+const { AccessDeniedException } = require('./core/errors');
 const { resolveProviderKey, isLocalProvider, isPlaceholderKey } = require('./key-vault');
 const { resolveHootBrain } = require('./hoot-brain');
 const { buildCoachChatResponse, summarizeCoachContext } = require('./coach-chat');
@@ -63,13 +65,17 @@ function trimHistory(chat) {
   }
 }
 
-function buildCommandPrompt(context) {
-  const summary = summarizeCoachContext(context);
-  const mcpBlock = context.mcpContext
+function buildCommandPrompt(context, { mode = 'minimal' } = {}) {
+  const summary = summarizeCoachContext(context, { mode });
+  const includeMcp = mode !== 'minimal' && context.mcpContext;
+  const mcpBlock = includeMcp
     ? `\n\nLive read-only context (git + HOOT files — cite when answering repo/memory questions):\n${JSON.stringify(context.mcpContext, null, 2)}`
     : '';
+  const modeNote = mode === 'minimal'
+    ? '\n(Context is a lightweight heartbeat snapshot — do not assume fresh git/memory unless user asks.)'
+    : '';
   return `Current screen context (use this — do NOT invent state):
-${JSON.stringify(summary, null, 2)}${mcpBlock}
+${JSON.stringify(summary, null, 2)}${mcpBlock}${modeNote}
 
 App commands (optional \`\`\`json commands\`\`\` block — server executes allowlisted tools):
 - navigate { route } — e.g. /scan, /profiles, /terminal, /memory
@@ -130,9 +136,24 @@ async function runOllamaNativeToolLoop({
 
   while (rounds < MAX_TOOL_ROUNDS) {
     rounds += 1;
-    const res = await ollamaChatCompletion(endpoint, model, workingMessages, { tools });
+    const res = await mediatedRawCall({
+      client: operatorRuntime.coreClient,
+      projectRef: operatorRuntime.activeProject,
+      provider: 'ollama',
+      model,
+      endpoint,
+      messages: workingMessages,
+      tools,
+      tool_choice: 'auto',
+      tags: ['coach-chat', 'ollama-tools', `round-${rounds}`],
+      source: 'coach-chat-tools',
+      cache: false,
+    });
+    if (res.blocked) {
+      throw res.error || new AccessDeniedException('Budget hard-stop blocked Ollama tool loop');
+    }
     const assistantMsg = res.message || { role: 'assistant', content: '' };
-    finalContent = res.content || assistantMsg.content || '';
+    finalContent = res.text || assistantMsg.content || '';
 
     if (!res.tool_calls?.length) break;
 
@@ -271,7 +292,8 @@ async function processChatMessage({
   const effectiveEndpoint = customEndpoint || brain.endpoint;
 
   const systemMsg = chat.messages.find((m) => m.role === 'system')?.text || '';
-  const commandPrompt = buildCommandPrompt(context || {});
+  const contextMode = context?.contextMode || 'minimal';
+  const commandPrompt = buildCommandPrompt(context || {}, { mode: contextMode });
   const history = chat.messages.filter((m) => m.role !== 'system');
 
   const resolvedKey = resolveChatApiKey({ apiKey, effectiveProvider });
@@ -333,18 +355,39 @@ async function processChatMessage({
         { role: 'system', text: `${systemMsg}\n\n${commandPrompt}` },
         ...history,
       ]);
-      aiText = await providerChat({ provider: 'gemini', model: effectiveModel || 'gemini-2.0-flash', apiKey: resolvedKey, contents });
+      const res = await mediatedLlmCall({
+        client: operatorRuntime?.coreClient,
+        projectRef: operatorRuntime?.activeProject || context?.activeProject,
+        provider: 'gemini',
+        model: effectiveModel || 'gemini-2.0-flash',
+        apiKey: resolvedKey,
+        contents,
+        tags: ['coach-chat'],
+        source: 'coach-chat',
+      });
+      if (res.blocked) {
+        throw res.error || new AccessDeniedException(res.meta?.reason || 'Budget hard-stop');
+      }
+      aiText = res.text;
       const extracted = extractCommands(aiText);
       aiText = extracted.text;
       commands = extracted.commands;
     } else {
-      aiText = await providerChat({
+      const res = await mediatedLlmCall({
+        client: operatorRuntime?.coreClient,
+        projectRef: operatorRuntime?.activeProject || context?.activeProject,
         provider: effectiveProvider,
         model: effectiveModel,
         apiKey: resolvedKey === '__local__' ? undefined : resolvedKey,
-        customEndpoint: effectiveEndpoint,
+        endpoint: effectiveEndpoint,
         messages: openAiMessages,
+        tags: ['coach-chat'],
+        source: 'coach-chat',
       });
+      if (res.blocked) {
+        throw res.error || new AccessDeniedException(res.meta?.reason || 'Budget hard-stop');
+      }
+      aiText = res.text;
       const extracted = extractCommands(aiText);
       aiText = extracted.text;
       commands = extracted.commands;
@@ -352,8 +395,13 @@ async function processChatMessage({
   } catch (e) {
     const local = buildCoachChatResponse({ text, context: context || {} });
     const shortErr = String(e.message || 'unavailable').split('\n')[0].slice(0, 120);
-    const localHint = isLocalProvider(effectiveProvider) ? 'Local LLM' : 'LLM';
-    aiText = `${local.text}\n\n_(${localHint} unavailable — ${shortErr}. Answering from your screen.)_`;
+    const localHint = e instanceof AccessDeniedException
+      ? 'C.O.R.E. budget guard'
+      : (isLocalProvider(effectiveProvider) ? 'Local LLM' : 'LLM');
+    const budgetNote = e instanceof AccessDeniedException
+      ? '\n\n_Set a higher daily cap via **Settings** or PATCH `/api/core/budgets`._'
+      : '';
+    aiText = `${local.text}\n\n_(${localHint} — ${shortErr}. Answering from your screen.)_${budgetNote}`;
     commands = local.commands;
     chat.messages.push({ role: 'model', text: aiText });
     trimHistory(chat);

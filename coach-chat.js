@@ -160,37 +160,55 @@ function viewOperatorSnapshot(view, pageContext = {}, context = {}) {
   return snap;
 }
 
-function summarizeCoachContext(context) {
+function summarizeMcpContext(mcpContext) {
+  if (!mcpContext) return null;
+  return {
+    activeRepo: mcpContext.activeRepo,
+    gitBranch: mcpContext.git?.branch || null,
+    gitStatus: mcpContext.git?.status || null,
+    recentCommits: mcpContext.git?.recentCommits || null,
+    memoryExcerpt: mcpContext.filesystem?.find((f) => f.path === 'memory.md')?.excerpt?.slice(0, 400) || null,
+  };
+}
+
+function summarizeCoachContext(context, { mode = 'minimal' } = {}) {
   const guide = context.viewGuide || getViewGuide(context.coachView);
   const pageContext = context.pageContext || {};
-  return {
+  const operatorSnapshot = viewOperatorSnapshot(context.coachView, pageContext, context);
+  const base = {
     coachView: context.coachView,
     screen: guide.title,
     screenSummary: guide.summary,
-    features: guide.features,
-    orchestration: ORCHESTRATION_LOOP.compose,
     recommendedNext: guide.nextActions?.[0] || null,
-    pageContext,
-    operatorSnapshot: viewOperatorSnapshot(context.coachView, pageContext, context),
+    operatorSnapshot,
     activeProject: context.activeProject?.name || context.activeProject?.path || null,
     ollamaPresent: context.scan?.tools?.ollama?.present || false,
+    readyProfiles: context.profileCounts?.ready ?? (context.profiles || []).filter((p) => p.state === 'READY').length,
+    blockedProfiles: context.profileCounts?.blocked ?? (context.profiles || []).filter((p) => p.state === 'BLOCKED').length,
+    sessionsRunning: context.sessionCounts?.running ?? (context.sessions || []).filter((s) => s.status === 'running').length,
+    providerMatrix: context.hybridWorkspace?.cooldown?.matrix_line || pageContext.providerMatrix || null,
+    contextMode: mode,
+  };
+
+  if (mode === 'minimal') {
+    return {
+      ...base,
+      contextNote: 'Lightweight screen snapshot. Ask to refresh repo/memory context if needed.',
+      productionActive: Boolean(pageContext.productionSessionActive || pageContext.grokSessionActive),
+      productionEstTokens: pageContext.productionEstContextTokens || pageContext.grokEstContextTokens || null,
+    };
+  }
+
+  return {
+    ...base,
+    features: guide.features,
+    orchestration: ORCHESTRATION_LOOP.compose,
     installedAgents: context.installedAgents?.slice(0, 8),
     missingAgents: context.missingAgents?.slice(0, 6),
-    readyProfiles: (context.profiles || []).filter((p) => p.state === 'READY').length,
-    blockedProfiles: (context.profiles || []).filter((p) => p.state === 'BLOCKED').length,
-    sessionsRunning: (context.sessions || []).filter((s) => s.status === 'running').length,
-    mcpContext: context.mcpContext ? {
-      activeRepo: context.mcpContext.activeRepo,
-      gitBranch: context.mcpContext.git?.branch || null,
-      gitStatus: context.mcpContext.git?.status || null,
-      recentCommits: context.mcpContext.git?.recentCommits || null,
-      memoryExcerpt: context.mcpContext.filesystem?.find((f) => f.path === 'memory.md')?.excerpt?.slice(0, 400) || null,
-    } : null,
-    providerMatrix: context.hybridWorkspace?.cooldown?.matrix_line || context.pageContext?.providerMatrix || null,
+    mcpContext: summarizeMcpContext(context.mcpContext),
     activeRoot: context.hybridWorkspace?.active_root_path || context.workspaceTerse?.active_root || null,
     workspaceBoundaries: context.workspaceTerse?.rule || null,
     productionContext: pageContext.productionContext || null,
-    productionSessions: pageContext.productionSessions || null,
     sessionSummary: pageContext.sessionSummary || null,
     grokSummary: pageContext.grokSummary || null,
   };

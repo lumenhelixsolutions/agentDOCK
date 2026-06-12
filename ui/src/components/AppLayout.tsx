@@ -36,6 +36,7 @@ import { ToastProvider } from "./Toast";
 import { getViewDoc } from "@/lib/app-docs";
 import { toggleTheme } from "@/lib/theme";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useHootVersion } from "@/hooks/useHootVersion";
 
 const priorityRoutes = ["/", "/scan", "/profiles", "/terminal"];
 
@@ -82,6 +83,7 @@ export default function AppLayout() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [onboardingData, setOnboardingData] = useState<Awaited<ReturnType<typeof api.getOnboarding>> | null>(null);
+  const versionInfo = useHootVersion();
 
   const loadOnboarding = useCallback(() => {
     api.getOnboarding().then((data) => {
@@ -162,6 +164,7 @@ export default function AppLayout() {
       collapsed={!isMobile && collapsed}
       pathname={location.pathname}
       focusItems={focusItems}
+      versionInfo={versionInfo}
       onCollapseToggle={() => setCollapsed((v) => !v)}
       showCollapseToggle={!isMobile}
       onNavigate={() => setDrawerOpen(false)}
@@ -254,7 +257,7 @@ export default function AppLayout() {
               </button>
               <div className="hidden items-center gap-2 xl:flex">
                 <StatusPill label="127.0.0.1 active" tone="green" />
-                <StatusPill label={BRAND.subtitle} tone="gold" />
+                {versionInfo?.display ? <StatusPill label={versionInfo.display} tone="gold" /> : <StatusPill label={BRAND.subtitle} tone="gold" />}
                 <StatusPill label="Profiles + sessions" tone="slate" />
               </div>
             </div>
@@ -284,6 +287,7 @@ function SidebarContent({
   collapsed,
   pathname,
   focusItems,
+  versionInfo,
   onCollapseToggle,
   showCollapseToggle,
   onNavigate,
@@ -291,6 +295,7 @@ function SidebarContent({
   collapsed: boolean;
   pathname: string;
   focusItems: Array<{ label: string; path: string; desc: string }>;
+  versionInfo: ReturnType<typeof useHootVersion>;
   onCollapseToggle: () => void;
   showCollapseToggle: boolean;
   onNavigate: () => void;
@@ -384,6 +389,8 @@ function SidebarContent({
         )}
       </nav>
 
+      <VersionFooter collapsed={collapsed} versionInfo={versionInfo} />
+
       <ThemeToggle collapsed={collapsed} />
 
       {showCollapseToggle && (
@@ -410,6 +417,44 @@ function TopMetric({ icon, label, value }: { icon: ReactNode; label: string; val
         <div className="text-[10px] uppercase tracking-[0.16em] opacity-45">{label}</div>
         <div className="mt-1 text-[13px] leading-relaxed">{value}</div>
       </div>
+    </div>
+  );
+}
+
+function VersionFooter({
+  collapsed,
+  versionInfo,
+}: {
+  collapsed: boolean;
+  versionInfo: ReturnType<typeof useHootVersion>;
+}) {
+  if (!versionInfo) return null;
+  const gitLabel = versionInfo.git
+    ? `${versionInfo.git.commit}${versionInfo.git.dirty ? "*" : ""}`
+    : null;
+  return (
+    <div className={`border-t border-border px-4 py-3 ${collapsed ? "text-center" : ""}`}>
+      {collapsed ? (
+        <div className="text-[10px] font-medium tracking-wide text-muted-foreground" title={versionInfo.display}>
+          v{versionInfo.version}
+        </div>
+      ) : (
+        <div className="space-y-1">
+          <div className="text-[11px] font-semibold tracking-[0.08em] text-foreground/85">{versionInfo.display}</div>
+          <div className="text-[10px] leading-relaxed text-muted-foreground">
+            Engine {versionInfo.engine?.package_version || versionInfo.version}
+            {versionInfo.ui?.version ? ` · UI ${versionInfo.ui.version}` : ""}
+            {versionInfo.core?.name ? ` · ${versionInfo.core.name}` : ""}
+          </div>
+          {(gitLabel || versionInfo.changelog_headline) && (
+            <div className="text-[10px] leading-relaxed text-muted-foreground/80">
+              {gitLabel ? <span className="font-mono">{gitLabel}</span> : null}
+              {gitLabel && versionInfo.changelog_headline ? " · " : null}
+              {versionInfo.changelog_headline}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

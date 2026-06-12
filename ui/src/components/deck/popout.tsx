@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { ChevronDown, ChevronUp, MessageCircle, X } from "lucide-react";
 import {
   type CooldownRegistry,
   PROVIDER_ORDER,
@@ -9,7 +11,13 @@ import {
   liveRemaining,
   liveRemainingFraction,
 } from "@/lib/cooldown";
+import { useCoach } from "@/context/CoachContext";
+import CoachThread from "@/components/coach/CoachThread";
+import HootOwl from "@/components/hoot/HootOwl";
+import { api } from "@/lib/api";
+import { BRAND } from "@/lib/brand";
 import GaugeRing from "./GaugeRing";
+import PopoutRadarTelemetry from "./PopoutRadarTelemetry";
 
 /**
  * Floating always-on-top monitor. Uses the Document Picture-in-Picture API
@@ -25,6 +33,9 @@ declare global {
   }
 }
 
+const DECK_SESSION_ID = "hoot-deck-" + Math.random().toString(36).slice(2, 8);
+const POPOUT_SIZE = { compact: { w: 500, h: 460 }, expanded: { w: 500, h: 760 } };
+
 function copyStylesInto(target: Document) {
   for (const sheet of Array.from(document.styleSheets)) {
     try {
@@ -33,7 +44,6 @@ function copyStylesInto(target: Document) {
       style.textContent = css;
       target.head.appendChild(style);
     } catch {
-      // cross-origin sheet — relink instead
       const owner = sheet.ownerNode;
       if (owner instanceof HTMLLinkElement && owner.href) {
         const link = target.createElement("link");
@@ -45,6 +55,15 @@ function copyStylesInto(target: Document) {
   }
   target.documentElement.className = document.documentElement.className;
   target.body.style.margin = "0";
+}
+
+function resizePopoutWindow(win: Window, expanded: boolean) {
+  const { w, h } = expanded ? POPOUT_SIZE.expanded : POPOUT_SIZE.compact;
+  try {
+    win.resizeTo(w, h);
+  } catch {
+    /* PiP or cross-origin may block resize */
+  }
 }
 
 export function useDeckPopout() {
@@ -67,11 +86,18 @@ export function useDeckPopout() {
     let win: Window | null = null;
     try {
       if (window.documentPictureInPicture?.requestWindow) {
-        win = await window.documentPictureInPicture.requestWindow({ width: 460, height: 330 });
+        win = await window.documentPictureInPicture.requestWindow({
+          width: POPOUT_SIZE.compact.w,
+          height: POPOUT_SIZE.compact.h,
+        });
       }
     } catch { /* user dismissed or unsupported — fall back */ }
     if (!win) {
-      win = window.open("", "hoot-cooldown-deck", "popup=yes,width=480,height=350");
+      win = window.open(
+        "",
+        "hoot-cooldown-deck",
+        `popup=yes,width=${POPOUT_SIZE.compact.w},height=${POPOUT_SIZE.compact.h}`,
+      );
     }
     if (!win) return;
     copyStylesInto(win.document);
@@ -80,7 +106,6 @@ export function useDeckPopout() {
     setPipWindow(win);
   }, [close]);
 
-  // Close the floating window if the app itself unloads.
   useEffect(() => {
     const onUnload = () => winRef.current?.close();
     window.addEventListener("beforeunload", onUnload);
@@ -100,16 +125,90 @@ export function PopoutSurface({
   registry: CooldownRegistry | null;
   nowMs: number;
 }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const {
+    hootMood,
+    hootStatus,
+    setHootStatus,
+    pageContext,
+    chatLoading,
+    topHint,
+  } = useCoach();
+
+  const [chatExpanded, setChatExpanded] = useState(false);
   const body = pipWindow.document.body;
 
+  const hootMoodContext = useMemo(
+    () => ({
+      pathname: location.pathname,
+      pageContext,
+      hasError: false,
+      coachOpen: chatExpanded,
+      chatLoading,
+      topHintTone: topHint?.tone || null,
+      hasTopHint: Boolean(topHint),
+    }),
+    [location.pathname, pageContext, chatExpanded, chatLoading, topHint],
+  );
+
+  useEffect(() => {
+    resizePopoutWindow(pipWindow, chatExpanded);
+  }, [pipWindow, chatExpanded]);
+
+  const executeCmd = async (cmd: Record<string, unknown>) => {
+    const label = String(cmd.type || "action");
+    setHootStatus(`HOOT running ${label}…`);
+    try {
+      const res = await api.coachExecute(cmd);
+      if (res.route) navigate(res.route);
+      if (res.message) alert(String(res.message));
+      if (res.launched) navigate("/terminal");
+      setHootStatus(null);
+    } catch {
+      setHootStatus(null);
+    }
+  };
+
   const content = (
-    <div className="flex min-h-screen flex-col gap-3 bg-background p-3 font-sans text-foreground">
-      <div className="flex items-center gap-2">
-        <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-        </span>
-        <span className="text-[10px] font-semibold uppercase tracking-[0.2em] opacity-60">HOOT · Cooldown Deck</span>
+    <div className="flex min-h-screen flex-col gap-2.5 bg-background p-3 font-sans text-foreground">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="relative flex h-2 w-2 shrink-0">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+          </span>
+          <span className="truncate text-[10px] font-semibold uppercase tracking-[0.2em] opacity-60">
+            HOOT · Cooldown Deck
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setChatExpanded((v) => !v)}
+          title={chatExpanded ? "Collapse chat" : "Expand HOOT chat"}
+          className={`flex shrink-0 items-center gap-1 rounded-lg border px-2 py-1 text-[10px] transition ${
+            chatExpanded ? "hoot-gold-chip" : "border-border opacity-60 hover:opacity-100"
+          }`}
+        >
+          <MessageCircle size={12} />
+          {chatExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        </button>
+      </div>
+
+      <div className="flex items-start gap-3 rounded-xl border border-border bg-foreground/[0.02] p-2">
+        <button
+          type="button"
+          onClick={() => setChatExpanded((v) => !v)}
+          title={chatExpanded ? "Collapse chat" : "Ask HOOT"}
+          className="shrink-0 rounded-lg border-0 bg-transparent p-0 transition hover:opacity-90"
+        >
+          <HootOwl mood={hootMood} moodContext={hootMoodContext} size="sm" statusLine={hootStatus} />
+        </button>
+        <div className="min-w-0 flex-1 pt-1">
+          <div className="text-[11px] font-semibold text-amber-300/90">{BRAND.name}</div>
+          <div className="text-[9px] uppercase tracking-[0.12em] opacity-45">{BRAND.mascotTagline}</div>
+          <PopoutRadarTelemetry />
+        </div>
       </div>
 
       {!registry ? (
@@ -127,7 +226,7 @@ export function PopoutSurface({
             const value = state === "cooldown" ? (fraction ?? 1) : state === "unknown" ? 0 : 1;
             return (
               <div key={id} className="flex flex-col items-center gap-1" title={`${row.label}: ${state}`}>
-                <GaugeRing size={62} stroke={5} value={value} color={color} glow={state === "cooldown"}>
+                <GaugeRing size={58} stroke={5} value={value} color={color} glow={state === "cooldown"}>
                   {state === "cooldown" && remaining !== null ? (
                     <span className="font-mono text-[10px] font-semibold tabular-nums">{formatClock(remaining)}</span>
                   ) : (
@@ -144,8 +243,30 @@ export function PopoutSurface({
       )}
 
       {registry?.matrix_line && (
-        <div className="mt-auto overflow-hidden whitespace-nowrap font-mono text-[9px] opacity-40">
+        <div className="overflow-hidden whitespace-nowrap font-mono text-[9px] opacity-40">
           {registry.matrix_line}
+        </div>
+      )}
+
+      {chatExpanded && (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-[#0d0d0d]">
+          <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+            <div className="flex items-center gap-2">
+              <HootOwl mood={hootMood} moodContext={hootMoodContext} size="sm" statusLine={hootStatus} />
+              <span className="text-[11px] font-medium opacity-80">Ask {BRAND.name}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setChatExpanded(false)}
+              className="rounded-md border border-border p-1 opacity-50 transition hover:opacity-100"
+              title="Collapse chat"
+            >
+              <X size={12} />
+            </button>
+          </div>
+          <div className="flex min-h-[280px] flex-1 flex-col">
+            <CoachThread sessionId={DECK_SESSION_ID} onCommand={executeCmd} />
+          </div>
         </div>
       )}
     </div>

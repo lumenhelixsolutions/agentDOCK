@@ -201,14 +201,30 @@
     transform: none;
   }
 
+  .hoot-ascii-eye-glyph {
+    display: inline-block;
+    font-size: 1.22em;
+    line-height: 0.82em;
+    font-weight: 700;
+    vertical-align: -0.06em;
+  }
+
+  .hoot-ascii-cascade-center,
+  .hoot-ascii-beak-emit {
+    font-size: 0.72em;
+    line-height: 1.1em;
+    vertical-align: 0.08em;
+    opacity: 0.9;
+  }
+
   .hoot-ascii-emit-glyph {
     animation: hootEmitGlow 0.22s ease-in-out infinite alternate;
     transform: none;
   }
 
   @keyframes hootEmitGlow {
-    0%, 100% { opacity: 0.68; filter: brightness(0.88); }
-    50% { opacity: 1; filter: brightness(1.45); }
+    0%, 100% { opacity: 0.72; filter: brightness(0.92); }
+    50% { opacity: 1; filter: brightness(1.2); }
   }
 
   .hoot-ascii--idle {

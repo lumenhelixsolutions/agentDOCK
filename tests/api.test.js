@@ -266,6 +266,10 @@ describe('api', () => {
     assert.strictEqual(json.ok, true);
     assert.ok(Array.isArray(json.urls));
     assert.ok(json.bind);
+    assert.ok(json.version);
+    assert.ok(json.info);
+    assert.strictEqual(json.info.product, 'HOOT');
+    assert.strictEqual(json.info.version, json.version);
   });
 
   it('GET /api/activity/today returns summary', async () => {

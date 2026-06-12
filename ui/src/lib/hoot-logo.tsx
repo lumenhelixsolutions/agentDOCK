@@ -11,6 +11,8 @@ import {
   BEAK_GLYPH_COL,
   BROW_L_COL,
   BROW_R_COL,
+  EYE_L_COL,
+  EYE_R_COL,
   HOOT_FACE_ROWS,
   THIRD_EYE_COL,
   WIDTH,
@@ -80,16 +82,21 @@ function colorizeLine(
       color = DIM_COLOR;
     }
 
-    const isCascadeGlyph =
-      (row === 0 && (i === BROW_L_COL || i === THIRD_EYE_COL || i === BROW_R_COL) && ch !== "_" && ch !== "·" && ch !== " ") ||
-      (row === 2 && i === BEAK_GLYPH_COL && ch !== "▽" && ch !== "·" && ch !== " ");
+    const isEyeGlyph = row === 1 && (i === EYE_L_COL || i === EYE_R_COL) && isEyeGlowChar(ch);
+    const isCascadeFlank =
+      row === 0 && (i === BROW_L_COL || i === BROW_R_COL) && ch !== "_" && ch !== "·" && ch !== " ";
+    const isCascadeCenter = row === 0 && i === THIRD_EYE_COL && ch !== "_" && ch !== "·" && ch !== " ";
+    const isBeakEmit = row === 2 && i === BEAK_GLYPH_COL && ch !== "▽" && ch !== "·" && ch !== " ";
 
     return (
       <span
         key={`${row}-${i}`}
         className={[
           fixedCells ? "hoot-ascii-cell" : undefined,
-          isCascadeGlyph ? "hoot-ascii-emit-glyph" : undefined,
+          isEyeGlyph ? "hoot-ascii-eye-glyph" : undefined,
+          isCascadeFlank ? "hoot-ascii-emit-glyph" : undefined,
+          isCascadeCenter ? "hoot-ascii-cascade-center hoot-ascii-emit-glyph" : undefined,
+          isBeakEmit ? "hoot-ascii-beak-emit hoot-ascii-emit-glyph" : undefined,
         ]
           .filter(Boolean)
           .join(" ")}

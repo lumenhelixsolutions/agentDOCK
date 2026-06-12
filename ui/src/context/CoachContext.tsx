@@ -6,6 +6,7 @@ import { formatHootError, hootStatusFromContext, resolveHootMoodFromContext } fr
 import { setHootErrorReporter } from "@/lib/hoot-bus";
 import { isPageVisible } from "@/lib/perf";
 import { productionFieldsFromRadar } from "@/lib/production-radar";
+import { slimCoachPageContext } from "@/lib/coach-context-slim";
 
 export type CoachAction = {
   label: string;
@@ -220,6 +221,19 @@ export function CoachProvider({ children }: { children: ReactNode }) {
     const t = setTimeout(refreshHints, 400);
     return () => clearTimeout(t);
   }, [location.pathname, hintContextKey, refreshHints]);
+
+  useEffect(() => {
+    if (!coachOpen) return;
+    const sessionId = "default";
+    const syncContext = () => {
+      if (!isPageVisible()) return;
+      const slim = slimCoachPageContext(location.pathname, pageContextRef.current);
+      api.refreshCoachContext(sessionId, location.pathname, slim).catch(() => {});
+    };
+    syncContext();
+    const id = setInterval(syncContext, 60000);
+    return () => clearInterval(id);
+  }, [coachOpen, location.pathname]);
 
   const prevExternalRef = useRef<number | null>(null);
   const handoffSuggestedRef = useRef(false);

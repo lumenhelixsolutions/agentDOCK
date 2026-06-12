@@ -3,12 +3,26 @@
  */
 
 const { buildGuideHint } = require('./coach-guides');
+const { listActiveNotifications, toCoachHints } = require('./core/notifications');
+const { resolveCoreDir } = require('./core/storage');
+const { resolveProjectId } = require('./core/mediated');
 
 function push(hints, hint) {
   hints.push({ id: hint.id, priority: hint.priority || 50, tone: hint.tone || 'tip', message: hint.message, actions: hint.actions || [] });
 }
 
-function buildCoachHints({ view = '/', pageContext = {}, scan = null, profiles = [], sessions = [], portfolio = null, agentRadar = null, tokenBurn = null }) {
+function buildCoachHints({
+  view = '/',
+  pageContext = {},
+  scan = null,
+  profiles = [],
+  sessions = [],
+  portfolio = null,
+  agentRadar = null,
+  tokenBurn = null,
+  activeProject = null,
+  coreUsage = null,
+}) {
   const hints = [];
   const readyProfiles = profiles.filter(p => p.evaluation?.state === 'READY' || p.state === 'READY');
   const blockedProfiles = profiles.filter(p => p.evaluation?.state === 'BLOCKED' || p.state === 'BLOCKED');
@@ -266,6 +280,31 @@ function buildCoachHints({ view = '/', pageContext = {}, scan = null, profiles =
 
   // Always include a view guide so the coach is never silent on a screen
   const guideHint = buildGuideHint(view, pageContext);
+  const projectId = resolveProjectId(activeProject);
+  try {
+    const coreDir = resolveCoreDir();
+    const coreNotes = listActiveNotifications(coreDir, { project_id: projectId });
+    for (const hint of toCoachHints(coreNotes)) push(hints, hint);
+  } catch { /* optional */ }
+
+  if (coreUsage?.daily_usd_cap) {
+    const spend = Number(coreUsage.current_spend) || 0;
+    const cap = Number(coreUsage.daily_usd_cap) || 0;
+    const pct = cap > 0 ? Math.round((spend / cap) * 100) : 0;
+    if (pct >= 50 && pct < 100) {
+      push(hints, {
+        id: 'core-budget-progress',
+        priority: 74,
+        tone: pct >= 80 ? 'warning' : 'tip',
+        message: `C.O.R.E. spend today: $${spend.toFixed(4)} / $${cap} (${pct}%) for project "${projectId}".`,
+        actions: [
+          { label: 'View rollup', type: 'navigate', target: '/scan' },
+          { label: 'Adjust budget', type: 'chat', prompt: `Help me adjust the C.O.R.E. daily budget for ${projectId}.` },
+        ],
+      });
+    }
+  }
+
   if (!hints.some((h) => h.id === guideHint.id)) {
     push(hints, guideHint);
   }
