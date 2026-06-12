@@ -14,10 +14,12 @@ import {
 import { useCoach } from "@/context/CoachContext";
 import CoachThread from "@/components/coach/CoachThread";
 import HootOwl from "@/components/hoot/HootOwl";
-import { api } from "@/lib/api";
+import { useCoachCommandExecute } from "@/lib/useCoachCommandExecute";
 import { BRAND } from "@/lib/brand";
 import GaugeRing from "./GaugeRing";
 import PopoutRadarTelemetry from "./PopoutRadarTelemetry";
+import HoverTip from "@/components/HoverTip";
+import { getTooltip, tooltipTitle } from "@/lib/tooltips";
 
 /**
  * Floating always-on-top monitor. Uses the Document Picture-in-Picture API
@@ -156,19 +158,7 @@ export function PopoutSurface({
     resizePopoutWindow(pipWindow, chatExpanded);
   }, [pipWindow, chatExpanded]);
 
-  const executeCmd = async (cmd: Record<string, unknown>) => {
-    const label = String(cmd.type || "action");
-    setHootStatus(`HOOT running ${label}…`);
-    try {
-      const res = await api.coachExecute(cmd);
-      if (res.route) navigate(res.route);
-      if (res.message) alert(String(res.message));
-      if (res.launched) navigate("/terminal");
-      setHootStatus(null);
-    } catch {
-      setHootStatus(null);
-    }
-  };
+  const executeCmd = useCoachCommandExecute(undefined, { onStatus: setHootStatus });
 
   const content = (
     <div className="flex min-h-screen flex-col gap-2.5 bg-background p-3 font-sans text-foreground">
@@ -182,24 +172,25 @@ export function PopoutSurface({
             HOOT · Cooldown Deck
           </span>
         </div>
-        <button
-          type="button"
-          onClick={() => setChatExpanded((v) => !v)}
-          title={chatExpanded ? "Collapse chat" : "Expand HOOT chat"}
-          className={`flex shrink-0 items-center gap-1 rounded-lg border px-2 py-1 text-[10px] transition ${
-            chatExpanded ? "hoot-gold-chip" : "border-border opacity-60 hover:opacity-100"
-          }`}
-        >
-          <MessageCircle size={12} />
-          {chatExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-        </button>
+        <HoverTip id={chatExpanded ? "deck.chat.collapse" : "deck.chat.expand"}>
+          <button
+            type="button"
+            onClick={() => setChatExpanded((v) => !v)}
+            className={`flex shrink-0 items-center gap-1 rounded-lg border px-2 py-1 text-[10px] transition ${
+              chatExpanded ? "hoot-gold-chip" : "border-border opacity-60 hover:opacity-100"
+            }`}
+          >
+            <MessageCircle size={12} />
+            {chatExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+          </button>
+        </HoverTip>
       </div>
 
       <div className="flex items-start gap-3 rounded-xl border border-border bg-foreground/[0.02] p-2">
         <button
           type="button"
           onClick={() => setChatExpanded((v) => !v)}
-          title={chatExpanded ? "Collapse chat" : "Ask HOOT"}
+          title={tooltipTitle(chatExpanded ? "deck.chat.collapse" : "deck.chat.expand")}
           className="shrink-0 rounded-lg border-0 bg-transparent p-0 transition hover:opacity-90"
         >
           <HootOwl mood={hootMood} moodContext={hootMoodContext} size="sm" statusLine={hootStatus} />
@@ -225,7 +216,11 @@ export function PopoutSurface({
             const color = nearlyBack ? "#fbbf24" : STATE_COLORS[state].stroke;
             const value = state === "cooldown" ? (fraction ?? 1) : state === "unknown" ? 0 : 1;
             return (
-              <div key={id} className="flex flex-col items-center gap-1" title={`${row.label}: ${state}`}>
+              <div
+                key={id}
+                className="flex flex-col items-center gap-1"
+                title={`${getTooltip("deck.gauge.provider").body} · ${row.label}: ${state}`}
+              >
                 <GaugeRing size={58} stroke={5} value={value} color={color} glow={state === "cooldown"}>
                   {state === "cooldown" && remaining !== null ? (
                     <span className="font-mono text-[10px] font-semibold tabular-nums">{formatClock(remaining)}</span>
@@ -255,14 +250,15 @@ export function PopoutSurface({
               <HootOwl mood={hootMood} moodContext={hootMoodContext} size="sm" statusLine={hootStatus} />
               <span className="text-[11px] font-medium opacity-80">Ask {BRAND.name}</span>
             </div>
-            <button
-              type="button"
-              onClick={() => setChatExpanded(false)}
-              className="rounded-md border border-border p-1 opacity-50 transition hover:opacity-100"
-              title="Collapse chat"
-            >
+            <HoverTip id="deck.chat.collapse">
+              <button
+                type="button"
+                onClick={() => setChatExpanded(false)}
+                className="rounded-md border border-border p-1 opacity-50 transition hover:opacity-100"
+              >
               <X size={12} />
-            </button>
+              </button>
+            </HoverTip>
           </div>
           <div className="flex min-h-[280px] flex-1 flex-col">
             <CoachThread sessionId={DECK_SESSION_ID} onCommand={executeCmd} />

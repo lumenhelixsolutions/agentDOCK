@@ -4,7 +4,7 @@ import { useCoach } from "@/context/CoachContext";
 import CoachThread from "@/components/coach/CoachThread";
 import HootOwl from "./HootOwl";
 import { BRAND } from "@/lib/brand";
-import { api } from "@/lib/api";
+import { useCoachCommandExecute } from "@/lib/useCoachCommandExecute";
 import { Pin, PinOff, X, ChevronRight, Maximize2, Minimize2, GripHorizontal } from "lucide-react";
 
 const SESSION_ID = "hoot-" + Math.random().toString(36).slice(2, 8);
@@ -138,41 +138,7 @@ export default function HootMascot() {
     if (action.type === "command" && action.target === "runScan") navigate("/scan");
   };
 
-  const executeCmd = async (cmd: Record<string, unknown>) => {
-    const label = String(cmd.type || "action");
-    setHootStatus(`HOOT running ${label}…`);
-    try {
-      const res = await api.coachExecute(cmd);
-      const last = res.results?.[res.results.length - 1] as Record<string, unknown> | undefined;
-      if (res.route) navigate(res.route);
-      if (res.target) emitCoachAction(String(res.target));
-      if (res.message) alert(String(res.message));
-      if (res.launched && res.session) {
-        setHootStatus(`Launched ${(res.session as { profileName?: string }).profileName || "session"}`);
-        navigate("/terminal");
-        return;
-      }
-      if (last?.type === "runScan") {
-        setHootStatus("Scan complete");
-        navigate("/scan");
-        return;
-      }
-      if (last && last.ok === false) {
-        setHootStatus(String(last.error || "Command blocked"));
-        return;
-      }
-      setHootStatus(null);
-    } catch {
-      switch (cmd.type) {
-        case "launch": navigate("/profiles"); break;
-        case "runScan": navigate("/scan"); break;
-        case "switchProject": navigate("/"); break;
-        case "showMessage": alert(String(cmd.text || "")); break;
-        case "openUrl": window.open(String(cmd.url || ""), "_blank"); break;
-        default: setHootStatus(null); break;
-      }
-    }
-  };
+  const executeCmd = useCoachCommandExecute(emitCoachAction, { onStatus: setHootStatus });
 
   const showBubble = (topHint || hootError) && bubbleVisible && !coachOpen;
   const toneKey = hootError ? "error" : (topHint?.tone || "tip");
@@ -241,7 +207,7 @@ export default function HootMascot() {
               onPointerUp={endDrag}
               onPointerCancel={endDrag}
               style={{ position: "absolute", top: 4, left: "50%", transform: "translateX(-50%)", cursor: "grab", opacity: 0.35, padding: 4 }}
-              title="Drag HOOT"
+              title="Reposition the floating coach avatar — drag handle for the popped-out panel"
             >
               <GripHorizontal size={14} color="#aaa" />
             </div>
@@ -325,11 +291,11 @@ export default function HootMascot() {
               </div>
             </div>
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <button type="button" title={poppedOut ? "Dock" : "Pop out"} onClick={() => setPoppedOut(!poppedOut)}
+              <button type="button" title={poppedOut ? "Dock HOOT back to the corner avatar" : "Detach HOOT into a floating panel you can drag"} onClick={() => setPoppedOut(!poppedOut)}
                 style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", padding: 4 }}>
                 {poppedOut ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
               </button>
-              <button type="button" title={hootPinned ? "Unpin" : "Pin on top"} onClick={() => setHootPinned(!hootPinned)}
+              <button type="button" title={hootPinned ? "Unpin — coach panel follows normal window stacking" : "Pin on top — keep coach above IDE and browser windows"} onClick={() => setHootPinned(!hootPinned)}
                 style={{ background: "none", border: "none", color: hootPinned ? "#ffb042" : "#aaa", cursor: "pointer", padding: 4 }}>
                 {hootPinned ? <Pin size={14} /> : <PinOff size={14} />}
               </button>

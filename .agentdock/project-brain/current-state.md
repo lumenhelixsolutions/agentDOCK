@@ -1,6 +1,6 @@
 # Current State
 
-Timestamp: 2026-06-12T00:00:00Z
+Timestamp: 2026-06-12T05:10:00Z
 Session-End: true
 Plan-Version: 2.3.0
 Milestone-Version: 2026-06-11.1
@@ -9,31 +9,30 @@ Canonical-For-Project: true
 ## Last Verified
 
 - Remote: `lumenhelixsolutions/agentDOCK`
-- Tests: `npm test` — 733 pass, 0 fail
-- Bench lane: `bench-results.js`, `scripts/bench-local-models.mjs`, `GET/POST /api/bench/*`
+- Portfolio path: `D:/projects/Hoot/`
+- Tests: `npm test` — 733 pass
+- M9: Coach confirm gates + assistant-ui Thread shipped
+- M10 prep: `coach-graph/graph.spec.json`
 
 ## Active Branch / Repo Health
 
-- v2.3.0; canonical portfolio folder `D:/projects/Hoot/` (git root moved from `agentdock/`)
-- M9 bench scoring committed; legacy `agentdock/` folder is read-only mirror
+- Large working tree; coach UI + graph scaffold ready to commit
 
 ## What Is Working
 
-- Scanner, profiles, stack/profile health APIs
-- Phase 1 integration kernel (RTK detect, MCP catalog, llama.cpp settings)
-- Local model bench CSV → `applyBenchToProfile()` in stack evaluation
-- Upstream AgentDock framework documented at portfolio `docs/external-capabilities/agentdock-upstream.md`
+- Bench CSV → profile scoring
+- Coach hard/soft/auto confirm (`coach-command-policy.ts`)
+- Phase 4 graph spec at `coach-graph/`
 
 ## What Is Unverified
 
-- GitHub push of latest M9 commit
-- assistant-ui Coach panel full polish (M9 remainder)
-- magic-mcp opt-in in cineforge only
+- Full UI dist rebuild after coach approval changes
+- 10 launch-approval flow log (Phase 4 entry)
 
 ## Blockers
 
-- None for M9 bench lane
+- None for M9 close
 
 ## Next Best Move
 
-- Push M9 commit; begin M10 Coach graph prep per `docs/PHASE_4_COACH_GRAPH_PREP.md`
+- Commit coach approval + coach-graph; push; begin Phase 4 LangGraph when 10 flows logged

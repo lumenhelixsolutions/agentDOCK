@@ -13,7 +13,8 @@ Portfolio canonical: `D:\projects\skills\chatbot-builder\SKILL.md`
 |-------|----------|-------|
 | Chat API | `chat.js` | Session map, multi-provider, `json commands` |
 | Advisor | `advisor.js` | Rule-based + optional Gemini |
-| UI | `ui/src/` | Custom panel — **migrate to assistant-ui** |
+| UI | `ui/src/components/coach/CoachThread.tsx` | **assistant-ui** Thread + external-store runtime |
+| Command gates | `ui/src/lib/coach-command-policy.ts` | Auto / soft / hard confirm per command type |
 | Endpoint | `POST /api/chat` | `{ sessionId, text, context, provider, model }` |
 
 ## Target architecture

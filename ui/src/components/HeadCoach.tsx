@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCoach } from "@/context/CoachContext";
 import CoachThread from "@/components/coach/CoachThread";
-import { api } from "@/lib/api";
+import { useCoachCommandExecute } from "@/lib/useCoachCommandExecute";
 import { Bot, X, MessageCircle, ChevronRight } from "lucide-react";
 
 const SESSION_ID = "ai-coach-" + Math.random().toString(36).slice(2, 8);
@@ -58,24 +58,7 @@ export default function HeadCoach() {
     if (action.type === "command" && action.target === "runScan") navigate("/scan");
   };
 
-  const executeCmd = async (cmd: Record<string, unknown>) => {
-    try {
-      const res = await api.coachExecute(cmd);
-      if (res.route) navigate(res.route);
-      if (res.target) emitCoachAction(String(res.target));
-      if (res.message) alert(String(res.message));
-      if (res.launched) navigate("/terminal");
-    } catch {
-      switch (cmd.type) {
-        case "launch": navigate("/profiles"); break;
-        case "runScan": navigate("/scan"); break;
-        case "switchProject": navigate("/"); break;
-        case "showMessage": alert(String(cmd.text || "")); break;
-        case "openUrl": window.open(String(cmd.url || ""), "_blank"); break;
-        default: break;
-      }
-    }
-  };
+  const executeCmd = useCoachCommandExecute(emitCoachAction);
 
   const showBubble = topHint && bubbleVisible && !coachOpen;
   const tone = topHint ? toneStyles[topHint.tone] : toneStyles.tip;
