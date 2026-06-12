@@ -46,10 +46,11 @@ function buildCoachChatResponse({ text, context = {} }) {
   if (pageContext.easyStep === 3 && pageContext.easyTopPickName) {
     live.push(`top pick: ${pageContext.easyTopPickName}`);
   }
-  if (pageContext.grokSessionActive) {
-    const tokens = Number(pageContext.grokEstContextTokens) || 0;
-    const model = pageContext.grokModelId || 'grok';
-    live.push(`Grok CLI active${tokens ? ` · ~${tokens >= 1000 ? `${Math.round(tokens / 1000)}K` : tokens} est context tokens` : ''} (${model})`);
+  if (pageContext.productionSessionActive || pageContext.grokSessionActive) {
+    const tokens = Number(pageContext.productionEstContextTokens || pageContext.grokEstContextTokens) || 0;
+    const model = pageContext.productionModelId || pageContext.grokModelId || 'agent';
+    const agent = pageContext.productionAgentName || 'External agent';
+    live.push(`${agent} active${tokens ? ` · ~${tokens >= 1000 ? `${Math.round(tokens / 1000)}K` : tokens} est context tokens` : ''} (${model})`);
   }
   if (live.length) {
     lines.push('');
@@ -189,6 +190,8 @@ function summarizeCoachContext(context) {
     activeRoot: context.hybridWorkspace?.active_root_path || context.workspaceTerse?.active_root || null,
     workspaceBoundaries: context.workspaceTerse?.rule || null,
     productionContext: pageContext.productionContext || null,
+    productionSessions: pageContext.productionSessions || null,
+    sessionSummary: pageContext.sessionSummary || null,
     grokSummary: pageContext.grokSummary || null,
   };
 }

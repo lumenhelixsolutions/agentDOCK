@@ -93,6 +93,31 @@ export const api = {
       dock_sessions?: number;
       cached?: boolean;
       note?: string;
+      production_sessions?: Array<{
+        agent_id?: string;
+        agent_name?: string;
+        provider?: string;
+        model_id?: string | null;
+        est_context_tokens?: number;
+        completed_turns?: number;
+        compaction_count?: number;
+        last_user_query?: string | null;
+        session_id?: string;
+        cwd?: string;
+        matched_project?: boolean;
+        active?: boolean;
+        telemetry_source?: string | null;
+        thread_name?: string | null;
+        yolo_mode?: boolean;
+      }>;
+      session_summary?: {
+        active?: number;
+        matched_project?: number;
+        est_context_tokens?: number;
+        turn_count?: number;
+        compaction_events?: number;
+      };
+      by_agent?: Record<string, { sessions?: unknown[]; summary?: Record<string, number> }>;
       grok_sessions?: Array<Record<string, unknown>>;
       grok_summary?: {
         active?: number;
@@ -103,6 +128,8 @@ export const api = {
       };
       production_context?: {
         provider?: string;
+        agent_id?: string;
+        agent_name?: string;
         model_id?: string | null;
         est_context_tokens?: number;
         completed_turns?: number;
@@ -111,6 +138,8 @@ export const api = {
         session_id?: string;
         cwd?: string;
         matched_project?: boolean;
+        active?: boolean;
+        telemetry_source?: string | null;
       } | null;
     }>("GET", `/api/agent-radar${force ? "?force=1" : ""}`),
   makePlan: (goal: string) => request<any>("POST", "/api/plan", { goal }),

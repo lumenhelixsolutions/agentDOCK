@@ -54,34 +54,42 @@ function buildCoachHints({ view = '/', pageContext = {}, scan = null, profiles =
   const radarTotal = agentRadar?.summary?.total || Number(pageContext.agentRadarTotal) || 0;
   const radarDock = agentRadar?.summary?.dock || Number(pageContext.agentRadarDock) || 0;
   const radarAgents = agentRadar?.agents || pageContext.agentRadarAgents || [];
-  const grokActive = Boolean(pageContext.grokSessionActive || agentRadar?.production_context?.session_id);
-  const grokTokens = Number(pageContext.grokEstContextTokens || agentRadar?.production_context?.est_context_tokens) || 0;
-  const grokModel = pageContext.grokModelId || agentRadar?.production_context?.model_id || 'grok';
-  const grokQuery = pageContext.grokLastUserQuery || agentRadar?.production_context?.last_user_query;
+  const prodSessions = agentRadar?.production_sessions || agentRadar?.grok_sessions || pageContext.productionSessions || [];
+  const prodPrimary = agentRadar?.production_context || pageContext.productionContext || prodSessions[0] || null;
+  const prodActive = Boolean(
+    pageContext.productionSessionActive
+    || prodSessions.some((s) => s.active)
+    || prodPrimary?.active
+    || prodPrimary?.session_id,
+  );
+  const prodTokens = Number(pageContext.productionEstContextTokens || prodPrimary?.est_context_tokens) || 0;
+  const prodModel = pageContext.productionModelId || prodPrimary?.model_id || prodPrimary?.agent_name || 'agent';
+  const prodAgent = pageContext.productionAgentName || prodPrimary?.agent_name || prodPrimary?.agent_id || 'agent';
+  const prodQuery = pageContext.productionLastUserQuery || prodPrimary?.last_user_query;
 
-  if (grokActive && grokTokens >= 80000) {
+  if (prodActive && prodTokens >= 80000) {
     push(hints, {
-      id: 'grok-context-heavy',
+      id: 'production-context-heavy',
       priority: 91,
       tone: 'warning',
-      message: `Grok CLI session has ~${grokTokens >= 1000 ? `${Math.round(grokTokens / 1000)}K` : grokTokens} estimated context tokens (${grokModel}). Compaction may be imminent — consider a handoff packet before switching providers.`,
+      message: `${prodAgent} session has ~${prodTokens >= 1000 ? `${Math.round(prodTokens / 1000)}K` : prodTokens} estimated context tokens (${prodModel}). Compaction may be imminent — consider a handoff packet before switching providers.`,
       actions: [
         { label: 'Command Deck', type: 'navigate', target: '/command-deck' },
         { label: 'Token burn', type: 'navigate', target: '/scan' },
-        { label: 'Ask HOOT', type: 'chat', prompt: 'Analyze my active Grok CLI session context size and recommend when to hand off or compact.' },
+        { label: 'Ask HOOT', type: 'chat', prompt: `Analyze my active ${prodAgent} session context size and recommend when to hand off or compact.` },
       ],
     });
-  } else if (grokActive) {
-    const tokenBit = grokTokens ? ` · ~${grokTokens >= 1000 ? `${Math.round(grokTokens / 1000)}K` : grokTokens} est context` : '';
-    const queryBit = grokQuery ? ` Last task: "${String(grokQuery).slice(0, 80)}${grokQuery.length > 80 ? '…' : ''}"` : '';
+  } else if (prodActive) {
+    const tokenBit = prodTokens ? ` · ~${prodTokens >= 1000 ? `${Math.round(prodTokens / 1000)}K` : prodTokens} est context` : '';
+    const queryBit = prodQuery ? ` Last task: "${String(prodQuery).slice(0, 80)}${prodQuery.length > 80 ? '…' : ''}"` : '';
     push(hints, {
-      id: 'grok-production-session',
+      id: 'production-session-active',
       priority: 86,
       tone: 'tip',
-      message: `Grok CLI is running on this machine (${grokModel}${tokenBit}). HOOT is tracking it for token burn + production analysis.${queryBit}`,
+      message: `${prodAgent} is active on this machine (${prodModel}${tokenBit}). HOOT is tracking production telemetry for token burn analysis.${queryBit}`,
       actions: [
         { label: 'Readiness', type: 'navigate', target: '/scan' },
-        { label: 'Ask HOOT', type: 'chat', prompt: 'Summarize my active Grok CLI session — context size, model, and whether I should hand off.' },
+        { label: 'Ask HOOT', type: 'chat', prompt: `Summarize my active ${prodAgent} session — context size, model, and whether I should hand off.` },
       ],
     });
   }

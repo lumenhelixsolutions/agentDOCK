@@ -5,7 +5,7 @@ import { hootSignal } from "@/lib/hoot-signals";
 import { Scan, Cpu, HardDrive, Microchip, Radar, Flame } from "lucide-react";
 import { BRAND } from "@/lib/brand";
 import TokenBurnPanel, { type TokenBurnReport } from "@/components/TokenBurnPanel";
-import { formatEstTokens, grokFieldsFromRadar, type GrokProductionContext } from "@/lib/grok-radar";
+import { formatEstTokens, productionFieldsFromRadar, type ProductionContext, type ProductionSession } from "@/lib/production-radar";
 
 type AgentRadar = Awaited<ReturnType<typeof api.getAgentRadar>>;
 
@@ -57,7 +57,7 @@ export default function ScanPage() {
         agentRadarAgents: data.agents ?? [],
         agentRadarScannedAt: data.scanned_at,
         radarLoading: false,
-        ...grokFieldsFromRadar(data),
+        ...productionFieldsFromRadar(data),
       });
     } catch (e) {
       reportError({
@@ -97,7 +97,9 @@ export default function ScanPage() {
           external: Number(pageContext.agentRadarExternal) || 0,
           agent_types: ((pageContext.agentRadarAgents as any[]) || []).length,
         },
-        production_context: (pageContext.productionContext as GrokProductionContext) || null,
+        production_context: (pageContext.productionContext as ProductionContext) || null,
+        production_sessions: (pageContext.productionSessions as ProductionSession[]) || undefined,
+        session_summary: (pageContext.sessionSummary as AgentRadar["session_summary"]) || undefined,
         grok_summary: (pageContext.grokSummary as AgentRadar["grok_summary"]) || undefined,
       });
     }
@@ -217,10 +219,10 @@ export default function ScanPage() {
               <RadarStat label="External" value={radar.summary.external} color={radar.summary.external > 0 ? "#fb923c" : "#6b7280"} />
               <RadarStat label="Types" value={radar.summary.agent_types} color="#93c5fd" />
             </div>
-            <GrokProductionRow
-              production={radar.production_context}
-              summary={radar.grok_summary}
-              sessions={radar.grok_sessions}
+            <ProductionSessionsPanel
+              sessions={radar.production_sessions || radar.grok_sessions}
+              primary={radar.production_context}
+              summary={radar.session_summary || radar.grok_summary}
             />
             {(radar.agents || []).length > 0 ? (
               (radar.agents || []).map((agent) => (
@@ -324,117 +326,97 @@ function InfoCard({ icon: Icon, label, value }: { icon: any; label: string; valu
   );
 }
 
-type GrokSessionRow = {
-  session_id?: string;
-  pid?: number;
-  cwd?: string;
-  model_id?: string | null;
-  est_context_tokens?: number;
-  completed_turns?: number;
-  compaction_count?: number;
-  matched_project?: boolean;
-  last_user_query?: string | null;
-  yolo_mode?: boolean;
+const AGENT_ACCENT: Record<string, string> = {
+  grok: "#34d399",
+  "claude-code": "#f97316",
+  codex: "#60a5fa",
+  "gemini-cli": "#a78bfa",
+  kimi: "#f472b6",
+  "cursor-agent": "#38bdf8",
 };
 
-function GrokProductionRow({
-  production,
-  summary,
+function ProductionSessionsPanel({
   sessions,
+  primary,
+  summary,
 }: {
-  production?: GrokProductionContext | null;
-  summary?: AgentRadar["grok_summary"];
-  sessions?: Array<Record<string, unknown>>;
+  sessions?: ProductionSession[];
+  primary?: ProductionContext | null;
+  summary?: AgentRadar["session_summary"];
 }) {
-  const active = Boolean(production?.session_id || (summary?.active ?? 0) > 0);
-  if (!active) return null;
+  const rows = (sessions || []).filter((s) => s.active || s.matched_project);
+  if (!rows.length && !primary?.session_id && !(summary?.active ?? 0)) return null;
 
-  const tokens = production?.est_context_tokens ?? summary?.est_context_tokens ?? 0;
-  const heavy = tokens >= 80_000;
-  const border = heavy ? "rgba(251,146,60,0.35)" : "rgba(52,211,153,0.28)";
-  const bg = heavy ? "rgba(251,146,60,0.06)" : "rgba(52,211,153,0.06)";
-  const accent = heavy ? "#fb923c" : "#34d399";
-  const query = production?.last_user_query?.trim();
-  const shortQuery = query
-    ? query.length > 140
-      ? `${query.slice(0, 140)}…`
-      : query
-    : null;
-  const extraSessions = ((sessions || []) as GrokSessionRow[]).filter(
-    (s) => s.session_id && s.session_id !== production?.session_id,
-  );
+  const display = rows.length ? rows : primary ? [primary] : [];
+  const grouped = new Map<string, ProductionSession[]>();
+  for (const row of display) {
+    const key = row.agent_id || row.agent_name || "agent";
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key)!.push(row);
+  }
 
   return (
-    <div
-      style={{
-        padding: 14,
-        borderRadius: 10,
-        background: bg,
-        border: `1px solid ${border}`,
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
-      }}
-    >
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {Array.from(grouped.entries()).map(([agentId, agentSessions]) => (
+        <ProductionSessionCard key={agentId} sessions={agentSessions} />
+      ))}
+    </div>
+  );
+}
+
+function ProductionSessionCard({ sessions }: { sessions: ProductionSession[] }) {
+  const primary = sessions[0];
+  if (!primary) return null;
+  const tokens = primary.est_context_tokens || 0;
+  const heavy = tokens >= 80_000;
+  const accent = AGENT_ACCENT[primary.agent_id || ""] || (heavy ? "#fb923c" : "#34d399");
+  const border = heavy ? "rgba(251,146,60,0.35)" : `${accent}44`;
+  const bg = heavy ? "rgba(251,146,60,0.06)" : `${accent}14`;
+  const query = primary.last_user_query?.trim();
+  const shortQuery = query ? (query.length > 140 ? `${query.slice(0, 140)}…` : query) : null;
+
+  return (
+    <div style={{ padding: 14, borderRadius: 10, background: bg, border: `1px solid ${border}`, display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
         <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: accent }}>Grok CLI — production session</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: accent }}>
+            {primary.agent_name || primary.agent_id} — production session
+            {primary.active ? "" : " (recent)"}
+          </div>
           <div style={{ fontSize: 11, opacity: 0.55, marginTop: 2 }}>
-            Live telemetry from <code style={{ opacity: 0.85 }}>~/.grok/active_sessions.json</code>
+            {primary.telemetry_source ? (
+              <>Telemetry: <code style={{ opacity: 0.85 }}>{primary.telemetry_source}</code></>
+            ) : (
+              "Session telemetry"
+            )}
           </div>
         </div>
-        <span
-          style={{
-            fontSize: 10,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            padding: "3px 8px",
-            borderRadius: 6,
-            background: "rgba(255,255,255,0.04)",
-            color: production?.matched_project ? "#4ade80" : "#9ca3af",
-            flexShrink: 0,
-          }}
-        >
-          {production?.matched_project ? "Project match" : "Other cwd"}
+        <span style={{ fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", padding: "3px 8px", borderRadius: 6, background: "rgba(255,255,255,0.04)", color: primary.matched_project ? "#4ade80" : "#9ca3af", flexShrink: 0 }}>
+          {primary.active ? (primary.matched_project ? "Active · project" : "Active") : primary.matched_project ? "Project match" : "Other cwd"}
         </span>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
-        <GrokMetric label="Model" value={production?.model_id || "grok"} mono />
-        <GrokMetric label="Est. context" value={`~${formatEstTokens(tokens)} tok`} warn={heavy} />
-        <GrokMetric label="Turns" value={String(production?.completed_turns ?? summary?.turn_count ?? 0)} />
-        <GrokMetric
-          label="Compactions"
-          value={String(production?.compaction_count ?? summary?.compaction_events ?? 0)}
-          warn={(production?.compaction_count ?? summary?.compaction_events ?? 0) > 0}
-        />
+        <ProdMetric label="Model" value={primary.model_id || primary.agent_id || "—"} mono />
+        <ProdMetric label="Est. context" value={`~${formatEstTokens(tokens)} tok`} warn={heavy} />
+        <ProdMetric label="Turns" value={String(primary.completed_turns ?? 0)} />
+        <ProdMetric label="Compactions" value={String(primary.compaction_count ?? 0)} warn={(primary.compaction_count ?? 0) > 0} />
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 11, opacity: 0.65 }}>
-        {production?.session_id && (
-          <span>
-            Session <code style={{ opacity: 0.9 }}>{production.session_id.slice(0, 8)}…</code>
-          </span>
-        )}
-        {production?.cwd && <span>CWD {production.cwd}</span>}
-        {production?.yolo_mode && <span style={{ color: "#fbbf24" }}>YOLO</span>}
-        {(summary?.active ?? 0) > 1 && <span>{summary?.active} active Grok session(s)</span>}
+        {primary.session_id && <span>Session <code style={{ opacity: 0.9 }}>{String(primary.session_id).slice(0, 8)}…</code></span>}
+        {primary.cwd && <span>CWD {primary.cwd}</span>}
+        {primary.thread_name && <span>{primary.thread_name}</span>}
+        {primary.yolo_mode && <span style={{ color: "#fbbf24" }}>YOLO</span>}
       </div>
 
-      {shortQuery && (
-        <div style={{ fontSize: 12, lineHeight: 1.45, opacity: 0.8, fontStyle: "italic" }}>
-          Last task: {shortQuery}
-        </div>
-      )}
+      {shortQuery && <div style={{ fontSize: 12, lineHeight: 1.45, opacity: 0.8, fontStyle: "italic" }}>Last task: {shortQuery}</div>}
 
-      {extraSessions.length > 0 && (
+      {sessions.length > 1 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 4, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-          {extraSessions.map((s) => (
-            <div key={s.session_id} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, opacity: 0.6 }}>
-              <span>
-                <code>{s.session_id?.slice(0, 8)}…</code>
-                {s.cwd ? ` · ${s.cwd}` : ""}
-              </span>
+          {sessions.slice(1).map((s) => (
+            <div key={`${s.session_id}-${s.cwd}`} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, opacity: 0.6 }}>
+              <span><code>{String(s.session_id || "").slice(0, 8)}…</code>{s.cwd ? ` · ${s.cwd}` : ""}</span>
               <span>{s.est_context_tokens ? `~${formatEstTokens(s.est_context_tokens)} tok` : ""}</span>
             </div>
           ))}
@@ -444,7 +426,7 @@ function GrokProductionRow({
   );
 }
 
-function GrokMetric({
+function ProdMetric({
   label,
   value,
   mono,

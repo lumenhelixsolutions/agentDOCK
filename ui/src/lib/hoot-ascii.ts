@@ -775,12 +775,13 @@ export function resolveHootEmotion(ctx: HootMoodContext): HootEmotion {
 
   if (pc.tokenBurnRisk === "high") return { mood: "alert", caption: "RTK missing!", triggerId: "burn:high" };
 
-  if (pc.grokSessionActive) {
-    const tokens = Number(pc.grokEstContextTokens) || 0;
+  if (pc.productionSessionActive || pc.grokSessionActive) {
+    const tokens = Number(pc.productionEstContextTokens || pc.grokEstContextTokens) || 0;
+    const agent = String(pc.productionAgentName || "Agent").split(" ")[0];
     if (tokens >= 120000) {
-      return { mood: "alert", caption: "Grok context heavy", triggerId: "grok:heavy" };
+      return { mood: "alert", caption: `${agent} context heavy`, triggerId: "production:heavy" };
     }
-    return { mood: "coding", caption: tokens ? `Grok ~${tokens >= 1000 ? `${Math.round(tokens / 1000)}K` : tokens} ctx` : "Grok CLI live", triggerId: "grok:active" };
+    return { mood: "coding", caption: tokens ? `${agent} ~${tokens >= 1000 ? `${Math.round(tokens / 1000)}K` : tokens} ctx` : `${agent} live`, triggerId: "production:active" };
   }
 
   const externalAgents = Number(pc.agentRadarExternal) || 0;

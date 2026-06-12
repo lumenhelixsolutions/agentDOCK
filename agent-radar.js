@@ -5,7 +5,8 @@
 const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
-const { buildGrokSessionRadar } = require('./grok-session-radar');
+const { pickPrimaryProductionContext } = require('./session-radar-shared');
+const { buildAllSessionRadars } = require('./session-radar');
 
 const ROOT = __dirname;
 const RADAR_SCRIPT = path.join(ROOT, 'agent-radar.ps1');
@@ -112,28 +113,11 @@ function classifyProcesses(rawProcesses, dockPids = []) {
   };
 }
 
-function buildProductionContext(grokSessions = []) {
-  const matched = grokSessions.filter((s) => s.matched_project);
-  const primary = matched[0] || grokSessions[0];
-  if (!primary) return null;
-  return {
-    provider: 'grok',
-    agent_id: 'grok',
-    model_id: primary.model_id,
-    est_context_tokens: primary.est_context_tokens,
-    completed_turns: primary.completed_turns,
-    compaction_count: primary.compaction_count,
-    last_user_query: primary.last_user_query,
-    session_id: primary.session_id,
-    cwd: primary.cwd,
-    matched_project: primary.matched_project,
-    yolo_mode: primary.yolo_mode,
-    chat_bytes: primary.chat_bytes,
-  };
+function buildProductionContext(sessions = []) {
+  return pickPrimaryProductionContext(sessions);
 }
 
-function mergeGrokIntoRadar(radar, { activeProject } = {}) {
-  const grok = buildGrokSessionRadar({ activeProject });
+function mergeProductionSessionsIntoRadar(radar, { activeProject } = {}) {
   const base = radar || {
     scanned_at: new Date().toISOString(),
     processes: [],
@@ -141,41 +125,43 @@ function mergeGrokIntoRadar(radar, { activeProject } = {}) {
     summary: { total: 0, dock: 0, external: 0, agent_types: 0 },
   };
 
-  if (!grok.sessions.length) {
-    return {
-      ...base,
-      grok_sessions: [],
-      grok_summary: grok.summary,
-      production_context: null,
-    };
-  }
-
+  const telemetry = buildAllSessionRadars({ activeProject, processes: base.processes || [] });
   const processes = [...(base.processes || [])];
   const seenPids = new Set(processes.map((p) => Number(p.pid)).filter((p) => p > 0));
   const agentMap = new Map((base.agents || []).map((a) => [a.id, { ...a, pids: [...(a.pids || [])] }]));
 
-  for (const session of grok.sessions) {
+  for (const session of telemetry.production_sessions || []) {
     const pid = Number(session.pid);
     if (pid && !seenPids.has(pid)) {
       processes.push({
         pid,
-        name: session.process_name || 'agent.exe',
-        command: session.command,
-        agent_id: 'grok',
-        agent_name: 'Grok CLI',
-        source: 'external',
+        name: session.process_name || `${session.agent_id}.exe`,
+        command: session.command || `${session.agent_name} session ${String(session.session_id || '').slice(0, 8)}`,
+        agent_id: session.agent_id,
+        agent_name: session.agent_name,
+        source: session.source || 'external',
       });
       seenPids.add(pid);
     }
 
-    if (!agentMap.has('grok')) {
-      agentMap.set('grok', { id: 'grok', name: 'Grok CLI', count: 0, dock: 0, external: 0, pids: [] });
+    if (!agentMap.has(session.agent_id)) {
+      agentMap.set(session.agent_id, {
+        id: session.agent_id,
+        name: session.agent_name,
+        count: 0,
+        dock: 0,
+        external: 0,
+        pids: [],
+      });
     }
-    const bucket = agentMap.get('grok');
+    const bucket = agentMap.get(session.agent_id);
     if (pid && !bucket.pids.includes(pid)) {
       bucket.count += 1;
       bucket.external += 1;
       bucket.pids.push(pid);
+    } else if (!pid && session.active) {
+      bucket.count += 1;
+      bucket.external += 1;
     }
   }
 
@@ -185,6 +171,7 @@ function mergeGrokIntoRadar(radar, { activeProject } = {}) {
 
   return {
     ...base,
+    ...telemetry,
     processes,
     agents,
     summary: {
@@ -194,15 +181,16 @@ function mergeGrokIntoRadar(radar, { activeProject } = {}) {
       external: total - dock,
       agent_types: agents.length,
     },
-    grok_sessions: grok.sessions,
-    grok_summary: grok.summary,
-    production_context: buildProductionContext(grok.sessions),
+    production_context: telemetry.production_context,
   };
 }
 
+/** @deprecated use mergeProductionSessionsIntoRadar */
+const mergeGrokIntoRadar = mergeProductionSessionsIntoRadar;
+
 function runAgentRadar({ dockPids = [], activeProject = null } = {}) {
   if (process.platform !== 'win32') {
-    return Promise.resolve(mergeGrokIntoRadar({
+    return Promise.resolve(mergeProductionSessionsIntoRadar({
       scanned_at: new Date().toISOString(),
       processes: [],
       agents: [],
@@ -224,7 +212,7 @@ function runAgentRadar({ dockPids = [], activeProject = null } = {}) {
         if (err) return reject(new Error(stderr || err.message || 'agent radar failed'));
         try {
           const parsed = JSON.parse(stdout.trim());
-          resolve(mergeGrokIntoRadar(parsed, { activeProject }));
+          resolve(mergeProductionSessionsIntoRadar(parsed, { activeProject }));
         } catch (e) {
           reject(new Error(`Failed to parse agent radar JSON: ${e.message}\n${stdout.slice(0, 500)}`));
         }
@@ -238,6 +226,7 @@ module.exports = {
   matchAgentProcess,
   classifyProcesses,
   buildProductionContext,
+  mergeProductionSessionsIntoRadar,
   mergeGrokIntoRadar,
   runAgentRadar,
 };
