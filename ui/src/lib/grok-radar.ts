@@ -26,6 +26,13 @@ export type AgentRadarGrokPayload = {
   production_context?: GrokProductionContext | null;
 };
 
+export function formatEstTokens(n: number) {
+  const v = Number(n) || 0;
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `${Math.round(v / 1_000)}K`;
+  return String(Math.round(v));
+}
+
 export function grokFieldsFromRadar(radar: AgentRadarGrokPayload | null | undefined) {
   const pc = radar?.production_context;
   const summary = radar?.grok_summary;
