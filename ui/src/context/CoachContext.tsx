@@ -5,6 +5,7 @@ import type { HootMood } from "@/lib/hoot-ascii";
 import { formatHootError, hootStatusFromContext, resolveHootMoodFromContext } from "@/lib/hoot-ascii";
 import { setHootErrorReporter } from "@/lib/hoot-bus";
 import { isPageVisible } from "@/lib/perf";
+import { grokFieldsFromRadar } from "@/lib/grok-radar";
 
 export type CoachAction = {
   label: string;
@@ -235,6 +236,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
           const total = radar.summary?.total ?? 0;
           const dock = radar.summary?.dock ?? 0;
           const external = radar.summary?.external ?? 0;
+          const grokFields = grokFieldsFromRadar(radar);
           const prevExternal = prevExternalRef.current;
           if (prevExternal != null && prevExternal > 0 && external === 0 && !handoffSuggestedRef.current) {
             handoffSuggestedRef.current = true;
@@ -247,7 +249,9 @@ export function CoachProvider({ children }: { children: ReactNode }) {
               !force &&
               prev.agentRadarTotal === total &&
               prev.agentRadarDock === dock &&
-              prev.agentRadarExternal === external
+              prev.agentRadarExternal === external &&
+              prev.grokSessionActive === grokFields.grokSessionActive &&
+              prev.grokEstContextTokens === grokFields.grokEstContextTokens
             ) {
               return prev.radarLoading ? { ...prev, radarLoading: false } : prev;
             }
@@ -259,6 +263,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
               agentRadarExternal: external,
               agentRadarAgents: radar.agents ?? [],
               agentRadarScannedAt: radar.scanned_at,
+              ...grokFields,
             };
           });
         })

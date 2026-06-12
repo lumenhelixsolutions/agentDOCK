@@ -551,7 +551,7 @@ function buildCoachDeps() {
     getAgentRadar: async ({ force } = {}) => {
       const now = Date.now();
       if (!force && lastAgentRadar && now - lastAgentRadarAt < AGENT_RADAR_TTL_MS) return lastAgentRadar;
-      const radar = await runAgentRadar();
+      const radar = await runAgentRadar({ dockPids: [...sessions.values()].filter((s) => s.status === 'running' && s.pid).map((s) => s.pid), activeProject });
       lastAgentRadar = radar;
       lastAgentRadarAt = now;
       return radar;
@@ -1920,6 +1920,7 @@ async function route(req, res) {
         profiles,
         settings,
         gainOverride,
+        agentRadar: lastAgentRadar,
       });
       return send(res, 200, { ...report, refresh: refreshMeta });
     }
@@ -1930,7 +1931,7 @@ async function route(req, res) {
       const dockByPid = dockSessionsByPid();
       if (force || stale) {
         const prevRadar = lastAgentRadar;
-        lastAgentRadar = await runAgentRadar({ dockPids });
+        lastAgentRadar = await runAgentRadar({ dockPids, activeProject });
         lastAgentRadarAt = Date.now();
         try {
           if (!radarReconciled) {
@@ -2518,7 +2519,7 @@ async function route(req, res) {
       const sessionList = [...sessions.values()].map(publicSession);
       const portfolio = { items: buildPortfolioHealth() };
       const settings = loadUserSettings();
-      const tokenBurn = buildTokenBurnReport({ scan: lastScan, profiles, settings });
+      const tokenBurn = buildTokenBurnReport({ scan: lastScan, profiles, settings, agentRadar: lastAgentRadar });
       const hints = buildCoachHints({
         view,
         pageContext,

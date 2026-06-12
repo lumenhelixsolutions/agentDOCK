@@ -124,9 +124,17 @@ function buildRecommendations({ rtkPresent, wslPresent, rtkProfiles, shellAgents
   return recs.sort((a, b) => b.priority - a.priority).slice(0, 4);
 }
 
-function assessBurnRisk({ rtkPresent, wslPresent, rtkProfiles, shellAgents, gain }) {
+function assessBurnRisk({ rtkPresent, wslPresent, rtkProfiles, shellAgents, gain, productionContext = null }) {
   const reasons = [];
   let level = 'low';
+  const grokTokens = Number(productionContext?.est_context_tokens) || 0;
+
+  if (grokTokens >= 120000) {
+    level = level === 'high' ? 'high' : 'medium';
+    reasons.push(`Grok CLI session context ~${formatTokens(grokTokens)} est tokens — compaction/handoff recommended`);
+  } else if (grokTokens >= 50000) {
+    reasons.push(`Grok CLI session context ~${formatTokens(grokTokens)} est tokens — monitor burn on long turns`);
+  }
 
   if (!rtkPresent && (rtkProfiles.length > 0 || shellAgents.length >= 2)) {
     level = 'high';
@@ -151,7 +159,7 @@ function assessBurnRisk({ rtkPresent, wslPresent, rtkProfiles, shellAgents, gain
   return { level, reasons };
 }
 
-function buildTokenBurnReport({ scan = null, profiles = [], settings = {}, gainOverride = null } = {}) {
+function buildTokenBurnReport({ scan = null, profiles = [], settings = {}, gainOverride = null, agentRadar = null } = {}) {
   const te = scan?.token_efficiency || {};
   const rtkTool = scan?.tools?.rtk || {};
   const rtkPresent = Boolean(te.rtk?.present ?? rtkTool.present);
@@ -164,7 +172,15 @@ function buildTokenBurnReport({ scan = null, profiles = [], settings = {}, gainO
     .filter((p) => p.meta?.token_efficiency === 'rtk')
     .map((p) => ({ id: p.id, name: p.name, frontend: p.meta?.frontend || null }));
   const shellAgents = listShellHeavyAgents(scan);
-  const risk = assessBurnRisk({ rtkPresent, wslPresent: wsl.present, rtkProfiles, shellAgents, gain });
+  const productionContext = agentRadar?.production_context || null;
+  const risk = assessBurnRisk({
+    rtkPresent,
+    wslPresent: wsl.present,
+    rtkProfiles,
+    shellAgents,
+    gain,
+    productionContext,
+  });
   const recommendations = buildRecommendations({
     rtkPresent,
     wslPresent: wsl.present,
@@ -202,6 +218,7 @@ function buildTokenBurnReport({ scan = null, profiles = [], settings = {}, gainO
       total_saved: gain.summary ? formatTokens(gain.summary.total_saved) : null,
       avg_savings_pct: gain.summary ? `${gain.summary.avg_savings_pct.toFixed(1)}%` : null,
     },
+    production_context: productionContext,
   };
 }
 

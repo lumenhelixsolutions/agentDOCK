@@ -1,6 +1,6 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert');
-const { classifyProcesses, matchAgentProcess, buildAgentRules } = require('../agent-radar');
+const { classifyProcesses, matchAgentProcess, buildAgentRules, mergeGrokIntoRadar } = require('../agent-radar');
 
 describe('agent-radar', () => {
   it('builds agent rules from catalog and builtins', () => {
@@ -39,5 +39,48 @@ describe('agent-radar', () => {
     const result = classifyProcesses([{ pid: 1, name: 'notepad.exe', command: 'notepad' }]);
     assert.strictEqual(result.summary.total, 0);
     assert.deepStrictEqual(result.agents, []);
+  });
+
+  it('dedupes duplicate pids from process scan', () => {
+    const result = classifyProcesses(
+      [
+        { pid: 1001, name: 'codex.exe', command: 'codex run' },
+        { pid: 1001, name: 'codex.exe', command: 'codex run duplicate' },
+      ],
+      [],
+    );
+    assert.strictEqual(result.summary.total, 1);
+  });
+
+  it('matches grok agent.exe only when cmd references .grok', () => {
+    const rules = buildAgentRules();
+    assert.strictEqual(
+      matchAgentProcess({ name: 'agent.exe', command: 'C:\\Users\\me\\.grok\\bin\\agent.exe' }, rules)?.id,
+      'grok',
+    );
+    assert.strictEqual(
+      matchAgentProcess({ name: 'agent.exe', command: 'C:\\other\\agent.exe' }, rules),
+      null,
+    );
+  });
+
+  it('mergeGrokIntoRadar adds grok sessions missing from ps radar', () => {
+    const merged = mergeGrokIntoRadar(
+      {
+        scanned_at: new Date().toISOString(),
+        processes: [{ pid: 1, name: 'codex.exe', command: 'codex', agent_id: 'codex', agent_name: 'Codex', source: 'external' }],
+        agents: [{ id: 'codex', name: 'Codex', count: 1, dock: 0, external: 1, pids: [1] }],
+        summary: { total: 1, dock: 0, external: 1, agent_types: 1 },
+      },
+      {
+        activeProject: 'D:\\projects',
+      },
+    );
+    assert.ok(Array.isArray(merged.grok_sessions));
+    assert.ok(merged.grok_summary);
+    if (merged.grok_sessions.length > 0) {
+      assert.ok(merged.summary.total >= merged.grok_sessions.length);
+      assert.ok(merged.agents.some((a) => a.id === 'grok'));
+    }
   });
 });

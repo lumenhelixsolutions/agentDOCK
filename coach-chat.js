@@ -46,6 +46,11 @@ function buildCoachChatResponse({ text, context = {} }) {
   if (pageContext.easyStep === 3 && pageContext.easyTopPickName) {
     live.push(`top pick: ${pageContext.easyTopPickName}`);
   }
+  if (pageContext.grokSessionActive) {
+    const tokens = Number(pageContext.grokEstContextTokens) || 0;
+    const model = pageContext.grokModelId || 'grok';
+    live.push(`Grok CLI active${tokens ? ` · ~${tokens >= 1000 ? `${Math.round(tokens / 1000)}K` : tokens} est context tokens` : ''} (${model})`);
+  }
   if (live.length) {
     lines.push('');
     lines.push(`**Right now:** ${live.join(' · ')}`);
@@ -105,6 +110,8 @@ function viewOperatorSnapshot(view, pageContext = {}, context = {}) {
     snap.scanPresent = pc.scanPresent;
     snap.runningCount = pc.runningCount;
     snap.portfolioIssues = pc.portfolioIssues;
+    snap.grokSessionActive = pc.grokSessionActive;
+    snap.grokEstContextTokens = pc.grokEstContextTokens;
   } else if (view === '/scan') {
     snap.scanLoaded = pc.scanLoaded;
     snap.ollamaPresent = pc.ollamaPresent;
@@ -112,6 +119,10 @@ function viewOperatorSnapshot(view, pageContext = {}, context = {}) {
     snap.tokenBurnRisk = pc.tokenBurnRisk;
     snap.agentRadarExternal = pc.agentRadarExternal;
     snap.agentRadarTotal = pc.agentRadarTotal;
+    snap.grokSessionActive = pc.grokSessionActive;
+    snap.grokEstContextTokens = pc.grokEstContextTokens;
+    snap.grokModelId = pc.grokModelId;
+    snap.grokLastUserQuery = pc.grokLastUserQuery;
   } else if (view === '/profiles') {
     snap.viewMode = pc.viewMode;
     snap.easyStep = pc.easyStep;
@@ -177,6 +188,8 @@ function summarizeCoachContext(context) {
     providerMatrix: context.hybridWorkspace?.cooldown?.matrix_line || context.pageContext?.providerMatrix || null,
     activeRoot: context.hybridWorkspace?.active_root_path || context.workspaceTerse?.active_root || null,
     workspaceBoundaries: context.workspaceTerse?.rule || null,
+    productionContext: pageContext.productionContext || null,
+    grokSummary: pageContext.grokSummary || null,
   };
 }
 

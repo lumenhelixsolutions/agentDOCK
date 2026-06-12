@@ -93,6 +93,25 @@ export const api = {
       dock_sessions?: number;
       cached?: boolean;
       note?: string;
+      grok_sessions?: Array<Record<string, unknown>>;
+      grok_summary?: {
+        active?: number;
+        matched_project?: number;
+        est_context_tokens?: number;
+        turn_count?: number;
+        compaction_events?: number;
+      };
+      production_context?: {
+        provider?: string;
+        model_id?: string | null;
+        est_context_tokens?: number;
+        completed_turns?: number;
+        compaction_count?: number;
+        last_user_query?: string | null;
+        session_id?: string;
+        cwd?: string;
+        matched_project?: boolean;
+      } | null;
     }>("GET", `/api/agent-radar${force ? "?force=1" : ""}`),
   makePlan: (goal: string) => request<any>("POST", "/api/plan", { goal }),
   dryRun: (id: string) => request<any>("POST", `/api/launch/${encodeURIComponent(id)}`, { dryRun: true }),

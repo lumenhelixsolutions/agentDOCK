@@ -54,6 +54,37 @@ function buildCoachHints({ view = '/', pageContext = {}, scan = null, profiles =
   const radarTotal = agentRadar?.summary?.total || Number(pageContext.agentRadarTotal) || 0;
   const radarDock = agentRadar?.summary?.dock || Number(pageContext.agentRadarDock) || 0;
   const radarAgents = agentRadar?.agents || pageContext.agentRadarAgents || [];
+  const grokActive = Boolean(pageContext.grokSessionActive || agentRadar?.production_context?.session_id);
+  const grokTokens = Number(pageContext.grokEstContextTokens || agentRadar?.production_context?.est_context_tokens) || 0;
+  const grokModel = pageContext.grokModelId || agentRadar?.production_context?.model_id || 'grok';
+  const grokQuery = pageContext.grokLastUserQuery || agentRadar?.production_context?.last_user_query;
+
+  if (grokActive && grokTokens >= 80000) {
+    push(hints, {
+      id: 'grok-context-heavy',
+      priority: 91,
+      tone: 'warning',
+      message: `Grok CLI session has ~${grokTokens >= 1000 ? `${Math.round(grokTokens / 1000)}K` : grokTokens} estimated context tokens (${grokModel}). Compaction may be imminent — consider a handoff packet before switching providers.`,
+      actions: [
+        { label: 'Command Deck', type: 'navigate', target: '/command-deck' },
+        { label: 'Token burn', type: 'navigate', target: '/scan' },
+        { label: 'Ask HOOT', type: 'chat', prompt: 'Analyze my active Grok CLI session context size and recommend when to hand off or compact.' },
+      ],
+    });
+  } else if (grokActive) {
+    const tokenBit = grokTokens ? ` · ~${grokTokens >= 1000 ? `${Math.round(grokTokens / 1000)}K` : grokTokens} est context` : '';
+    const queryBit = grokQuery ? ` Last task: "${String(grokQuery).slice(0, 80)}${grokQuery.length > 80 ? '…' : ''}"` : '';
+    push(hints, {
+      id: 'grok-production-session',
+      priority: 86,
+      tone: 'tip',
+      message: `Grok CLI is running on this machine (${grokModel}${tokenBit}). HOOT is tracking it for token burn + production analysis.${queryBit}`,
+      actions: [
+        { label: 'Readiness', type: 'navigate', target: '/scan' },
+        { label: 'Ask HOOT', type: 'chat', prompt: 'Summarize my active Grok CLI session — context size, model, and whether I should hand off.' },
+      ],
+    });
+  }
 
   if (radarExternal > 0) {
     const names = radarAgents.filter(a => a.external > 0).map(a => a.name).slice(0, 3).join(', ');

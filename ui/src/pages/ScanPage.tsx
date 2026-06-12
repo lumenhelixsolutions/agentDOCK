@@ -5,6 +5,7 @@ import { hootSignal } from "@/lib/hoot-signals";
 import { Scan, Cpu, HardDrive, Microchip, Radar, Flame } from "lucide-react";
 import { BRAND } from "@/lib/brand";
 import TokenBurnPanel, { type TokenBurnReport } from "@/components/TokenBurnPanel";
+import { grokFieldsFromRadar } from "@/lib/grok-radar";
 
 type AgentRadar = Awaited<ReturnType<typeof api.getAgentRadar>>;
 
@@ -56,6 +57,7 @@ export default function ScanPage() {
         agentRadarAgents: data.agents ?? [],
         agentRadarScannedAt: data.scanned_at,
         radarLoading: false,
+        ...grokFieldsFromRadar(data),
       });
     } catch (e) {
       reportError({

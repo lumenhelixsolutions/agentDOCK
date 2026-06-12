@@ -20,7 +20,7 @@ $agentRules = @(
   @{ id='opencode'; name='OpenCode'; exe=@('opencode.exe','opencode'); cmd=@('opencode','sst/opencode') }
   @{ id='kimi'; name='Kimi CLI'; exe=@('kimi.exe','kimi'); cmd=@('@moonshot-ai/kimi','kimi-cli') }
   @{ id='aider'; name='Aider'; exe=@('aider.exe','aider'); cmd=@('aider','aider-chat') }
-  @{ id='grok'; name='Grok CLI'; exe=@('grok.exe','grok'); cmd=@('grok-cli','xai/grok') }
+  @{ id='grok'; name='Grok CLI'; exe=@('grok.exe','grok','agent.exe'); cmd=@('grok-cli','xai/grok','\.grok') }
   @{ id='cursor-agent'; name='Cursor Agent'; exe=@('cursor.exe','Cursor.exe'); cmd=@('cursor-agent','cursor agent','composer','cursor-cli') }
   @{ id='windsurf'; name='Windsurf'; exe=@('windsurf.exe','Windsurf.exe'); cmd=@('windsurf','codeium/windsurf') }
   @{ id='continue'; name='Continue'; exe=@('continue.exe'); cmd=@('continue.dev','continue-cli') }
@@ -32,7 +32,10 @@ function Test-AgentMatch($procName, $cmdLine, $rule) {
   $base = ($procName -replace '\.exe$','').ToLowerInvariant()
   foreach ($e in $rule.exe) {
     $eb = ($e -replace '\.exe$','').ToLowerInvariant()
-    if ($base -eq $eb) { return $true }
+    if ($base -eq $eb) {
+      if ($base -eq 'agent' -and $rule.id -eq 'grok' -and $cmdLine -notmatch '\.grok') { continue }
+      return $true
+    }
   }
   if (-not $cmdLine) { return $false }
   $cl = $cmdLine.ToLowerInvariant()
@@ -43,10 +46,11 @@ function Test-AgentMatch($procName, $cmdLine, $rule) {
 }
 
 $procs = Get-CimInstance Win32_Process |
-  Where-Object { $_.Name -match 'node|python|codex|claude|gemini|hermes|opencode|kimi|aider|grok|cursor|windsurf|continue|cline|roo|agy|goose' }
+  Where-Object { $_.Name -match 'node|python|codex|claude|gemini|hermes|opencode|kimi|aider|grok|agent|cursor|windsurf|continue|cline|roo|agy|goose' }
 
 $matches = @()
 $agentMap = @{}
+$seenPids = @{}
 
 foreach ($p in $procs) {
   $cmd = $p.CommandLine
@@ -54,6 +58,7 @@ foreach ($p in $procs) {
   foreach ($rule in $agentRules) {
     if (-not (Test-AgentMatch $p.Name $cmd $rule)) { continue }
     $pid = [int]$p.ProcessId
+    if ($seenPids.ContainsKey($pid)) { break }
     $source = if ($dockSet.ContainsKey($pid) -or $cmd -match 'AGENTDOCK_SESSION_ID') { 'agentdock' } else { 'external' }
     $entry = @{
       pid = $pid
@@ -70,6 +75,7 @@ foreach ($p in $procs) {
     $agentMap[$rule.id].count++
     if ($source -eq 'agentdock') { $agentMap[$rule.id].dock++ } else { $agentMap[$rule.id].external++ }
     $agentMap[$rule.id].pids += $pid
+    $seenPids[$pid] = $true
     break
   }
 }
