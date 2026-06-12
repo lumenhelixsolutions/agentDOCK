@@ -93,6 +93,7 @@ const {
   runBenchScript,
   DEFAULT_CSV: BENCH_CSV,
 } = require('./bench-results');
+const { logCoachExecution, loadApprovalLog } = require('./coach-approval-log');
 
 const ROOT = __dirname;
 const SERVER_STARTED_AT = new Date().toISOString();
@@ -2664,6 +2665,11 @@ async function route(req, res) {
       const entries = listOperatorLog(FILES.hootOperatorLog, limit);
       return send(res, 200, { entries, count: entries.length });
     }
+    if (pathName === '/api/coach/approvals' && req.method === 'GET') {
+      const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') || 50)));
+      const data = loadApprovalLog(limit);
+      return send(res, 200, { ...data, phase4Ready: data.count >= 10 });
+    }
     if (pathName === '/api/coach/execute' && req.method === 'POST') {
       const body = await readBody(req);
       const settings = loadUserSettings();
@@ -2682,6 +2688,7 @@ async function route(req, res) {
             error: result.error || null,
           });
         }
+        logCoachExecution(cmd, result);
         results.push(result);
       }
       const last = results[results.length - 1] || {};
