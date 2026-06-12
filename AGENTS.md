@@ -1,5 +1,7 @@
 # HOOT — Local AI Command Center
 
+**Portfolio path:** `D:/projects/Hoot/` — canonical folder for all HOOT work (rebrand from AgentDock).
+
 HOOT is a local-only AI agent command center (engine package: `agentdock`). It scans your machine, plans agent stacks, monitors terminals, launches approved profiles, and learns from memory. It binds to `127.0.0.1` only, uses zero runtime npm dependencies, and launches only commands embedded in approved Markdown profile files.
 
 ## Quick Start

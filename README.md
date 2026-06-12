@@ -21,7 +21,9 @@
 | **Mascot** | My Ops OWL — head-only ASCII coach with screen awareness |
 | **Logo** | Custom owl mark (`ui/src/components/HootMark.tsx`, favicon `ui/public/hoot-favicon.svg`) |
 
-**Unchanged (on purpose):** repo folder `agentdock`, npm package name, `AGENTDOCK_*` environment variables, `/api/*` routes, and launch profile internals. Existing scripts and env configs keep working; only user-facing branding moved to HOOT.
+**Unchanged (on purpose):** npm package name `agentdock`, `AGENTDOCK_*` environment variables, `/api/*` routes, and launch profile internals. Existing scripts and env configs keep working.
+
+**Portfolio path:** store and work on this project in `D:/projects/Hoot/` (not `agentdock/`). Git remote remains `lumenhelixsolutions/agentDOCK`.
 
 If you have bookmarks or docs pointing at “AgentDock”, read them as HOOT — same local engine, new identity.
 

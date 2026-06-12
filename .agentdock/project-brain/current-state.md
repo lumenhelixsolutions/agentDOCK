@@ -14,7 +14,8 @@ Canonical-For-Project: true
 
 ## Active Branch / Repo Health
 
-- v2.3.0; M9 bench scoring committed; UI/docs WIP may remain uncommitted
+- v2.3.0; canonical portfolio folder `D:/projects/Hoot/` (git root moved from `agentdock/`)
+- M9 bench scoring committed; legacy `agentdock/` folder is read-only mirror
 
 ## What Is Working
 
