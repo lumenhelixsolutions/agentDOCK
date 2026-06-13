@@ -6,7 +6,14 @@ HOOT is a local-only AI agent command center (engine package: `agentdock`). It s
 
 ## Quick Start
 
+**Canonical path only:** `D:\projects\Hoot` — never start from `D:\projects\agentdock` (legacy mirror).
+
+```powershell
+pwsh D:\projects\scripts\start-hoot.ps1
+```
+
 ```bash
+cd D:/projects/Hoot
 node server.js
 ```
 
@@ -120,6 +127,17 @@ HOOT is **not** [AgentDock/AgentDock](https://github.com/AgentDock/AgentDock) on
 | ECC copy | `D:\projects\ecc\skills\agentdock-framework\SKILL.md` |
 
 **M9 bench lane:** `scripts/bench-local-models.mjs` writes `state/bench-results.csv`; `applyBenchToProfile()` adjusts stack scores for Ollama/llama.cpp models.
+
+## UI session refresh
+
+While the HOOT tab is open, intelligence views auto-reload **on mount** and **every 30 minutes** (`SESSION_POLL_MS` in `ui/src/lib/session-poll.ts`). `SessionPollProvider` in `AppLayout` broadcasts `hoot:session-refresh`; pages use `useSessionPoll()`.
+
+| Cadence | Surfaces |
+|---------|----------|
+| 30 min | Overview, Portfolio, Pipeline, Activity, Token Ledger, Bench, Approvals |
+| 30 s | Command Deck cooldown registry (live countdowns) |
+
+Portfolio/Pipeline passes `?refresh=1` on session ticks to re-read `MILESTONES.md` and `.agentdock/project-brain/`.
 
 ## Chatbot / Coach UI
 

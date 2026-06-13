@@ -7,6 +7,9 @@
   - Captures launch stdout/stderr in an integrated terminal monitor.
 */
 
+const { assertCanonicalHootRoot } = require('./canonical-root');
+assertCanonicalHootRoot();
+
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -37,6 +40,8 @@ const { createModuleManager } = require('./module-manager');
 const { getPrefabInventory } = require('./prefab-inventory');
 const { runAgentRadar } = require('./agent-radar');
 const { buildTokenBurnReport, refreshRtkGain } = require('./token-burn');
+const { buildTokenLedger, updateConfig, discoverDefaultPaths, loadConfig } = require('./token-ledger');
+const { buildPipelineOverview, buildProjectOverview } = require('./portfolio-pipeline');
 const { checkAuth, generateToken, hashToken, getAuthSettings, isAuthPublicPath } = require('./hoot-auth');
 const { createActivityLog } = require('./activity-log');
 const { buildActivityAnalytics, formatDiaryMarkdown } = require('./activity-analytics');
@@ -134,6 +139,8 @@ const FILES = {
   workspaceRoots: path.join(DIRS.state, 'workspace-roots.json'),
   handoffLatest: path.join(DIRS.state, 'handoff-latest.json'),
   aiStatus: path.join(DIRS.state, 'ai_status.json'),
+  tokenLedgerConfig: path.join(DIRS.state, 'token-ledger-config.json'),
+  tokenLedgerCache: path.join(DIRS.state, 'token-ledger-cache.json'),
 };
 const DIARY_DIR = path.join(ROOT, 'diary');
 
@@ -470,6 +477,10 @@ function discoverProjects() {
       const entries = fs.readdirSync(root, { withFileTypes: true });
       for (const entry of entries) {
         if (!entry.isDirectory()) continue;
+        if (entry.name.toLowerCase() === 'agentdock') {
+          const hootPath = path.join(root, 'Hoot');
+          if (fs.existsSync(path.join(hootPath, 'server.js'))) continue;
+        }
         const fullPath = path.join(root, entry.name);
         const info = getProjectDir(fullPath);
         if (info.hasGit || info.hasPackageJson || info.hasAgentsMd || info.hasReadme) {
@@ -2048,6 +2059,45 @@ async function route(req, res) {
       });
       return send(res, 200, { ...report, refresh: refreshMeta });
     }
+    if (pathName === '/api/token-ledger' && req.method === 'GET') {
+      const refresh = url.searchParams.get('refresh') === '1';
+      const mode = url.searchParams.get('mode') === 'fast_recent' ? 'fast_recent' : 'full';
+      let transactions = [];
+      try {
+        const client = getCoreClient();
+        transactions = client.getTraces({ limit: 10000 });
+      } catch { /* optional supplement */ }
+      const report = buildTokenLedger({
+        stateDir: DIRS.state,
+        configFile: FILES.tokenLedgerConfig,
+        cacheFile: FILES.tokenLedgerCache,
+        refresh,
+        mode,
+        transactions,
+      });
+      return send(res, 200, { ok: true, ...report });
+    }
+    if (pathName === '/api/token-ledger/config' && req.method === 'GET') {
+      const config = loadConfig(FILES.tokenLedgerConfig);
+      const discovered = discoverDefaultPaths();
+      return send(res, 200, { ok: true, config, discovered });
+    }
+    if (pathName === '/api/token-ledger/config' && req.method === 'PUT') {
+      const body = await readBody(req);
+      const config = updateConfig(FILES.tokenLedgerConfig, body || {});
+      return send(res, 200, { ok: true, config });
+    }
+    if (pathName === '/api/token-ledger/import' && req.method === 'POST') {
+      const body = await readBody(req);
+      const report = buildTokenLedger({
+        stateDir: DIRS.state,
+        configFile: FILES.tokenLedgerConfig,
+        cacheFile: FILES.tokenLedgerCache,
+        refresh: true,
+        importPayload: body,
+      });
+      return send(res, 200, { ok: true, ...report });
+    }
     if (pathName === '/api/core/traces' && req.method === 'GET') {
       const client = getCoreClient();
       const projectId = url.searchParams.get('project_id') || resolveCoreProjectId();
@@ -2617,6 +2667,19 @@ async function route(req, res) {
     if (pathName === '/api/portfolio/health' && req.method === 'GET') {
       const force = url.searchParams.get('refresh') === '1';
       return send(res, 200, { items: buildPortfolioHealth(force) });
+    }
+    if (pathName === '/api/portfolio/pipeline' && req.method === 'GET') {
+      const registry = readProjectRegistry(url.searchParams.get('refresh') === '1');
+      const roots = getProjectRoots();
+      const report = buildPipelineOverview({ registry, portfolioRoot: roots[0] });
+      return send(res, 200, { ok: true, ...report });
+    }
+    if (pathName === '/api/project-overview' && req.method === 'GET') {
+      const projectPath = url.searchParams.get('path') || activeProject;
+      const registry = readProjectRegistry();
+      const project = registry.projects.find((p) => path.normalize(p.path) === path.normalize(projectPath || ''));
+      if (!project) return send(res, 404, { ok: false, error: 'Project not found' });
+      return send(res, 200, { ok: true, ...buildProjectOverview(project) });
     }
     if (pathName === '/api/bench/results' && req.method === 'GET') {
       return send(res, 200, loadBenchResults(BENCH_CSV));

@@ -1,6 +1,6 @@
 @echo off
 cd /d "D:\projects\Hoot"
 echo Starting HOOT from D:\projects\Hoot at http://127.0.0.1:7777
-echo Legacy D:\projects\agentdock is NOT used. Prefer start-hoot.bat.
+echo Legacy path D:\projects\agentdock is NOT used.
 node server.js
 pause
